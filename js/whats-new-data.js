@@ -3,6 +3,19 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v39',
+    date: '2026-10-26',
+    title: 'v39 — settle latch, clip assist, classes, maturity looks',
+    bullets: [
+      '✋ DryClip: a touch that stays latched after settle is cleared once and does not re-arm. Arm again when the plate reads dry, or tap Arm. Unpaired clips (bond none) wait instead of looping.',
+      '📎 Clip assists Path covers a pending go before Start timer, and stays on after the timer hits 0 until you resolve the go. Soft play stays a flag. Interrupt still asks you.',
+      '🤗 Padding check before re-arm: a random timer (tunable spread) so you can aim the clip at padding that is still dry. Caregiver voice when caregiver mode is on. Works with Match protection.',
+      '🏫 Pull-up Soft (not Leaky Girl, full-length holds). Pad Girl clarified. Night Little is the night class. Leaky Girl stays one identity with Campaign. Every class has a small #2 modifier.',
+      '🎨 Baby, Toddler, and Teen bedwetter looks change the background, cards, and type. Girl / Boy accents stay.',
+      'Version 39.'
+    ]
+  },
+  {
     hash: 'v38',
     date: '2026-10-25',
     title: 'Look themes (real CSS)',

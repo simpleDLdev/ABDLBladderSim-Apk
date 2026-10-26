@@ -54,6 +54,18 @@
       solo: 'Heavy dribble lean. Threshold May I change?.',
       plus: ['Dribble ×1.8', 'Quiet Signals'], minus: ['Hard ×0.6', 'Threshold changes'],
       stats: { constitution: 0, perception: 2, composure: 0 } },
+    { id: 'pullup', name: 'Pull-up Soft', office: 'Soft', base: 'shaky', change: 'ask', urge: {},
+      oddsMod: { go: 1 }, accidentTypes: ['soft_leak'], eventSteps: [],
+      perkTree: ['second_chance', 'thick_skin', 'mercy_charm'], mastery: ['dribbles_logged_8'],
+      blurb: 'Pull-ups with full-length holds. A different identity from Leaky Girl.',
+      desc: 'Round-up energy without Leaky Girl\'s short holds or dribble gate. Small #2 step-back reduction.',
+      mommy: 'Pull-ups on, love. Holds stay the normal length — Mommy is not using Leaky Girl rules.',
+      solo: 'Full-length holds. No dribble gate. #2 accidents step back 1 less.',
+      plus: ['Full-length holds (not ×0.8)', 'Distinct from Leaky Girl'],
+      minus: ['Missed hold still counts as an accident', 'No dribble-gate perk'],
+      stats: { constitution: 0, perception: 0, composure: 0 },
+      flags: { failHoldIsAcc: true },
+      aliases: ['Pull-up Soft', 'Pull-up Dribbler'] },
     { id: 'dribbler', name: 'Leaky Girl', office: 'Drip', base: 'shaky', change: 'ask', urge: {},
       oddsMod: { dribble: 2, go: 0.6 }, accidentTypes: ['pre_potty_dribble'],
       eventSteps: [{ before: ['go', 'permission'], micro: 'small_leak', text: 'Small leak into your gear first. Note it, then read your result.' }],
@@ -66,7 +78,7 @@
       minus: ['Go ×0.6', 'Constitution dump (short holds)', 'Change saturation gate +25', 'Need-to-go gated on first dribble'],
       stats: { constitution: -2, perception: 1, composure: -1 },
       flags: { needDribbleFirst: true, holdScale: 0.65, changeSatBump: 25, padsWithUndies: true },
-      aliases: ['leaky', 'Leaky Girl', 'Dribbler'] },
+      aliases: ['leaky', 'Leaky Girl'] },
     { id: 'care_charge', name: 'Caregiver\'s Charge', office: 'Guided', base: 'little', change: 'threshold', urge: {},
       oddsMod: { go: 0.8 }, accidentTypes: [], eventSteps: [], denyTable: 'sitter',
       perkTree: ['hall_pass', 'mercy_charm', 'spare_stash'], mastery: ['ask_twice_ok_5', 'changes_rolled_10'],
@@ -114,6 +126,26 @@
       plus: ['Perk pick fantasy', 'Lucky roll tree'], minus: ['Control resets each run'],
       stats: { constitution: 0, perception: 0, composure: 0 } }
   ];
+  // v39: every campaign class gets a small #2 modifier, same ± shape as Leaky Girl. Ids stay stable.
+  const POO = {
+    trainee: { note: '#2 in the potty counts +1 extra when you log it.', delta: 1 },
+    office: { note: 'Quiet #2: a logged #2 leans −1.', delta: -1 },
+    sleepyhead: { note: 'A night #2 leans −1 when you log it.', delta: -1 },
+    fast_filler: { note: '#2 waits lean shorter — logged #2 is −1.', delta: -1 },
+    quiet_one: { note: 'Quiet #2 accidents lean −1.', delta: -1 },
+    pullup: { note: 'Pull-up Soft #2 steps the tally −1. Holds stay full length.', delta: -1 },
+    dribbler: { note: 'Leaky Girl #2: a padding #2 leans −1 extra.', delta: -1 },
+    care_charge: { note: 'Caregiver #2 asks first — logged #2 leans −1.', delta: -1 },
+    little_legend: { note: 'Geared #2 still teaches: +1 when you log a padding #2.', delta: 1 },
+    scout: { note: 'Scout kit: a logged #2 in the potty is +1 extra.', delta: 1 },
+    night_owl: { note: 'Night focus: a night #2 leans −1.', delta: -1 },
+    runner: { note: 'First logged #2 of the run is +1.', delta: 1 }
+  };
+  CLASSES.forEach(c => {
+    const poo = POO[c.id] || { note: 'Logged #2 leans −1.', delta: -1 };
+    c.flags = Object.assign({}, c.flags, { poo: poo });
+    if (!(c.plus || []).some(p => String(p).indexOf('#2') >= 0)) c.plus = (c.plus || []).concat(['#2: ' + poo.note]);
+  });
   const PERKS = {
     iron_hold: { name: 'Iron Hold', tier: 1, effect: 'First missed window of the day doesn\'t count.' },
     early_bird: { name: 'Early Bird', tier: 1, effect: 'Pre-chime always on until 10:00.' },
@@ -218,6 +250,16 @@
     try { const b = window.BSPath && window.BSPath.load(); return !!(b && b.dribbleGate && !b.dribbleLogged); } catch (e) {}
     return false;
   }
+  function pooMod(id) {
+    const c = id ? get(id) : active();
+    const p = c && c.flags && c.flags.poo;
+    return p || { note: '', delta: 0 };
+  }
+  /** Apply the active class's small #2 delta to a logged tally. */
+  function pooAdjust(base, id) {
+    const d = +pooMod(id).delta || 0;
+    return (+base || 0) + d;
+  }
   function eventStepsFor(outcome) {
     const a = active(); if (!a || !a.eventSteps) return [];
     return a.eventSteps.filter(s => !s.before || s.before.includes(outcome) || s.before.includes('permission'));
@@ -226,6 +268,6 @@
   window.BSClasses = {
     KEY, CLASSES, PERKS, DAILY, PUNISH, MASTERIES,
     load, save, get, pick, active, note, noteDribble, hasRecentDribble,
-    applyOdds, changeSatBump, holdScale, needDribbleFirst, eventStepsFor
+    applyOdds, changeSatBump, holdScale, needDribbleFirst, eventStepsFor, pooMod, pooAdjust
   };
 })();

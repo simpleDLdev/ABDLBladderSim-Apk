@@ -145,18 +145,18 @@
       flags: { alwaysCheck: true, accessBonus: 0.1 }
     },
     padgirl: {
-      desc: 'Pads matter. Redirect mastery into Accident track; limited changes until that track is done.',
+      desc: 'Pad Girl: pads are the protection. Accident Mastery can take bed and #2 progress. One change a day until that track is done.',
       mommy: 'Pad day, sweetie. Mommy wants honest checks — one change until you\'ve learned from the drips.',
       solo: 'One change/day until Accident Mastery (skin comfort always overrides). Pads in stash required.',
       statsHint: { constitution: 0, perception: 1, composure: 0 },
       flags: { padsOk: true, changeSatBump: 10 }
     },
     pullup: {
-      desc: 'Pull-up dribbler: round half-rolls up, shorter holds, busy-potty chance.',
-      mommy: 'Pull-ups on, love. Holds are shorter — Mommy knows you get wiggly fast.',
-      solo: 'Hold timers ×0.8. Missing a hold counts as an accident. 1-in-6 potty busy.',
-      statsHint: { constitution: -1, perception: 0, composure: 0 },
-      flags: { holdScale: 0.8, failHoldIsAcc: true }
+      desc: 'Pull-up Soft: round half-rolls up, full-length holds, busy-potty chance. Not Leaky Girl.',
+      mommy: 'Pull-ups on, love. Holds stay the normal length — these are not Leaky Girl rules.',
+      solo: 'Full-length holds. Missing a hold counts as an accident. 1-in-6 potty busy. #2 steps back 1 less.',
+      statsHint: { constitution: 0, perception: 0, composure: 0 },
+      flags: { failHoldIsAcc: true }
     },
     leaky: {
       desc: 'Leaky Girl: need-to-go rolls unlock only after you log a first dribble. Short holds, soggy change gates, pads OK with undies.',
@@ -166,11 +166,11 @@
       flags: { needDribbleFirst: true, holdScale: 0.65, changeSatBump: 25, padsWithUndies: true, leakPressure: 1.2 }
     },
     little: {
-      desc: 'Leaky Toddler band: bed mastery swings hard; night dry counts double.',
-      mommy: 'Little mode, love. Nights matter to Mommy — dry mornings get double stickers.',
-      solo: 'Dry nights ×2 on Bed Mastery; wet nights −6. After Bed Mastery, accidents always −3.',
+      desc: 'Night Little: night focus. Dry nights count double; wet nights sting harder. A #2 accident also nicks Bed Mastery.',
+      mommy: 'Night Little, love. Nights matter to Mommy — dry mornings get double stickers.',
+      solo: 'Dry nights ×2 on Bed Mastery; wet nights −6. After Bed Mastery, accidents always −3. #2 also −1 bed.',
       statsHint: { constitution: -1, perception: 0, composure: -1 },
-      flags: { holdScale: 0.9, accessBonus: -0.1 }
+      flags: { holdScale: 0.9, accessBonus: -0.1, nightFocus: true }
     },
     baby: {
       desc: 'Diapers every stage; never moved back for diaper accidents. No potty access.',
@@ -209,8 +209,9 @@
     if (fl.needDribbleFirst) mech.push('dribble gate');
     if (fl.accessBonus) mech.push(`access ${fl.accessBonus > 0 ? '+' : ''}${Math.round(fl.accessBonus * 100)}%`);
     if (fl.failHoldIsAcc) mech.push('missed hold = accident');
+    if (c.poo && c.poo.note) mech.push('#2 ' + c.poo.note);
     return `<button type="button" class="pp-class-card pp-class-card-wide ${selected === c.id ? 'on' : ''}" data-cls="${esc(c.id)}" ${c._blocked ? 'disabled' : ''}>
-      <div class="pp-cc-top"><b>${esc(c.name)}</b> <small>${esc(c.band || '')}</small>${c.from ? ` <small class="muted">· ${esc(c.from)}</small>` : ''}</div>
+      <div class="pp-cc-top"><b>${esc(c.name)}</b> <small>${esc(c.band || '')}</small></div>
       <div class="pp-cc-desc">${esc(c.desc || '')}</div>
       <div class="pp-cc-voice">${esc(voice || '')}</div>
       <ul class="pp-cc-perks">${plus}${minus}</ul>
@@ -398,7 +399,7 @@
         });
         try { if (window.BSHub && window.BSHub.setTheme) window.BSHub.setTheme(saved.theme || draft.theme || 'neutral'); } catch (e) {}
         try {
-          const map = { leaky: 'dribbler', pullup: 'dribbler', shy: 'quiet_one', scout: 'scout', baby: 'little_legend', little: 'care_charge', bigkid: 'trainee', padgirl: 'fast_filler', cascade: 'sleepyhead' };
+          const map = { leaky: 'dribbler', pullup: 'pullup', shy: 'quiet_one', scout: 'scout', baby: 'little_legend', little: 'night_owl', bigkid: 'trainee', padgirl: 'fast_filler', cascade: 'sleepyhead' };
           const cid = map[draft.classId] || draft.classId;
           if (window.BSClasses && window.BSClasses.get(cid)) window.BSClasses.pick(cid);
         } catch (e) {}

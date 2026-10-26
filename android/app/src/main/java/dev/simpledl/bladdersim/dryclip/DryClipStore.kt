@@ -17,6 +17,9 @@ class DryClipStore(ctx: Context) {
     var mac: String? get() = p.getString("mac", null); set(v) { p.edit().putString("mac", v).apply() }
     var name: String? get() = p.getString("name", null); set(v) { p.edit().putString("name", v).apply() }
     var rearmMin: Double get() = p.getFloat("rearmMin", 20f).toDouble(); set(v) { p.edit().putFloat("rearmMin", v.toFloat()).apply() }
+    /** v39: ask before arming so the clip can sit on padding that is still dry. New fields on the native store. */
+    var mommyCheck: Boolean get() = p.getBoolean("mommyCheck", true); set(v) { p.edit().putBoolean("mommyCheck", v).apply() }
+    var mommySpreadMin: Double get() = p.getFloat("mommySpreadMin", 8f).toDouble(); set(v) { p.edit().putFloat("mommySpreadMin", v.toFloat()).apply() }
     var lastWetAt: Long get() = p.getLong("lastWetAt", 0L); set(v) { p.edit().putLong("lastWetAt", v).apply() }
     var armedSince: Long get() = p.getLong("armedSince", 0L); set(v) { p.edit().putLong("armedSince", v).apply() }
     var ignoreUntil: Long get() = p.getLong("ignoreUntil", 0L); set(v) { p.edit().putLong("ignoreUntil", v).apply() }

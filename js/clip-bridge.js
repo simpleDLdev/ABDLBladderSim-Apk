@@ -47,6 +47,8 @@
       if (!raw) return null;
       const h = JSON.parse(raw);
       if (!h || !h.active) return null;
+      // v39: a pending Path go stays assist context until the go is resolved, including before Start timer and after it hits 0.
+      if (h.untilResolve) return h;
       if (h.endsAt && Date.now() > h.endsAt + 120000) { clearPathHold(); return null; } // expired + 2 min grace
       return h;
     } catch (e) { return null; }
@@ -56,6 +58,26 @@
     try { localStorage.setItem(HOLD_KEY, JSON.stringify(Object.assign({ active: true, startedAt: Date.now() }, h))); } catch (e) {}
   }
   function clearPathHold() { setPathHold(null); }
+
+  /** v39: when Path assist is on, any pending go is hold context until resolve. Assist off clears the marker. */
+  function syncFromBoard(b) {
+    if (!pathOn()) { clearPathHold(); return null; }
+    if (!b || b.finished || !b.pending) { clearPathHold(); return null; }
+    const p = b.pending;
+    const holds = p.holds || [];
+    const mins = holds.length ? Math.max.apply(null, holds) : 0;
+    setPathHold({
+      kind: 'path_hold',
+      pending: true,
+      untilResolve: true,
+      mins: mins,
+      endsAt: p.holdEndsAt || 0,
+      started: !!p.holdEndsAt,
+      pos: b.pos,
+      stage: p.stage
+    });
+    return pathHold();
+  }
 
   function urgeWait() {
     try {
@@ -320,11 +342,11 @@
 
   /** Pure helpers for tests */
   function _test() {
-    return { isDupe, markHandled, pathOn, campOn, pathHold, setPathHold, clearPathHold, urgeWait, guideOpen, onClipWet, DEDUPE_MS, HOLD_KEY };
+    return { isDupe, markHandled, pathOn, campOn, pathHold, setPathHold, clearPathHold, syncFromBoard, urgeWait, guideOpen, onClipWet, DEDUPE_MS, HOLD_KEY };
   }
 
   W.BSClipBridge = {
-    onClipWet, setPathHold, clearPathHold, pathHold, pathOn, campOn,
+    onClipWet, setPathHold, clearPathHold, pathHold, syncFromBoard, pathOn, campOn,
     prefs, caregiverNote, flagCalendar, logNaturalAccident, _test, DEDUPE_MS, HOLD_KEY
   };
 })();

@@ -1,6 +1,6 @@
 {
   "name": "bladder-sim",
-  "version": "1.0.0",
+  "version": "39.0.0",
   "private": true,
   "scripts": {
     "build": "rm -rf www && mkdir -p www && cp -r index.html styles.css mobile.css js www/",

@@ -65,6 +65,8 @@ class DryClipService : Service() {
         const val ARM_DROP_WINDOW_MS = 30_000L
         const val ARM_CHECK_MS = 30_000L
         const val STILL_WET_RETRY_MS = 600_000L
+        /** v39: unpaired (bond none) must not tight-loop connect / settle / re-arm. */
+        const val UNPAIRED_RETRY_MS = 60_000L
         const val GAP_MIN_MS = 120_000L
         const val OP_TIMEOUT_MS = 4_000L
 
@@ -123,6 +125,8 @@ class DryClipService : Service() {
     private var armOnConnect: String? = null
     private var ackOnConnect = false
     private var touchClearDone = false
+    private var latchCleared = false      // v39: post-settle touch latch cleared once; no auto re-arm
+    private var unpairedLogged = false
     private var stillWetLogged = false
     private var stillWet = false
     private var ignoreLoggedFor = 0L
@@ -140,7 +144,15 @@ class DryClipService : Service() {
     private val scanStop = Runnable { stopScan() }
     private val assumeArm = Runnable { onArmAssume() }
     private val armCheck = Runnable { onArmCheck() }
-    private val rearm = Runnable { rearmAt = 0L; arm("auto") }
+    private val rearm = Runnable {
+        rearmAt = 0L
+        if (store.mommyCheck) {
+            log("rearm", "Mommy check — aim the clip at padding that is still dry, then arm")
+            store.addEvent(JSONObject().put("kind", "mommy_check").put("detectedAt", now()))
+            emit("event", JSONObject().put("kind", "mommy_check"))
+            refresh()
+        } else arm("auto")
+    }
     private val retryDirect = Runnable { connectDirect("retry") }
     private val opTimeout = Runnable { opBusy = false; nextOp() }
 
@@ -162,6 +174,8 @@ class DryClipService : Service() {
             intent.getStringExtra("mac")?.let { store.mac = it.uppercase(Locale.US) }
             intent.getStringExtra("name")?.let { store.name = it }
             if (intent.hasExtra("rearmMin")) store.rearmMin = intent.getDoubleExtra("rearmMin", 20.0)
+            if (intent.hasExtra("mommyCheck")) store.mommyCheck = intent.getBooleanExtra("mommyCheck", true)
+            if (intent.hasExtra("mommySpreadMin")) store.mommySpreadMin = intent.getDoubleExtra("mommySpreadMin", 8.0).coerceIn(2.0, 20.0)
             store.running = true
             log("svc", "Background watch on · clip " + store.mac + " · bond " + bondState(this, store.mac))
             if (conn != "connected") connectDirect("start")
@@ -196,6 +210,11 @@ class DryClipService : Service() {
     }
 
     fun arm(source: String) {
+        if (bondNow() == "none") {
+            log("arm", "Arm held — bond none. Pair the clip in Android Bluetooth settings first.")
+            holdForUnpaired("arm")
+            return
+        }
         if (conn != "connected" || gatt == null) {
             armOnConnect = source
             log("arm", "Arm queued ($source). It goes out as soon as the clip connects.")
@@ -208,7 +227,7 @@ class DryClipService : Service() {
         val wasArmed = isArmedNow()
         armPending = true; armAt = now(); armedAssumed = false; armSource = source
         store.armedSince = 0L; store.ignoreUntil = now() + ARM_DROP_WINDOW_MS  // no wet while arming
-        if (source == "user") { touchClearDone = false; stillWetLogged = false; stillWet = false; ignoreLoggedFor = 0L }
+        if (source == "user") { touchClearDone = false; latchCleared = false; stillWetLogged = false; stillWet = false; ignoreLoggedFor = 0L }
         h.removeCallbacks(rearm); rearmAt = 0L
         h.removeCallbacks(assumeArm); h.postDelayed(assumeArm, DryClipProtocol.ARM_ASSUME_MS)
         h.removeCallbacks(armCheck); h.postDelayed(armCheck, ARM_CHECK_MS)
@@ -236,7 +255,8 @@ class DryClipService : Service() {
             .put("secs", st?.secs ?: JSONObject.NULL).put("raw", st?.hex ?: JSONObject.NULL)
             .put("battery", battery ?: JSONObject.NULL).put("lastSeen", lastSeen).put("lastStateAt", lastStateAt)
             .put("armedSince", store.armedSince).put("ignoreUntil", store.ignoreUntil).put("rearmAt", rearmAt)
-            .put("stillWet", stillWet).put("queued", store.peekEvents().length()).put("eventCount", store.eventCount)
+            .put("stillWet", stillWet).put("latchCleared", latchCleared).put("mommyCheck", store.mommyCheck)
+            .put("queued", store.peekEvents().length()).put("eventCount", store.eventCount)
             .put("rearmMin", store.rearmMin).put("lastError", lastError ?: JSONObject.NULL).put("downSince", downSince)
             .put("phase", phase()).put("settling", now() < store.ignoreUntil && store.ignoreUntil > 0)
     }
@@ -261,9 +281,39 @@ class DryClipService : Service() {
         try { g.close() } catch (_: Exception) {}
     }
 
+    private fun bondNow(): String = bondState(this, store.mac)
+
+    /** Ask Android to pair once. Does not loop settle or re-arm while the bond is missing. */
+    private fun tryCreateBond() {
+        val dev = device() ?: return
+        if (dev.bondState != BluetoothDevice.BOND_NONE) return
+        try {
+            if (dev.createBond()) log("conn", "Asked Android to pair the clip (bond was none)")
+        } catch (e: Exception) { log("warn", "createBond: " + (e.message ?: "failed")) }
+    }
+
+    /** Slow retry while unpaired. Never starts the settle / touch-clear / re-arm loop. */
+    private fun holdForUnpaired(why: String) {
+        h.removeCallbacks(autoRefresh)
+        h.removeCallbacks(retryDirect)
+        stopScan()
+        closeGatt()
+        conn = "waiting"
+        if (downSince == 0L) downSince = now()
+        if (!unpairedLogged) {
+            unpairedLogged = true
+            log("conn", "Bond none — clip is not paired with this phone. Pair it in Android Bluetooth settings, then the watch reconnects. Not re-arming while unpaired. ($why)")
+            tryCreateBond()
+        }
+        h.postDelayed(retryDirect, UNPAIRED_RETRY_MS)
+        refresh()
+    }
+
     /** One direct attempt, autoConnect=false, 6 s. Always closes the old GATT first; never overlaps. */
     private fun connectDirect(reason: String) {
         if (!store.running) return
+        if (bondNow() == "none") { holdForUnpaired(reason); return }
+        unpairedLogged = false
         h.removeCallbacks(autoRefresh); h.removeCallbacks(retryDirect); stopScan(); closeGatt()
         val dev = device() ?: run { conn = "waiting"; h.removeCallbacks(retryDirect); h.postDelayed(retryDirect, AUTO_RETRY_MS); refresh(); return }
         conn = "connecting"; mode = "direct"; val my = ++attempt
@@ -367,7 +417,14 @@ class DryClipService : Service() {
         if (g !== gatt) { try { g.close() } catch (_: Exception) {}; return } // stale GATT: close and ignore
         if (newState == BluetoothProfile.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
             h.removeCallbacks(connectTimeout); h.removeCallbacks(autoRefresh); h.removeCallbacks(scanTick); stopScan()
-            log("conn", "Connected (" + mode + ") · bond " + bondState(this, store.mac))
+            val bond = bondState(this, store.mac)
+            log("conn", "Connected (" + mode + ") · bond " + bond)
+            if (bond == "none") {
+                closeGatt()
+                holdForUnpaired("link")
+                return
+            }
+            unpairedLogged = false
             conn = "connected"; lastSeen = now(); lastError = null
             // v28: touching the plate to wake/pair registers like wet — settle before any calendar wet
             val settleUntil = now() + DryClipProtocol.SETTLE_ON_CONNECT_MS
@@ -479,6 +536,7 @@ class DryClipService : Service() {
         conn == "connecting" || (conn == "waiting" && store.running) -> if (armPending) "arming" else "reconnecting"
         armPending || (last?.arming == true) -> "arming"
         now() < store.ignoreUntil -> "settling"
+        latchCleared -> "latched_touch"
         stillWet -> "still_wet"
         rearmAt > 0 -> "waiting_rearm"
         isArmedNow() -> "listening"
@@ -512,6 +570,10 @@ class DryClipService : Service() {
             log("arm", "The clip reads not armed")
         }
         if (st.armed && !st.wet && !armPending && t >= store.ignoreUntil && stillWet) { stillWet = false; stillWetLogged = false; log("arm", "Clip dry and armed again") }
+        if (!st.wet && latchCleared && !armPending && t >= store.ignoreUntil) {
+            latchCleared = false
+            log("arm", "Plate reads dry. Arm when you are ready.")
+        }
 
         when (DryClipProtocol.decide(st, t, armPending, store.ignoreUntil, store.lastWetAt.takeIf { it > 0 })) {
             DryClipProtocol.Decision.NEW ->
@@ -519,10 +581,9 @@ class DryClipService : Service() {
                     if (ignoreLoggedFor != -rearmAt) { ignoreLoggedFor = -rearmAt; log("wet", "Wet reading while waiting to re-arm (not counted)") }
                 } else recordWet(st, t)
             DryClipProtocol.Decision.IGNORE_WINDOW -> {
-                if (t < store.ignoreUntil) {
-                    if (ignoreLoggedFor != armAt) { ignoreLoggedFor = armAt; log("wet", "Wet reading during arming ignored (the plate reads a touch)") }
-                } else onLatchedWet()
+                if (ignoreLoggedFor != armAt) { ignoreLoggedFor = armAt; log("wet", "Wet reading during arming ignored (the plate reads a touch)") }
             }
+            DryClipProtocol.Decision.LATCHED_TOUCH -> onLatchedTouch()
             else -> {}
         }
         refresh()
@@ -553,7 +614,11 @@ class DryClipService : Service() {
             if (now() - armAt < 300_000L) h.postDelayed(armCheck, 15_000L)
             return
         }
-        if (st.wet && (!st.armed || now() >= store.ignoreUntil) && armSource != "user") { onStillWet(); return }
+        if (st.wet && armSource != "user") {
+            val at = st.secs?.let { now() - it * 1000L } ?: now()
+            if (store.ignoreUntil > 0 && at < store.ignoreUntil) { onLatchedTouch(); return }
+            if (!st.armed || now() >= store.ignoreUntil) { onStillWet(); return }
+        }
         if (!st.armed && !st.arming && !st.wet) {
             armPending = false; armedAssumed = false; store.armedSince = 0L
             if (armSource == "user") log("arm", "Arm didn't take. The clip still reads not armed. Tap Arm again.")
@@ -565,17 +630,20 @@ class DryClipService : Service() {
         }
     }
 
-    /** Wet that started inside the ignore window and is still latched after it. */
-    private fun onLatchedWet() {
-        if (clearing || armPending) return
-        if (armSource == "user" && !touchClearDone) {
-            touchClearDone = true; clearing = true
-            log("wet", "The touch from arming is still latched. Clearing it and arming once more.")
-            ackWet(false)
-            h.postDelayed({ arm("touch-clear") }, 5_000L)
-            return
-        }
-        onStillWet()
+    /**
+     * v39: wet that started inside settle/arm and is still latched after the window.
+     * Clear (ack) once. Do not arm again — a re-arm opens another settle and the warm plate latches forever.
+     * The next arm is the user's, or it waits until the plate reads dry.
+     */
+    private fun onLatchedTouch() {
+        if (clearing || armPending || latchCleared) return
+        latchCleared = true
+        clearing = false
+        h.removeCallbacks(rearm)
+        rearmAt = 0L
+        log("wet", "Touch still latched after settle. Ignored once — not re-arming until the plate reads dry or you tap Arm.")
+        ackWet(false)
+        refresh()
     }
 
     private fun onStillWet() {
@@ -606,11 +674,34 @@ class DryClipService : Service() {
         scheduleRearm((store.rearmMin * 60_000L).toLong(), "after wet")
     }
 
-    private fun scheduleRearm(ms: Long, why: String) {
+    /** Random lead before the nominal re-arm so a padding check can happen while the spot is still dry. */
+    private fun mommyDelay(ms: Long): Long {
+        val spread = (store.mommySpreadMin.coerceIn(2.0, 20.0) * 60_000.0).toLong()
+        val earliest = (ms - spread).coerceAtLeast(60_000L)
+        val latest = (ms - 60_000L).coerceAtLeast(earliest)
+        if (latest <= earliest) return earliest
+        return earliest + (Math.random() * (latest - earliest + 1)).toLong()
+    }
+
+    fun postponeMommyCheck(minutes: Double) {
+        store.mommyCheck = true
+        val ms = (minutes.coerceIn(2.0, 20.0) * 60_000.0).toLong()
         h.removeCallbacks(rearm)
         rearmAt = now() + ms
         h.postDelayed(rearm, ms)
-        if (why != "still wet" || !stillWetLogged) log("rearm", "Re-arm at " + hm.format(Date(rearmAt)) + " ($why)")
+        log("rearm", "Mommy check again at " + hm.format(Date(rearmAt)))
+        refresh()
+    }
+
+    private fun scheduleRearm(ms: Long, why: String) {
+        h.removeCallbacks(rearm)
+        val delay = if (store.mommyCheck) mommyDelay(ms) else ms
+        rearmAt = now() + delay
+        h.postDelayed(rearm, delay)
+        if (why != "still wet" || !stillWetLogged) {
+            val label = if (store.mommyCheck) "Mommy check at " else "Re-arm at "
+            log("rearm", label + hm.format(Date(rearmAt)) + " ($why)")
+        }
         refresh()
     }
 
@@ -626,8 +717,10 @@ class DryClipService : Service() {
     }
 
     private fun notifText(): String = when {
+        bondNow() == "none" && store.running -> "Not paired · pair the clip in Bluetooth settings"
         conn != "connected" && store.running ->
             if (armPending) "Arming… reconnecting" else "Reconnecting · looking for clip"
+        latchCleared -> "Touch latched · not re-arming until the plate is dry"
         stillWet -> "Clip still wet · retrying re-arm every 10 min"
         rearmAt > 0 -> {
             val wetBit = if (store.lastWetAt > 0)

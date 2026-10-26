@@ -37,6 +37,8 @@
       wearStartedAt: null, // last Arm = new wear
       cloudyNight: false, // v30 one-tap: night watch + Match-protection re-arm
       settleIgnored: 0, // v30: count of touch/settle wets ignored (export telemetry)
+      mommyCheck: true, // v39: padding check before auto-arm (new field on bs_dryclip_v1)
+      mommySpreadMin: 8 // random minutes before the nominal re-arm to aim at dry padding
       night: null // { id, startedAt, wakeAt, eventIdx, lastSecs, gapFrom, gaps:[], saturatedAt, awaitingRearm, pendingCheckIn, totalSat }
     };
   }
@@ -69,15 +71,18 @@
   const IGNORE_AFTER_ARM_MS = 20000, SETTLE_ON_CONNECT_MS = 20000, DEDUPE_MS = 60000;
   /** wet time from a reading: now − secsSinceWet (secs unknown → now). */
   function wetAtFromSecs(now, secs) { return secs == null || !isFinite(+secs) ? now : now - (+secs) * 1000; }
-  /** 'not_wet' | 'arming' | 'not_armed' | 'ignore_window' | 'duplicate' | 'new'
-   *  o.settling / o.pairing: connect/wake/pair phase — never log a calendar wet. */
+  /** 'not_wet' | 'arming' | 'not_armed' | 'ignore_window' | 'latched_touch' | 'duplicate' | 'new'
+   *  o.settling / o.pairing: connect/wake/pair phase — never log a calendar wet.
+   *  latched_touch: wet began inside the settle window and is still latched after it.
+   *  That is not a new wet and must not schedule another arm (the settle loop). */
   function decideWet(st, now, o) {
     o = o || {};
     if (!st || !st.wet) return 'not_wet';
     if (o.armPending || st.arming || o.settling || o.pairing) return 'arming';
     if (!st.armed) return 'not_armed';
     const at = wetAtFromSecs(now, st.secs), ig = +o.ignoreUntil || 0;
-    if (now < ig || at < ig) return 'ignore_window';
+    if (ig && now < ig) return 'ignore_window';
+    if (ig && at < ig) return 'latched_touch';
     if (o.lastWetAt && Math.abs(at - o.lastWetAt) <= DEDUPE_MS) return 'duplicate';
     return 'new';
   }
@@ -155,6 +160,11 @@
       if (d.daytimeWatch) { handleDaytimeUnnoticed(st, { wetAt, native: true }); return 'day'; }
       offerAccident(st, { wetAt }); return 'offer';
     }
+    if (kind === 'mommy_check') {
+      log('rearm', 'Mommy check — aim at dry padding before arming');
+      try { openMommyCheck(); } catch (e) {}
+      return 'mommy';
+    }
     if (kind === 'still_wet') {
       const at = +ev.detectedAt || Date.now();
       const night = nightFor(at, d);
@@ -201,7 +211,7 @@
       mac = hit.address; name = name || hit.name;
     }
     d.lastId = String(mac).toUpperCase(); if (name) d.lastName = name; save(d);
-    await P.start({ mac: d.lastId, name: d.lastName || 'DryClip', rearmMin: rearmMinutesFor(d) });
+    await P.start({ mac: d.lastId, name: d.lastName || 'DryClip', rearmMin: rearmMinutesFor(d), mommyCheck: mommyCheckOn(d), mommySpreadMin: mommySpread(d) });
     log('conn', 'Background watch on · ' + d.lastId);
     await sleep(300); await nativeRefresh();
   }
@@ -242,6 +252,7 @@
   // v25: gen = id of the current link (a drop bumps it so a half-done setup stops); reconnBusy = one attempt at a time
   let gen = 0, reconnBusy = false, cycleAt = 0, lastConnEndAt = 0, lastReconnLogAt = 0, armAssumed = false, assumeTimer = null, lastStateAt = 0;
   let ignoreUntil = 0; // v26 fallback path: post-arm ignore window
+  let latchCleared = false; // v39: post-settle touch cleared once; no auto re-arm until dry or user Arm
   let armFromArmed = false; // v27: re-arm (recalibrate) while already armed
   let armPending = false, armAt = 0, armTimer = null, reconnTimer = null, reconnStep = 0, batTimer = null, lastBatLogged = null, lastStateLog = { raw: null, t: 0 };
   function keepLink() { return watching() || armPending || armAssumed || !!(lastState && lastState.armed); }
@@ -504,9 +515,17 @@
     const d0 = load();
     const nightOn = !!(d0.night && d0.wearingTonight);
     const dayWatch = !!(d0.daytimeWatch && !nightOn);
-    const inWindow = cur.wet && ignoreUntil && (Date.now() < ignoreUntil || wetAtFromSecs(Date.now(), cur.secs) < ignoreUntil);
-    if (inWindow && !(prev && prev.wet)) { noteSettleIgnored('Wet reading right after arming ignored (the plate reads a touch)'); }
-    else if (cur.wet && !(prev && prev.wet)) {
+    const dec = decideWet(cur, Date.now(), { armPending: armPending, ignoreUntil: ignoreUntil, settling: !!(ignoreUntil && Date.now() < ignoreUntil), lastWetAt: d0.lastWetAt });
+    if (!cur.wet && latchCleared) { latchCleared = false; log('arm', 'Plate reads dry. Arm when you are ready.'); }
+    if ((dec === 'arming' || dec === 'ignore_window') && cur.wet && !(prev && prev.wet)) {
+      noteSettleIgnored('Wet reading right after arming ignored (the plate reads a touch)');
+    } else if (dec === 'latched_touch') {
+      if (!latchCleared) {
+        latchCleared = true;
+        noteSettleIgnored('Touch still latched after settle. Ignored once — not re-arming until the plate reads dry or you tap Arm.');
+        ack().catch(() => {});
+      }
+    } else if (dec === 'new' && !(prev && prev.wet)) {
       log('wet', 'Wet detected' + (cur.secs != null ? ' · secs=' + cur.secs : ''));
       if (nightOn) handleNightWet(cur);
       else if (dayWatch) handleDaytimeUnnoticed(cur);
@@ -524,6 +543,7 @@
   async function arm() {
     if (!useNative() && !mock.on && armBusy()) throw new Error('Arming in progress — give the clip a few seconds');
     const mode = armMode();
+    latchCleared = false; // user arm is the way out of a touch latch
     log('arm', mode === 'armed' ? 'Re-arm (recalibrate)…' : mode === 'wet' ? 'Re-arm (ack wet first)…' : 'Arm…');
     const d = load(); if (mode !== 'armed' || !d.wearStartedAt) d.wearStartedAt = Date.now(); d.batLowNotified = false; save(d); // re-arm while armed: same wear
     if (mock.on) { mockSetFlags(0x10); setTimeout(() => mockSetFlags(0x02), 1200); return; }
@@ -595,14 +615,109 @@
     const B = await getBle(); if (!B || !deviceId) throw new Error('Not connected');
     await B.write(deviceId, SVC, C.ACK, numbersToDataView([0x01]));
   }
+  function mommyCheckOn(d) { d = d || load(); return d.mommyCheck !== false; }
+  function mommySpread(d) {
+    d = d || load();
+    const n = +d.mommySpreadMin;
+    return isFinite(n) ? Math.max(2, Math.min(20, n)) : 8;
+  }
+  /** Pure: when to ask for a dry-padding check, before the nominal re-arm. rng returns 0..1. */
+  function planMommyCheck(now, baseMin, spreadMin, rng) {
+    rng = rng || Math.random;
+    const base = Math.max(1, +baseMin || 20);
+    const spread = Math.max(2, Math.min(20, +spreadMin || 8));
+    const armAt = now + base * 60000;
+    const earliest = now + Math.max(60000, (base - spread) * 60000);
+    const latest = Math.max(earliest, armAt - 60000);
+    const span = Math.max(0, latest - earliest);
+    const checkAt = earliest + Math.floor((rng() || 0) * (span + 1));
+    return { checkAt: Math.min(checkAt, latest), armAt, baseMin: base, spreadMin: spread };
+  }
+  function mommyCheckCopy(caregiver) {
+    if (caregiver) return {
+      title: 'Mommy check',
+      body: 'Aim the clip at padding that still feels dry — not a warm or wet spot — then tap ready. It arms after that, not before.'
+    };
+    return {
+      title: 'Padding check',
+      body: 'Aim the clip at a dry spot on the padding (skip warm or wet areas), then arm.'
+    };
+  }
+  function caregiverVoice() {
+    try { return !!(W.BSPathPlay && W.BSPathPlay.caregiverOn && W.BSPathPlay.caregiverOn()); } catch (e) { return false; }
+  }
+  function pushMommyConfig(min) {
+    const d = load();
+    if (!useNative()) return;
+    try {
+      nativePlugin().setConfig({ rearmMin: min, mommyCheck: mommyCheckOn(d), mommySpreadMin: mommySpread(d) });
+    } catch (e) {}
+  }
+  function openMommyCheck() {
+    if (typeof document === 'undefined' || !document.body || !document.createElement) return { shown: false };
+    try { if (document.querySelector && document.querySelector('.dc-mommy')) return { shown: true, dupe: true }; } catch (e) {}
+    const care = caregiverVoice();
+    const copy = mommyCheckCopy(care);
+    const w = document.createElement('div');
+    w.className = 'cal-sheet-wrap dc-mommy';
+    w.innerHTML = `<div class="cal-sheet" role="dialog" aria-modal="true">
+      <h3>${care ? '🤗 ' : ''}${esc(copy.title)}</h3>
+      <p class="section-desc">${esc(copy.body)}</p>
+      <div class="cal-legend">The clip stays unarmed until you say the spot is dry. ⏸ I'm going now still wins if you need the bathroom.</div>
+      <div class="actions">
+        <button type="button" class="ok" data-arm>Dry spot ready — arm</button>
+        <button type="button" data-later>Not yet</button>
+        <button type="button" data-x>Close</button>
+      </div>
+    </div>`;
+    document.body.appendChild(w);
+    const close = () => { try { w.remove(); } catch (e) {} };
+    const laterBtn = w.querySelector('[data-later]');
+    const armBtn = w.querySelector('[data-arm]');
+    const xBtn = w.querySelector('[data-x]');
+    if (xBtn) xBtn.onclick = close;
+    if (laterBtn) laterBtn.onclick = () => { close(); postponeMommyCheck(); };
+    if (armBtn) armBtn.onclick = () => { close(); confirmMommyArm(); };
+    return { shown: true, caregiver: care };
+  }
+  function postponeMommyCheck() {
+    const d = load();
+    const spread = mommySpread(d);
+    const mins = 2 + Math.floor(Math.random() * Math.max(1, spread - 1));
+    const plan = planMommyCheck(Date.now(), mins + 1, spread, Math.random);
+    plan.postponed = true;
+    d.mommyPlan = plan; save(d);
+    log('rearm', 'Padding check again around ' + fmtHM(plan.checkAt));
+    clearTimeout(rearmTimer);
+    if (useNative()) {
+      try { nativePlugin().postponeMommy({ minutes: mins }); } catch (e) {}
+      return;
+    }
+    rearmTimer = setTimeout(() => { try { openMommyCheck(); } catch (e) {} }, Math.max(500, plan.checkAt - Date.now()));
+  }
+  function confirmMommyArm() {
+    const d = load(); d.mommyPlan = null; save(d);
+    clearTimeout(rearmTimer);
+    return arm();
+  }
   function scheduleRearm(min) {
     const d0 = load();
     clearTimeout(rearmTimer);
     min = (min != null && min !== '' && isFinite(+min)) ? Math.max(0, +min) : rearmMinutesFor(d0);
     const d = load(); if (!d.rearmByProt) d.rearmMin = min; save(d);
-    if (useNative()) { // v26: the background watch acks and re-arms by itself
-      const P = nativePlugin(); try { P.setConfig({ rearmMin: min }); } catch (e) {}
-      log('rearm', 'Background watch re-arms ' + min + ' min after a wet reading'); return;
+    if (useNative()) { // v26: the background watch owns ack + the re-arm clock
+      pushMommyConfig(min);
+      log('rearm', mommyCheckOn()
+        ? 'Background watch asks for a padding check before it arms (' + min + ' min window)'
+        : 'Background watch re-arms ' + min + ' min after a wet reading');
+      return;
+    }
+    if (mommyCheckOn()) {
+      const plan = planMommyCheck(Date.now(), min, mommySpread());
+      const d2 = load(); d2.mommyPlan = plan; save(d2);
+      log('rearm', 'Padding check around ' + fmtHM(plan.checkAt) + ' — arm only after a dry spot (' + min + ' min window)');
+      rearmTimer = setTimeout(() => { try { openMommyCheck(); } catch (e) {} }, Math.max(500, plan.checkAt - Date.now()));
+      return;
     }
     log('rearm', 'Re-arm scheduled in ' + min + ' min');
     rearmTimer = setTimeout(async () => {
@@ -1235,7 +1350,7 @@
       d.rearmByProt = true;
       save(d);
       const mins = rearmMinutesFor(d);
-      if (useNative()) { try { nativePlugin().setConfig({ rearmMin: mins }); } catch (e) {} }
+      pushMommyConfig(mins);
       if (!(d.wearingTonight && d.night)) await startNight(opts);
       else { save(d); renderLab(); }
       log('night', 'Cloudy night on · night watch + Match-protection re-arm (' + mins + ' min)');
@@ -1295,13 +1410,16 @@
     const touchIgnored = !!(s.wet && settling);
     const key = !run ? 'idle' : conn ? 'connected' : s.conn === 'connecting' ? 'connecting' : s.armPending ? 'rearming' : 'lost';
     const calm = run && !conn && armed && !s.armPending && !s.wet && !settling;
-    const connText = !run ? 'Not connected' : conn ? (settling && !s.armPending ? 'Pairing / settling…' : 'Connected')
+    const connText = s.bonded === 'none' && !conn ? 'Not paired — pair the clip in Bluetooth settings'
+      : !run ? 'Not connected' : conn ? (settling && !s.armPending ? 'Pairing / settling…' : 'Connected')
       : s.armPending ? CONN_TXT.rearming
       : calm ? 'Armed. The clip sleeps between checks; the background watch reconnects by itself' : 'Disconnected · looking for clip';
     let clip = '—';
     if (run || s.raw) {
       if (s.armPending) clip = 'Arming…';
       else if (settling && !s.stillWet) clip = touchIgnored ? 'Pairing / settling…' : 'Settling…';
+      else if (s.latchCleared) clip = 'Touch latched — not re-arming';
+      else if (s.bonded === 'none') clip = 'Not paired';
       else if (s.stillWet) clip = "Still wet (can't re-arm yet)";
       else if (armed && !s.wet) clip = 'Armed, listening';
       else if (s.armedAssumed && !s.wet) clip = 'Armed, listening';
@@ -1340,7 +1458,7 @@
     armLabelInto(b);
     const calm = (connState === 'lost' || (reconnBusy && (connState === 'connecting' || connState === 'searching'))) && !deviceId && (armAssumed || !!(st && st.armed && !st.wet));
     return { conn: connState, connText: calm ? CALM_TXT : (CONN_TXT[connState] || connState), dot: calm ? '#74b9ff' : (CONN_DOT[connState] || '#8a93a6'),
-      name: load().lastName || (deviceId || load().lastId || '—'), lastSeenAt, battery, clip: armPending && !(st && st.armed && !st.arming) ? 'Arming…' : (ignoreUntil && Date.now() < ignoreUntil) ? ((st && st.wet) ? 'Pairing / settling…' : 'Settling…') : armAssumed ? 'Armed, listening' : (conn || st ? (st && st.armed && !st.wet ? 'Armed, listening' : clipLabel(st)) : '—'),
+      name: load().lastName || (deviceId || load().lastId || '—'), lastSeenAt, battery, clip: armPending && !(st && st.armed && !st.arming) ? 'Arming…' : (ignoreUntil && Date.now() < ignoreUntil) ? ((st && st.wet) ? 'Pairing / settling…' : 'Settling…') : latchCleared ? 'Touch latched — not re-arming' : armAssumed ? 'Armed, listening' : (conn || st ? (st && st.armed && !st.wet ? 'Armed, listening' : clipLabel(st)) : '—'),
       raw: lastRaw, hint: connHint ? HINT : '', buttons: b, arming: armPending, armAssumed };
   }
   const REARM_HINT = 'Takes a fresh warmth baseline. Keep your hand off the plate.';
@@ -1447,6 +1565,8 @@
           </label>
           <label id="dcRearmCustomWrap" style="${d.rearmByProt || [15,20,25,30,40].includes(+d.rearmMin) || d.rearmMin == null ? 'display:none' : ''}">Custom <input id="dcRearmMin" type="number" min="0" max="120" value="${rearmMinutesFor(d)}" style="width:48px"> min</label>
           <span class="muted" style="font-size:11px;">Auto re-arm ${rearmMinutesFor(d)} min after wet${d.rearmByProt ? ' · ' + currentProtection().replace('_', ' ') : ''}. Manual Re-arm still works right away.</span>
+          <label class="qp-flag"><input type="checkbox" id="dcMommy" ${mommyCheckOn(d) ? 'checked' : ''}> ${caregiverVoice() ? 'Mommy check' : 'Padding check'} before re-arm <span class="muted" style="font-weight:normal;">(random, aim at dry padding)</span></label>
+          <label>Check spread <input id="dcMommySpread" type="number" min="2" max="20" value="${mommySpread(d)}" style="width:48px"> min</label>
           <label>Bat low ≤ <input id="dcBatLow" type="number" min="5" max="50" value="${d.batLowPct != null ? d.batLowPct : 20}" style="width:48px"> %</label>
         </div>
         <div class="muted" style="margin-top:4px;">${d.wearStartedAt ? ('Wear since ' + fmtHM(d.wearStartedAt) + ' · ' + (wearMinutes() != null ? wearMinutes() + ' min' : '—')) : 'Arm to start wear timer'}</div>
@@ -1529,13 +1649,25 @@
       const d = load();
       applyRearmFromUi(m, d); save(d);
       const mins = rearmMinutesFor(d);
-      if (useNative()) { try { nativePlugin().setConfig({ rearmMin: mins }); } catch (e) {} }
+      pushMommyConfig(mins);
       const wrap = m.querySelector('#dcRearmCustomWrap');
       const mode = (m.querySelector('#dcRearmMode') || {}).value;
       if (wrap) wrap.style.display = mode === 'custom' ? '' : 'none';
       renderLab();
       try { if (typeof window.nativeNotifySync === 'function') window.nativeNotifySync(); } catch (e) {}
     }
+    const mommyEl = m.querySelector('#dcMommy');
+    if (mommyEl) mommyEl.onchange = () => {
+      const d = load(); d.mommyCheck = !!mommyEl.checked; save(d);
+      pushMommyConfig(rearmMinutesFor(d));
+      log('rearm', d.mommyCheck ? 'Padding check before re-arm is on' : 'Padding check off — re-arm is a fixed delay');
+      renderLab();
+    };
+    const spreadEl = m.querySelector('#dcMommySpread');
+    if (spreadEl) spreadEl.onchange = () => {
+      const d = load(); d.mommySpreadMin = Math.max(2, Math.min(20, +spreadEl.value || 8)); save(d);
+      pushMommyConfig(rearmMinutesFor(d));
+    };
     ['dcWakeH', 'dcWakeM', 'dcRearmMin', 'dcRearmMode', 'dcKeep', 'dcBatLow'].forEach(id => {
       const el = m.querySelector('#' + id); if (!el) return;
       el.onchange = () => {
@@ -1570,7 +1702,7 @@
       ensureMount(); renderLab(); refreshBadge();
       if (useNative()) {
         nativeBind().then(() => {
-          try { nativePlugin().setConfig({ rearmMin: rearmMinutesFor(load()) }); } catch (e) {}
+          try { pushMommyConfig(rearmMinutesFor(load())); } catch (e) {}
         }).catch(() => {});
       }
       // Resume: pull background wet events first (maybeMorning drains in native mode), then check-in if past wake
@@ -1594,6 +1726,7 @@
     arm, ack, scheduleRearm, connectAuto, clipLabel, uiState, HINT, _cfg: CFG, _setBle: b => { ble = b; },
     // v26 background watch
     wetAtFromSecs, decideWet, IGNORE_AFTER_ARM_MS, SETTLE_ON_CONNECT_MS, DEDUPE_MS, REARM_BY_PROT, rearmMinutesFor, currentProtection,
+    planMommyCheck, mommyCheckCopy, mommyCheckOn, mommySpread, openMommyCheck,
     applyNativeEvent, drainNative, nativeStart, nativeRefresh, nativeUiState, useNative, nightFor,
     get nativeStatus() { return nst; }, _setNativeStatus: s => { nst = s; },
     get connState() { return connState; }, exportLog, renderLab, mockEnable, offerAccident,

@@ -78,6 +78,8 @@ class DryClipPlugin : Plugin() {
         val i = Intent(context, DryClipService::class.java).setAction(DryClipService.ACTION_START).putExtra("mac", mac)
         call.getString("name")?.let { i.putExtra("name", it) }
         call.getDouble("rearmMin")?.let { i.putExtra("rearmMin", it) }
+        if (call.data.has("mommyCheck")) i.putExtra("mommyCheck", call.getBoolean("mommyCheck", true) == true)
+        call.getDouble("mommySpreadMin")?.let { i.putExtra("mommySpreadMin", it) }
         try { ContextCompat.startForegroundService(context, i) } catch (e: Exception) { call.reject("Couldn't start the background watch: " + e.message); return }
         val r = js(DryClipService.idleStatus(context)); r.put("running", true); r.put("mac", mac); call.resolve(r)
     }
@@ -103,7 +105,19 @@ class DryClipPlugin : Plugin() {
 
     @PluginMethod
     fun setConfig(call: PluginCall) {
-        call.getDouble("rearmMin")?.let { DryClipStore(context).rearmMin = Math.max(0.0, it) }
+        val store = DryClipStore(context)
+        call.getDouble("rearmMin")?.let { store.rearmMin = Math.max(0.0, it) }
+        if (call.data.has("mommyCheck")) store.mommyCheck = call.getBoolean("mommyCheck", true) == true
+        call.getDouble("mommySpreadMin")?.let { store.mommySpreadMin = it.coerceIn(2.0, 20.0) }
+        call.resolve()
+    }
+
+    /** v39: another random padding check, still no auto-arm. */
+    @PluginMethod
+    fun postponeMommy(call: PluginCall) {
+        val s = DryClipService.instance ?: run { call.reject("Background watch is off"); return }
+        val mins = call.getDouble("minutes") ?: 4.0
+        s.post { s.postponeMommyCheck(mins) }
         call.resolve()
     }
 

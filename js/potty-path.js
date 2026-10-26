@@ -72,28 +72,45 @@
         8: { t: 'Check-in — enter your urgency.', fx: { check: true } }, 10: { t: 'Mercy card.', fx: { mercy: true } }, 12: { t: 'Ladder! Move +4.', fx: { move: 4 } } } }
   ];
 
-  // ---------- Classes (8): perks [+] / drawbacks [-] ----------
+  // ---------- Classes: Leaky Girl is the ± template. Ids stay stable. Every class has a small #2 modifier (poo). ----------
   const CLASSES = [
-    { id: 'bigkid', name: '🎓 Big Kid', from: 'Big Girl', band: 'Good', needs: [], back: 6, start: 3, move: 'full',
-      plus: ['Move the full roll forward, not half.', 'You may follow the rule of the square just ahead or behind instead.'], minus: ['An accident in stage 3 or 4 sends you to the previous stage\'s STOP.', 'No Accident Mastery progress.'] },
-    { id: 'scout', name: '🧭 Scout', from: 'Scout (v16)', band: 'Good', needs: [], back: 6, start: 2, move: 'half',
-      plus: ['Spare kit: once per stage, an accident doesn\'t move you back.', 'Round up on rolls that reach a STOP.'], minus: ['Check in (enter your urgency) on every go.', 'Two accidents in a row also loses your spare kit for the stage.'] },
-    { id: 'padgirl', name: '🎀 Pad Girl', from: 'Lazy Gal', band: 'Okay', needs: ['pads'], back: 6, start: 2, move: 'half',
-      plus: ['Bed and #2 progress can go to Accident Mastery instead (until it\'s done).', 'Once a day, a go in your pad is free if you choose it before trying the potty.'], minus: ['One change a day until Accident Mastery — skin comfort always overrides.', 'Fail a STOP → back to square 2 of the stage.'] },
-    { id: 'pullup', name: '💧 Pull-up Dribbler', from: 'Desperate Goer', band: 'Shaky', needs: ['pullups'], back: 6, start: 1, move: 'up',
-      plus: ['Round half-rolls up.', 'Hold timers ×0.8.'], minus: ['Not making a "hold" rule counts as an accident.', 'Potty busy 1 in 6: wait 5 minutes (not an accident).'] },
-    { id: 'leaky', name: '💧 Leaky Girl', from: 'Dribbler', band: 'Shaky', needs: ['pads|pullups'], back: 6, start: 1, move: 'up',
+    { id: 'bigkid', name: '🎓 Big Kid', band: 'Good', needs: [], back: 6, start: 3, move: 'full',
+      plus: ['Move the full roll forward, not half.', 'You may follow the rule of the square just ahead or behind instead.'],
+      minus: ['An accident in stage 3 or 4 sends you to the previous stage\'s STOP.', 'No Accident Mastery progress.'],
+      poo: { potty: 1, note: '#2 in the potty is +2 on #2 Mastery.' } },
+    { id: 'scout', name: '🧭 Scout', band: 'Good', needs: [], back: 6, start: 2, move: 'half',
+      plus: ['Spare kit: once per stage, an accident doesn\'t move you back.', 'Round up on rolls that reach a STOP.'],
+      minus: ['Check in (enter your urgency) on every go.', 'Two accidents in a row also loses your spare kit for the stage.'],
+      poo: { back: -1, note: '#2 accidents move back 1 less (at least 1).' } },
+    { id: 'padgirl', name: '🎀 Pad Girl', band: 'Okay', needs: ['pads'], back: 6, start: 2, move: 'half',
+      plus: ['Pads are the protection: bed and #2 progress can go to Accident Mastery until that track is done.', 'Once a day, a go in your pad is free if you choose it before trying the potty.'],
+      minus: ['One change a day until Accident Mastery — skin comfort always overrides.', 'Fail a STOP → back to square 2 of the stage.'],
+      poo: { penalty: 1, note: '#2 accident is −1 on #2 Mastery (pads), not −2.' } },
+    { id: 'pullup', name: '💧 Pull-up Soft', band: 'Shaky', needs: ['pullups'], back: 6, start: 1, move: 'up',
+      plus: ['Round half-rolls up.', 'Holds stay full length — this is not Leaky Girl.'],
+      minus: ['Not making a "hold" rule counts as an accident.', 'Potty busy 1 in 6: wait 5 minutes (not an accident).'],
+      poo: { back: -1, note: '#2 accidents move back 1 less. Holds are not shortened.' } },
+    { id: 'leaky', name: '💧 Leaky Girl', band: 'Shaky', needs: ['pads|pullups'], back: 6, start: 1, move: 'up',
       plus: ['Pads allowed with underwear.', 'Clear drip→potty chain once a dribble is logged.'],
       minus: ['Need-to-go unlocks only after a logged dribble.', 'Much shorter holds (higher change sat gate).'],
-      flags: { needDribbleFirst: true, holdScale: 0.65, changeSatBump: 25, padsWithUndies: true } },
-    { id: 'little', name: '🧸 Leaky Toddler', from: 'Bedwetter', band: 'Little', needs: ['pullups|diapers'], back: 4, start: 1, move: 'half',
-      plus: ['Dry nights count double on Bed Mastery.', 'Potty after bedtime is allowed in stages 2–3.'], minus: ['A wet night is −6 on Bed Mastery (not −3).', 'After Bed Mastery, accidents always move you back 3 (no roll).'] },
-    { id: 'baby', name: '🍼 Baby', from: 'Forced Into Diapers', band: 'None', needs: ['diapers'], back: 0, start: 0, move: 'half',
-      plus: ['Unlimited changes.', 'Never moved back for accidents in your diaper.'], minus: ['Diapers in every stage: potty rules become "use your diaper on or by the potty".', 'No #2 Mastery progress.'] },
-    { id: 'cascade', name: '🌊 Cascade Prone', from: 'Panty Pooper', band: 'Shaky–Little', needs: ['pullups|diapers'], back: 6, start: 1, move: 'half',
-      plus: ['When a rule allows the potty, #2 may always use it.', '#2 in the potty is +3 on #2 Mastery.'], minus: ['Tummy trouble every day — never take anything real.', '#2 accidents move you back double.'] },
-    { id: 'shy', name: '🙈 Shy Goer', from: 'Ashamed Pooper', band: 'Okay', needs: [], back: 6, start: 2, move: 'half',
-      plus: ['After a roll you may move just 1 and use plain rule 1 instead.', 'Privacy always (no "someone watching" cards).'], minus: ['Landing on a "1" square moves you back 1 (still follow rule 1).', '#2 waits 5 minutes before any rule.'] }
+      flags: { needDribbleFirst: true, holdScale: 0.65, changeSatBump: 25, padsWithUndies: true },
+      poo: { penalty: -1, note: '#2 accident is −3 on #2 Mastery (small extra).' } },
+    { id: 'little', name: '🌙 Night Little', band: 'Little', needs: ['pullups|diapers'], back: 4, start: 1, move: 'half',
+      plus: ['Night focus: dry nights count double on Bed Mastery.', 'Potty after bedtime is allowed in stages 2–3.'],
+      minus: ['A wet night is −6 on Bed Mastery (not −3).', 'After Bed Mastery, accidents always move you back 3 (no roll).'],
+      poo: { bed: 1, note: 'A #2 accident also −1 Bed Mastery (night focus).' } },
+    { id: 'baby', name: '🍼 Baby', band: 'None', needs: ['diapers'], back: 0, start: 0, move: 'half',
+      plus: ['Unlimited changes.', 'Never moved back for accidents in your diaper.'],
+      minus: ['Diapers in every stage: potty rules become "use your diaper on or by the potty".', 'No #2 Mastery progress.'],
+      poo: { note: '#2 in the diaper never moves you back and never touches #2 Mastery.' } },
+    { id: 'cascade', name: '🌊 Cascade Prone', band: 'Shaky–Little', needs: ['pullups|diapers'], back: 6, start: 1, move: 'half',
+      plus: ['When a rule allows the potty, #2 may always use it.', '#2 in the potty is +3 on #2 Mastery.'],
+      minus: ['Tummy trouble every day — never take anything real.', '#2 accidents move back double.'],
+      poo: { potty: 2, backMul: 2, note: '#2 in the potty is +3; #2 accidents move back double.' } },
+    { id: 'shy', name: '🙈 Shy Goer', band: 'Okay', needs: [], back: 6, start: 2, move: 'half',
+      plus: ['After a roll you may move just 1 and use plain rule 1 instead.', 'Privacy always (no "someone watching" cards).'],
+      minus: ['Landing on a "1" square moves you back 1 (still follow rule 1).', '#2 waits 5 minutes before any rule.'],
+      poo: { wait: 5, note: '#2 waits 5 minutes before any rule.' } }
   ];
   const CLASS_BY_ID = CLASSES.reduce((a, c) => (a[c.id] = c, a), {});
   function stashNow() { try { const r = window.BSQuizPlus && window.BSQuizPlus.result('gear'); if (r && r.stash) return r.stash; } catch (e) {} return null; }
@@ -184,7 +201,7 @@
   }
   function classHoldScale(b) {
     let x = 1;
-    if (b.classId === 'pullup') x *= 0.8;
+    // Pull-up Soft keeps full-length holds. Leaky Girl is the short-hold class.
     if (b.classId === 'leaky') x *= 0.65;
     if (b.classId === 'baby') x *= 0.75;
     if (b.classId === 'little') x *= 0.9;
@@ -263,8 +280,7 @@
     if (b.flags.busy && rules.some(r => r.k === 'potty')) { rules.unshift({ n: '⏳', t: 'Potty busy: wait 5 minutes first.', k: 'wait', min: 5, then: 'potty' }); b.flags.busy = false; }
     if (b.flags.race && rules.some(r => r.k === 'potty')) { rules = rules.map(r => r.k === 'potty' ? Object.assign({}, r, { k: 'race', sec: 120, t: r.t + ' (Race card: within 2 minutes.)' }) : r); b.flags.race = false; }
     if (b.flags.pass && rules.some(r => r.k === 'wait')) { rules = rules.filter(r => r.k !== 'wait'); if (!rules.length) rules.push(rule(st, 1, b.classId)); notes.push('🎟 Hall pass used: wait rule skipped.'); b.flags.pass = false; }
-    if ((c.id === 'pullup' || c.id === 'leaky') && rules.some(r => r.k === 'potty' || r.then === 'potty') && rng() < 1 / 6) { rules.unshift({ n: '🚪', t: 'Potty busy: wait 5 minutes (not an accident).', k: 'wait', min: 5, then: 'potty' }); }
-    if (kind === 'poo' && c.id === 'shy') rules.unshift({ n: '🙈', t: '#2: wait 5 minutes first.', k: 'wait', min: 5, then: rules[0].then || rules[0].k });
+    if (c.id === 'pullup' && rules.some(r => r.k === 'potty' || r.then === 'potty') && rng() < 1 / 6) { rules.unshift({ n: '🚪', t: 'Potty busy: wait 5 minutes (not an accident).', k: 'wait', min: 5, then: 'potty' }); }
     if (kind === 'poo' && b.flags.tummy) notes.push('🌀 Tummy trouble: this #2 can\'t wait — skip any waits.');
     if (kind === 'poo' && c.id === 'cascade' && STAGES[st].table.some(r => r && r.k === 'potty') && !rules.some(r => r.k === 'potty')) notes.push('🌊 Cascade perk: #2 may use the potty anyway.');
     let mayi = null; if (rules.some(r => r.k === 'mayi') || sq.tag === 'mayi' || (b.playMode === 'caregiver' && rng() < 0.2)) {
@@ -280,10 +296,17 @@
       let swapped = 0; rules = rules.map((r, i) => { if (!isPottyRule(r)) return r; if (acc >= 0.15 && rng() < acc) return r; swapped++; return Object.assign({ n: r.n, low: true }, LOW_RULES[(st + i + (b.goes % 3)) % LOW_RULES.length]); });
       if (swapped) notes.push(`🧷 Low control (potty access ${Math.round(acc * 100)}%): potty options swapped for guidance / protection rules.`);
     }
+    const poo = c.poo || {};
+    if (kind === 'poo' && poo.wait) {
+      const nxt = rules[0] || {};
+      rules.unshift({ n: '💩', t: '#2: wait ' + poo.wait + ' minutes first.', k: 'wait', min: poo.wait, then: nxt.then || nxt.k || 'potty' });
+      holds.unshift(b.flags.tummy ? 0 : Math.min(HOLD_MAX, poo.wait));
+    }
     let feature = null;
     if (['feat', 'checkin', 'prot', 'hold'].includes(sq.tag) && GW.BSPathFeatures && nums !== 'stop') { feature = GW.BSPathFeatures.pick(b, st, sq.tag, rng, acc, opts.now); notes.push(`✨ Feature square: ${GW.BSPathFeatures.BY[feature].name}.`); }
     const needCheck = sq.tag === 'checkin' || (b.calib.need && b.calib.done < b.calib.need) || (b.recal && to % 10 === 0) || c.id === 'scout' || rules.some(r => r.check) || (ev && ev.fx.check);
     b.pending = { pos: b.pos, stage: st, kind, tag: sq.tag, feature, access: acc, rules, mayi, holds, check: !!needCheck, again: sq.tag === 'again', dare: ['again', 'checkin', 'prot'].includes(sq.tag) ? ((b.tasks || []).find(t => !(b.doneTasks || []).includes(t.id)) || null) : null, ev: ev ? ev.sum : null, roll };
+    syncClipHold(b);
     return { board: b, roll, path, from, notes, move: mv };
   }
   function applyFx(b, fx, notes) {
@@ -308,7 +331,7 @@
     else if (outcome === 'ok') {
       b.accStreak = 0; b.stars += 1; notes.push('✅ Followed the rule: +1 ⭐, you stay here.');
       try { if (window.BSPathPlay && window.BSPathPlay.caregiverOn()) notes.push(window.BSPathPlay.line('resolve_ok')); } catch (e) {}
-      if (p.kind === 'poo' && p.rules.some(r => r.k === 'potty' || r.then === 'potty' || r.k === 'race' || r.k === 'mixed')) bump(b, 'poo', c.id === 'cascade' ? 3 : 1, notes);
+      if (p.kind === 'poo' && p.rules.some(r => r.k === 'potty' || r.then === 'potty' || r.k === 'race' || r.k === 'mixed')) bump(b, 'poo', 1 + ((c.poo && c.poo.potty) || 0), notes);
       if (p.tag === 'stop') notes.push('🛑 STOP cleared.');
     } else if (outcome === 'refuse') {
       // Feature refuse: forced dice rollback. Does not count as an accident streak (different flavour).
@@ -318,7 +341,15 @@
       if (b.stars > 0) { b.stars = Math.max(0, b.stars - 1); notes.push('↩ Refuse slip: −1 ⭐.'); }
     } else {
       b.accStreak++; if (b.accDay.day !== dayKey()) b.accDay = { day: dayKey(), n: 0 }; b.accDay.n++;
-      bump(b, 'acc', 1, notes); if (p.kind === 'poo') { bump(b, 'poo', -2, notes); b.mastery.pooRun = 0; }
+      bump(b, 'acc', 1, notes);
+      if (p.kind === 'poo') {
+        bump(b, 'poo', -2 + ((c.poo && c.poo.penalty) || 0), notes);
+        b.mastery.pooRun = 0;
+        if (c.poo && c.poo.bed && !b.mastery.done.bed) {
+          b.mastery.bed = Math.max(0, b.mastery.bed - c.poo.bed);
+          notes.push('🌙 #2 also −' + c.poo.bed + ' on Bed Mastery.');
+        }
+      }
       try { if (window.BSPathPlay && window.BSPathPlay.caregiverOn()) notes.push(window.BSPathPlay.line('resolve_acc')); } catch (e) {}
       // v32 light reactive pressure: failed hold / accident can slip a star even on progress campaigns
       if (b.stars > 0 && (p.holds || []).some(h => h > 0)) { b.stars = Math.max(0, b.stars - 1); notes.push('↩ Hold slip: −1 ⭐.'); }
@@ -339,7 +370,9 @@
       else if (c.id === 'padgirl' && p.tag === 'stop') { move = stageStart(st) + 1 - b.pos; notes.push('🎀 Failed STOP: back to square 2 of this stage.'); }
       else {
         let k = c.id === 'little' && b.mastery.done.bed ? 3 : dn(rng, c.back || 6);
-        if (p.kind === 'poo' && c.id === 'cascade') k *= 2; if (b.flags.doubleNext) { k *= 2; b.flags.doubleNext = false; }
+        if (p.kind === 'poo' && c.poo && c.poo.backMul) k *= c.poo.backMul;
+        if (p.kind === 'poo' && c.poo && c.poo.back) k = Math.max(1, k + c.poo.back);
+        if (b.flags.doubleNext) { k *= 2; b.flags.doubleNext = false; }
         move = -k; notes.push(`💦 Accident: move back ${k}.`);
       }
       if (b.accStreak >= 2) { const t = stageStart(Math.max(0, st - 1)); move = t - b.pos; b.accStreak = 0; notes.push(`↩ Two accidents in a row: back to the start of ${STAGES[Math.max(0, st - 1)].short}.`); if (c.id === 'scout') b.spareUsed[st] = true; }
@@ -354,6 +387,7 @@
     if (p.check && b.calib.need && b.calib.done < b.calib.need) b.calib.done++;
     b.history.push({ ts: Date.now(), pos: b.pos, stage: st, rules: p.rules.map(r => r.n), kind: p.kind, outcome, m });
     const again = p.again && outcome === 'ok'; b.pending = null; clearUrgeLock(b); b.rollAgain = again; if (again) notes.push('↻ Roll-again square: go again on your next need, with a +2 head start.'), b.pos = Math.min(stageEnd(stageOf(b.pos)), b.pos + 2);
+    syncClipHold(b);
     if (b.pos >= N && outcome === 'ok') { b.finished = true; notes.push('🏆 Board finished — you kept your Big-Kid Undies!'); }
     return { board: b, notes, move };
   }
@@ -473,7 +507,8 @@
     const c = CLASS_BY_ID[b.classId] || {};
     const bits = [];
     if (b.dribbleGate || c.id === 'leaky') bits.push(b.dribbleLogged ? 'dribble logged' : 'log urge → leak');
-    if (c.id === 'pullup') bits.push('holds ×0.8');
+    if (c.id === 'pullup') bits.push('round half up · full holds');
+    if (c.poo && c.poo.note && bits.length < 4) bits.push(c.poo.note);
     if (c.id === 'shy') bits.push('may move 1 / rule 1');
     if (c.id === 'baby') bits.push('diaper every stage');
     if (c.id === 'cascade') bits.push('tummy flag');
@@ -599,8 +634,12 @@
     return `<div class="pp-mastery">${Object.keys(MASTERY).map(k => `<div class="pp-mtrack"><b>${MASTERY[k].name}</b> ${b.mastery[k]}/12 ${b.mastery.done[k] ? '🏆' : ''}<div class="pp-mbar"><i style="width:${b.mastery[k] / 12 * 100}%"></i></div><small>${esc(MASTERY[k].how)} 🏆 ${esc(MASTERY[k].reward)}</small></div>`).join('')}
       <div class="quiz-nav"><button type="button" data-ml="dry">🛏 Dry night</button><button type="button" data-ml="wet">🌊 Wet night</button><button type="button" data-ml="clean">💧 Accident-free day</button><button type="button" data-ml="pooFree">💩 No #2 accident today</button></div></div>`;
   }
+  function syncClipHold(b) {
+    try { if (window.BSClipBridge && window.BSClipBridge.syncFromBoard) window.BSClipBridge.syncFromBoard(b || null); } catch (e) {}
+  }
   function render() {
     const m = document.getElementById('pathMount'); if (!m) return; const b = load();
+    syncClipHold(b);
     try { if (window._ppLastNotes && window._ppLastNotes.length) { lastNotes = window._ppLastNotes; window._ppLastNotes = null; } } catch (e) {}
     if (!b) return renderSetup(m);
     applyThemeClass();
@@ -669,7 +708,7 @@
     try {
       if (window.BSHub && window.BSHub.applyThemeDom) window.BSHub.applyThemeDom(themeId());
       else {
-        const ids = ['neutral','girl','boy','softpink','sky','lavender','midnight'];
+        const ids = ['neutral','girl','boy','softpink','sky','lavender','midnight','baby','toddler','teen'];
         const t = themeId();
         [document.documentElement, document.body].forEach(el => {
           if (!el) return;
@@ -819,7 +858,7 @@
     m.querySelector('#ppTestExport').onclick = exportLog;
   }
   function exportLog() { const b = load(); if (!b || !b.testLog) { if (typeof toast === 'function') toast('Run a test pass first'); return; } downloadText('potty-path-test.txt', formatLogText(b)); downloadText('potty-path-test.json', JSON.stringify({ meta: { classId: b.classId, steps: b.testSteps, seed: b.testSeed, cover: b.testCover, mastery: b.mastery }, log: b.testLog }, null, 2), 'application/json'); }
-  function classTable() { return `<table class="pp-table"><tr><th>Class</th><th>Needs</th><th>Perks</th><th>Drawbacks</th></tr>${CLASSES.map(c => `<tr><td>${esc(c.name)}<br><small>${esc(c.band)} · start ${esc(STAGES[c.start].short)}</small></td><td>${esc(c.needs.join(', ').replace(/\|/g, ' or ') || '—')}</td><td>${c.plus.map(esc).join('<br>')}</td><td>${c.minus.map(esc).join('<br>')}</td></tr>`).join('')}</table>`; }
+  function classTable() { return `<table class="pp-table"><tr><th>Class</th><th>Needs</th><th>Perks</th><th>Drawbacks</th></tr>${CLASSES.map(c => `<tr><td>${esc(c.name)}<br><small>${esc(c.band)} · start ${esc(STAGES[c.start].short)}</small></td><td>${esc(c.needs.join(', ').replace(/\|/g, ' or ') || '—')}</td><td>${c.plus.map(esc).join('<br>')}${c.poo ? '<br><b>#2</b> ' + esc(c.poo.note) : ''}</td><td>${c.minus.map(esc).join('<br>')}</td></tr>`).join('')}</table>`; }
   function animateToken(path, done) { const b = load(), { pts } = coords(), tok = document.getElementById('ppToken'); if (!tok || !b.anim || !path.length) return done(); let i = 0; const next = () => { if (i >= path.length) return done(); const p = pts[path[i++]]; tok.style.transform = `translate(${p[0]}px,${p[1]}px)`; setTimeout(next, 220); }; next(); }
   function doGo(kind) {
     if (busy) return; const b = load(); if (!b || b.pending || b.finished) return;
@@ -920,14 +959,17 @@
     const may = w.querySelector('#ppGoMay'); if (may) may.onclick = () => { try { if (window.BSPathPlay && window.BSPathPlay.openMayChange) window.BSPathPlay.openMayChange('path_go'); else if (window.BSChange) window.BSChange.open({ ctx: 'path_go' }); } catch (e) {} };
     function armHold(end) {
       clearInterval(holdTimer);
-      try { if (window.BSClipBridge && window.BSClipBridge.setPathHold) window.BSClipBridge.setPathHold({ kind: 'path_hold', mins: mins, endsAt: end, pos: b.pos, stage: b.pending && b.pending.stage }); } catch (e) {}
+      try {
+        const held = load();
+        if (held && held.pending) { held.pending.holdEndsAt = end; save(held); syncClipHold(held); }
+      } catch (e) {}
       holdTimer = setInterval(() => {
         const bb = load(); if (!bb || !bb.pending) { clearInterval(holdTimer); return; }
         const left = Math.max(0, end - Date.now()), el = document.getElementById('ppHoldT');
         if (el && !fog) el.textContent = left ? (Math.floor(left / 60000) + ':' + String(Math.floor(left / 1000) % 60).padStart(2, '0')) : '⏰ Time! Go now.';
         if (!left) {
           clearInterval(holdTimer);
-          try { if (window.BSClipBridge && window.BSClipBridge.clearPathHold) window.BSClipBridge.clearPathHold(); } catch (e) {}
+          syncClipHold(load());
           // Unlock resolve emphasis — rolls stay locked until resolve, but timer done
           try {
             const gl = document.querySelector('#ppGlance .pp-gl-row:nth-child(4) .pp-gl-v');
@@ -986,7 +1028,7 @@
     if (g > 22 && Date.now() - lastShake > 1500 && typeof currentTab === 'function' && currentTab() === 'path') { const b = load(); if (b && b.shake && !b.pending) { lastShake = Date.now(); doGo('pee'); } }
   });
   function stashNowExport() { return stashNow(); }
-  window.BSPath = { KEY, N, SQ, HOLD_MAX, STAGES, CLASSES, CLASS_BY_ID, MASTERY, classAllowed, suggestClass, stageOf, stageStart, stageEnd, genSquares, newBoard, rule, rollDice, moveFor, needToGo, resolve, finishQuest, startQuest, refuseQuest, pottyAccess, LOW_RULES, impliedLaunches, holdMinutes, classHoldScale, observe, recalibrate, logMastery, simulate, sweep, formatLogText, runTestPass, setClass, optsFromQuizzes, coords, load, save, render, renderBoardOnly: render, classTable, stashNow: stashNowExport, logUrge, logLeak, clearUrgeLock, glanceHtml, hydrationGlance, wearHint, themeId, themeWords, applyThemeClass, holdLeftMs, timerLocksRolls };
+  window.BSPath = { KEY, N, SQ, HOLD_MAX, STAGES, CLASSES, CLASS_BY_ID, MASTERY, classAllowed, suggestClass, stageOf, stageStart, stageEnd, genSquares, newBoard, rule, rollDice, moveFor, needToGo, resolve, finishQuest, startQuest, refuseQuest, pottyAccess, LOW_RULES, impliedLaunches, holdMinutes, classHoldScale, observe, recalibrate, logMastery, simulate, sweep, formatLogText, runTestPass, setClass, optsFromQuizzes, coords, load, save, render, renderBoardOnly: render, classTable, stashNow: stashNowExport, logUrge, logLeak, clearUrgeLock, glanceHtml, hydrationGlance, wearHint, themeId, themeWords, applyThemeClass, holdLeftMs, timerLocksRolls, syncClipHold };
   // path-play.js takes window.renderPath when present; keep board render available
   if (!window.BSPathPlay) window.renderPath = render;
 })();

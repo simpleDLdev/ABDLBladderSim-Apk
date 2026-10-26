@@ -502,4 +502,59 @@ body[class*="bs-theme-"] .hr { background: var(--border); }
 .bs-sw-sky .bs-sw-chip { background: linear-gradient(135deg, #122030, #00cec9); }
 .bs-sw-lavender .bs-sw-chip { background: linear-gradient(135deg, #1a1628, #c9b6ff); }
 .bs-sw-midnight .bs-sw-chip { background: linear-gradient(135deg, #07090e, #22d3ee); }
+.bs-sw-baby .bs-sw-chip { background: linear-gradient(135deg, #fff3e8, #ff8fab); }
+.bs-sw-toddler .bs-sw-chip { background: linear-gradient(135deg, #fff3a8, #2e9bff); }
+.bs-sw-teen .bs-sw-chip { background: linear-gradient(135deg, #2a2238, #e2b4d4); }
+
+/* v39 maturity skins — background, cards, and type, not accent-only */
+html[data-bs-theme="baby"], body.bs-theme-baby {
+  --bg: #fff3e8; --panel: #fffaf6; --panel-2: #ffe4d4; --border: #f0c2b0; --border-strong: #e39a8c;
+  --muted: #8d5b62; --text: #4a2c32; --accent: #ff8fab; --accent2: #ffb703; --warn: #fb8500; --bad: #e85d4c;
+  --ok: #2a9d8f; --nav: #ffe8dc; --btn: #fffdfb; --chip: #ffe0ea; --status-bg: rgba(255,243,232,0.96);
+  --bs-font: "Trebuchet MS", "Segoe UI", sans-serif;
+  --bs-display: "Trebuchet MS", "Segoe UI", sans-serif;
+  --bs-size: 17px; --card-radius: 22px;
+  --bs-scene: radial-gradient(900px 420px at 0% 0%, #ffd6e7 0%, transparent 60%), radial-gradient(700px 380px at 100% 0%, #ffe8c2 0%, transparent 55%);
+}
+html[data-bs-theme="toddler"], body.bs-theme-toddler {
+  --bg: #fff6cf; --panel: #fffef8; --panel-2: #e5f6ff; --border: #f0c36a; --border-strong: #5eb1e4;
+  --muted: #5c6b7a; --text: #243140; --accent: #ff7a45; --accent2: #2e9bff; --warn: #e09f3e; --bad: #e85d4c;
+  --ok: #2a9d8f; --nav: #d7f0ff; --btn: #fffdf6; --chip: #fff1c9; --status-bg: rgba(255,246,207,0.96);
+  --bs-font: "Arial Rounded MT Bold", "Trebuchet MS", "Segoe UI", sans-serif;
+  --bs-display: "Arial Rounded MT Bold", "Trebuchet MS", sans-serif;
+  --bs-size: 17px; --card-radius: 20px;
+  --bs-scene: linear-gradient(180deg, #fff3a8 0%, #c8ecff 100%);
+}
+html[data-bs-theme="teen"], body.bs-theme-teen {
+  --bg: #16121c; --panel: #241c2e; --panel-2: #2c2238; --border: #4a3b5c; --border-strong: #6d5a86;
+  --muted: #c3b3d1; --text: #f6eef8; --accent: #e2b4d4; --accent2: #8f86c9; --warn: #e6c07b; --bad: #e07a7a;
+  --ok: #8dcea0; --nav: #120e18; --btn: #2a2236; --chip: #32283f; --status-bg: rgba(18,14,24,0.96);
+  --bs-font: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  --bs-display: "Segoe UI", system-ui, sans-serif;
+  --bs-size: 16px; --card-radius: 8px;
+  --bs-scene: linear-gradient(160deg, #2a2238 0%, #141018 46%, #1a2433 100%);
+}
+body.bs-theme-baby, body.bs-theme-toddler, body.bs-theme-teen {
+  font-family: var(--bs-font);
+  font-size: var(--bs-size, 16px);
+  background: var(--bs-scene, none), var(--bg);
+}
+body.bs-theme-baby :is(.panel, .tab-page, .play-card, .cal-sheet, .camp-card, .hub-sub, .pp-glance, .pp-inline-go, .urge-result, header, #tabBar),
+body.bs-theme-toddler :is(.panel, .tab-page, .play-card, .cal-sheet, .camp-card, .hub-sub, .pp-glance, .pp-inline-go, .urge-result, header, #tabBar),
+body.bs-theme-teen :is(.panel, .tab-page, .play-card, .cal-sheet, .camp-card, .hub-sub, .pp-glance, .pp-inline-go, .urge-result, header, #tabBar) {
+  border-radius: var(--card-radius);
+  font-family: inherit;
+}
+body.bs-theme-baby :is(h1, h2, h3, .panel h2),
+body.bs-theme-toddler :is(h1, h2, h3, .panel h2) {
+  font-family: var(--bs-display, var(--bs-font));
+  letter-spacing: 0.01em;
+}
+body.bs-theme-teen :is(h1, h2, h3, .panel h2) {
+  font-family: var(--bs-display, var(--bs-font));
+  letter-spacing: 0.04em;
+}
+body.bs-theme-baby :is(button, .pill) { border-radius: 999px; }
+body.bs-theme-toddler :is(button, .pill) { border-radius: 14px; font-weight: 700; }
+body.bs-theme-teen :is(button, .pill) { border-radius: 6px; letter-spacing: 0.01em; }
 

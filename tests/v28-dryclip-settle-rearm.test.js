@@ -50,9 +50,9 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   ok(DC.decideWet(W(0x03, 2), now, { pairing: true }) === 'arming', 'pairing → no calendar wet');
   ok(DC.decideWet(W(0x03, 5), now, { ignoreUntil: now + 15000 }) === 'ignore_window', 'inside ignoreUntil → ignore_window');
   const ig = now - 5000;
-  ok(DC.decideWet(W(0x03, 2), now + 30000, { ignoreUntil: ig + DC.SETTLE_ON_CONNECT_MS }) === 'ignore_window' ||
-     DC.decideWet(W(0x03, 40), ig + DC.SETTLE_ON_CONNECT_MS + 10000, { ignoreUntil: ig + DC.SETTLE_ON_CONNECT_MS }) === 'ignore_window',
-     'wet that started inside settle window stays ignored');
+  ok(DC.decideWet(W(0x03, 2), now, { ignoreUntil: now + 15000 }) === 'ignore_window', 'inside settle window stays ignore_window');
+  ok(DC.decideWet(W(0x03, 40), ig + DC.SETTLE_ON_CONNECT_MS + 10000, { ignoreUntil: ig + DC.SETTLE_ON_CONNECT_MS }) === 'latched_touch',
+     'post-settle latched touch is not a new wet');
   ok(DC.decideWet(W(0x03, 3), now + 60000, { ignoreUntil: now + 10000 }) === 'new' ||
      DC.decideWet(W(0x03, 3), ig + DC.SETTLE_ON_CONNECT_MS + 30000, { ignoreUntil: ig + DC.SETTLE_ON_CONNECT_MS }) === 'new',
      'wet starting after settle → new');

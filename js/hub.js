@@ -41,7 +41,10 @@
     softpink: { id: 'softpink', label: 'Soft pink', blurb: 'Warm rose panels' },
     sky:      { id: 'sky',      label: 'Sky blue',  blurb: 'Cool blue panels' },
     lavender: { id: 'lavender', label: 'Lavender',  blurb: 'Soft purple glow' },
-    midnight: { id: 'midnight', label: 'Midnight',  blurb: 'Near-black, cool cyan' }
+    midnight: { id: 'midnight', label: 'Midnight',  blurb: 'Near-black, cool cyan' },
+    baby:     { id: 'baby',     label: 'Baby',     blurb: 'Nursery cream, round cards, soft type' },
+    toddler:  { id: 'toddler',  label: 'Toddler',  blurb: 'Playroom color, big type, rounded cards' },
+    teen:     { id: 'teen',     label: 'Teen bedwetter', blurb: 'Dusk diary — serif type, sharper cards' }
   };
   const THEME_IDS = Object.keys(THEMES);
   function themeId() {

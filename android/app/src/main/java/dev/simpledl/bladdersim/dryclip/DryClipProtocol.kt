@@ -40,13 +40,15 @@ object DryClipProtocol {
 
     fun wetAt(now: Long, secs: Long?): Long = if (secs == null) now else now - secs * 1000L
 
-    enum class Decision { NOT_WET, ARMING, NOT_ARMED, IGNORE_WINDOW, DUPLICATE, NEW }
+    enum class Decision { NOT_WET, ARMING, NOT_ARMED, IGNORE_WINDOW, LATCHED_TOUCH, DUPLICATE, NEW }
 
     /**
      * Is this reading a NEW wet event?
      * - wet bit set, clip armed (bit 0x02), not arming and no arm pending
      * - outside the post-arm ignore window: now >= ignoreUntil AND the wet did not start inside it (wetAt >= ignoreUntil)
      *   (the plate reads warmth: a finger touch while arming latches WET)
+     * - a wet that started inside the window and is still latched after it is LATCHED_TOUCH:
+     *   ignore it once, do not treat it as a new wet, and do not re-arm (that settle-loops)
      * - not the same event as the last one (computed wet time within ±60 s)
      */
     fun decide(st: State, now: Long, armPending: Boolean, ignoreUntil: Long, lastWetAt: Long?): Decision {
@@ -54,7 +56,8 @@ object DryClipProtocol {
         if (armPending || st.arming) return Decision.ARMING
         if (!st.armed) return Decision.NOT_ARMED
         val at = wetAt(now, st.secs)
-        if (now < ignoreUntil || at < ignoreUntil) return Decision.IGNORE_WINDOW
+        if (ignoreUntil > 0 && now < ignoreUntil) return Decision.IGNORE_WINDOW
+        if (ignoreUntil > 0 && at < ignoreUntil) return Decision.LATCHED_TOUCH
         if (lastWetAt != null && lastWetAt > 0 && Math.abs(at - lastWetAt) <= DEDUPE_MS) return Decision.DUPLICATE
         return Decision.NEW
     }
