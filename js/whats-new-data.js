@@ -3,6 +3,16 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v41',
+    date: '2026-10-26',
+    title: 'v41 — skins reach the cards',
+    bullets: [
+      '🎨 Calendar day cards, Settings sections, and the Path board follow the active look. Baby, Toddler, Teen bedwetter, Girl, and Boy no longer sit as wallpaper behind a navy slab.',
+      'Urgency and saturation tracks, and the helper text under them, stay readable on the light skins.',
+      'Version 41.'
+    ]
+  },
+  {
     hash: 'v40',
     date: '2026-10-26',
     title: 'v40 — BLE without a bond, copy log, natural play, deeper looks',

@@ -501,24 +501,24 @@ body[class*="bs-theme-"] .hr { background: var(--border); }
 .bs-theme-swatch { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px; border-radius: 12px; border: 1px solid var(--border); background: var(--panel-2); cursor: pointer; min-height: 72px; color: var(--text); font-size: 11px; }
 .bs-theme-swatch:has(input:checked) { border-color: var(--accent2); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent2) 45%, transparent); }
 .bs-theme-swatch input { position: absolute; opacity: 0; pointer-events: none; }
-.bs-sw-chip { width: 36px; height: 36px; border-radius: 50%; border: 2px solid #fff3; box-shadow: inset 0 0 0 2px #0004; }
+.bs-sw-chip { width: 56px; height: 34px; border-radius: 8px; border: 2px solid #fff3; box-shadow: inset 0 0 0 1px #0003; }
 .bs-sw-lab { text-align: center; line-height: 1.2; }
 .bs-sw-neutral .bs-sw-chip { background: linear-gradient(135deg, #151923, #a29bfe); }
-.bs-sw-girl .bs-sw-chip { background: linear-gradient(135deg, #1c1520, #e84393); }
-.bs-sw-boy .bs-sw-chip { background: linear-gradient(135deg, #141c28, #0984e3); }
+.bs-sw-girl .bs-sw-chip { background: linear-gradient(#3a2030, #3a2030) center / 62% 42% no-repeat, radial-gradient(120% 80% at 0% 0%, #a33b68, #1a1018); }
+.bs-sw-boy .bs-sw-chip { background: linear-gradient(#15283c, #15283c) center / 62% 42% no-repeat, linear-gradient(#1d4e86, #0c1218); }
 .bs-sw-softpink .bs-sw-chip { background: linear-gradient(135deg, #241820, #ff8fb8); }
 .bs-sw-sky .bs-sw-chip { background: linear-gradient(135deg, #122030, #00cec9); }
 .bs-sw-lavender .bs-sw-chip { background: linear-gradient(135deg, #1a1628, #c9b6ff); }
 .bs-sw-midnight .bs-sw-chip { background: linear-gradient(135deg, #07090e, #22d3ee); }
-.bs-sw-baby .bs-sw-chip { background: linear-gradient(135deg, #fff3e8, #ff8fab); }
-.bs-sw-toddler .bs-sw-chip { background: linear-gradient(135deg, #fff3a8, #2e9bff); }
-.bs-sw-teen .bs-sw-chip { background: linear-gradient(135deg, #2a2238, #e2b4d4); }
+.bs-sw-baby .bs-sw-chip { background: linear-gradient(#fffaf6, #fffaf6) center / 62% 42% no-repeat, radial-gradient(circle at 6px 6px, #ffb3c7 1.2px, transparent 1.5px) 0 0 / 12px 12px, #ffe4d4; }
+.bs-sw-toddler .bs-sw-chip { background: linear-gradient(#fffef6, #fffef6) center / 62% 42% no-repeat, linear-gradient(#ffe566, #7ec8ff); }
+.bs-sw-teen .bs-sw-chip { background: linear-gradient(#2a2236, #1a1522) center / 62% 42% no-repeat, linear-gradient(160deg, #3a2a48, #120e16); }
 
 /* v39 maturity skins — background, cards, and type, not accent-only.
    v40 deepens baby / toddler / teen and gives girl / boy the same kind of skin. */
 html[data-bs-theme="baby"], body.bs-theme-baby {
   --bg: #fff3e8; --panel: #fffaf6; --panel-2: #ffe4d4; --border: #f0c2b0; --border-strong: #e39a8c;
-  --muted: #8d5b62; --text: #4a2c32; --accent: #ff8fab; --accent2: #ffb703; --warn: #fb8500; --bad: #e85d4c;
+  --muted: #6d3f49; --text: #4a2c32; --accent: #ff8fab; --accent2: #ffb703; --warn: #fb8500; --bad: #e85d4c;
   --ok: #2a9d8f; --nav: #ffe8dc; --btn: #fffdfb; --chip: #ffe0ea; --status-bg: rgba(255,243,232,0.94);
   --bs-font: "Trebuchet MS", "Segoe UI", sans-serif;
   --bs-display: "Trebuchet MS", "Segoe UI", sans-serif;
@@ -574,7 +574,7 @@ body.bs-theme-teen :is(h1, h2, h3, .panel h2) {
 }
 
 /* Girl: warm rose dusk, soft cards */
-body.bs-theme-girl :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub) {
+body.bs-theme-girl :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub, .set-sec, .cal-entry, .pp-board) {
   box-shadow: 0 12px 28px rgba(255, 92, 154, 0.16);
   border-color: var(--border-strong);
 }
@@ -589,7 +589,7 @@ body.bs-theme-girl :is(button, .pill) { border-radius: 16px; }
 body.bs-theme-girl #tabBar button[aria-selected="true"] { color: #fff; }
 
 /* Boy: slate, sharp cards, sky stripe */
-body.bs-theme-boy :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub) {
+body.bs-theme-boy :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub, .set-sec, .cal-entry, .pp-board) {
   border-left: 4px solid var(--accent2);
   box-shadow: none;
 }
@@ -606,7 +606,7 @@ body.bs-theme-boy .panel h2 { letter-spacing: 0.08em; text-transform: uppercase;
 body.bs-theme-boy :is(button, .pill) { border-radius: 4px; letter-spacing: 0.03em; }
 
 /* Baby: nursery wallpaper, pill chrome, readable on cream */
-body.bs-theme-baby :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub) {
+body.bs-theme-baby :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub, .set-sec, .cal-entry, .pp-board) {
   border-width: 2px;
   box-shadow: 0 8px 0 rgba(255, 143, 171, 0.22);
 }
@@ -626,7 +626,7 @@ body.bs-theme-baby :is(input, select, textarea) {
 
 /* Toddler: primary-color playroom, chunky offset cards */
 body.bs-theme-toddler { font-weight: 600; line-height: 1.35; }
-body.bs-theme-toddler :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub) {
+body.bs-theme-toddler :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub, .set-sec, .cal-entry, .pp-board) {
   border-width: 3px;
   border-color: #1a7fe0;
   box-shadow: 5px 5px 0 #ff7a45;
@@ -652,7 +652,7 @@ body.bs-theme-toddler :is(input, select, textarea) {
 
 /* Teen bedwetter: dusk diary, serif, hairline cards */
 body.bs-theme-teen { line-height: 1.6; }
-body.bs-theme-teen :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub) {
+body.bs-theme-teen :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub, .set-sec, .cal-entry) {
   border-radius: 4px;
   box-shadow: inset 0 0 0 1px rgba(240, 198, 226, 0.16);
   background: linear-gradient(180deg, #2a2236, #1a1522);
@@ -672,5 +672,108 @@ body.bs-theme-teen :is(button, .pill) {
   font-family: "Segoe UI", system-ui, sans-serif;
   border-radius: 2px;
   letter-spacing: 0.04em;
+}
+
+/* v41: major cards follow the skin. Hardcoded navy (#1b2030 / #151923 / #1e2a3a)
+   was painting calendar day cards, settings rows, and the Path board on top of the wallpaper. */
+body[class*="bs-theme-"] {
+  --board: var(--panel);
+  --track: var(--accent);
+}
+body[class*="bs-theme-"] .cal-root,
+body[class*="bs-theme-"] .cal-entry,
+body[class*="bs-theme-"] .cal-entry .body,
+body[class*="bs-theme-"] .nn-tl {
+  color: var(--text);
+}
+body[class*="bs-theme-"] .cal-entry,
+body[class*="bs-theme-"] details.set-sec,
+body[class*="bs-theme-"] .pp-banner,
+body[class*="bs-theme-"] .pp-notes div,
+body[class*="bs-theme-"] .pp-cons {
+  background: var(--panel);
+  border-color: var(--border);
+  color: var(--text);
+}
+body[class*="bs-theme-"] .cal-stat,
+body[class*="bs-theme-"] .cal-trends div,
+body[class*="bs-theme-"] .cal-chip {
+  background: var(--panel-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+body[class*="bs-theme-"] .cal-section > h3,
+body[class*="bs-theme-"] details.set-sec > summary {
+  color: var(--accent2);
+}
+body[class*="bs-theme-"] .cal-legend,
+body[class*="bs-theme-"] .cal-dow,
+body[class*="bs-theme-"] .cal-stat,
+body[class*="bs-theme-"] .pp-legend,
+body[class*="bs-theme-"] .section-desc,
+body[class*="bs-theme-"] details.set-sec > summary small {
+  color: var(--muted);
+}
+body[class*="bs-theme-"] .cal-stat b,
+body[class*="bs-theme-"] .nn-tl b {
+  color: var(--text);
+}
+body[class*="bs-theme-"] .cal-entry .acts button,
+body[class*="bs-theme-"] .info-btn {
+  background: var(--chip);
+  color: var(--text);
+  border-color: var(--accent);
+  border-radius: 999px;
+}
+body[class*="bs-theme-"] .cal-chip.nat { background: var(--chip); color: var(--ok); border-color: var(--ok); }
+body[class*="bs-theme-"] .pp-legend {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius, 12px);
+  padding: 8px 10px;
+}
+body[class*="bs-theme-"] .pp-board { background: var(--board); }
+/* Inline navy blocks in Settings and generated cards. */
+body[class*="bs-theme-"] [style*="background:#1b2030"],
+body[class*="bs-theme-"] [style*="background:#0f1115"],
+body[class*="bs-theme-"] [style*="background:#151923"],
+body[class*="bs-theme-"] [style*="background:#1d2140"],
+body[class*="bs-theme-"] [style*="background:#101622"],
+body[class*="bs-theme-"] [style*="background:#111826"],
+body[class*="bs-theme-"] [style*="background:#14202e"],
+body[class*="bs-theme-"] [style*="background:#1f2a3c"],
+body[class*="bs-theme-"] [style*="background:#24344d"] {
+  background-color: var(--panel-2) !important;
+  border-color: var(--border) !important;
+  color: var(--text);
+}
+body[class*="bs-theme-"] [style*="color:#cdd7e6"],
+body[class*="bs-theme-"] [style*="color:#e8eefc"],
+body[class*="bs-theme-"] [style*="background:#1b2030"][style*="color:#fff"],
+body[class*="bs-theme-"] [style*="background:#0f1115"][style*="color:#fff"],
+body[class*="bs-theme-"] [style*="background:#151923"][style*="color:#fff"] {
+  color: var(--text) !important;
+}
+body[class*="bs-theme-"] [style*="color:#8ea0b6"],
+body[class*="bs-theme-"] [style*="color:#b8c4d6"] {
+  color: var(--muted) !important;
+}
+/* Light skins: urgency / saturation tracks must show on the peach or yellow header. */
+body.bs-theme-baby .sb-bar { background: #c96b7c; border-color: #a14d60; }
+body.bs-theme-toddler .sb-bar { background: #7ec8ff; border-color: #1a7fe0; }
+body.bs-theme-girl .sb-bar { background: #4a2436; border-color: #c45b86; }
+body.bs-theme-boy .sb-bar { background: #0c1c2c; border-color: #4d86c4; }
+body.bs-theme-teen .sb-bar { background: #2a2238; border-color: #6d5a86; }
+body.bs-theme-baby .sb-lbl,
+body.bs-theme-toddler .sb-lbl,
+body.bs-theme-baby .sb-timer b,
+body.bs-theme-toddler .sb-timer b,
+body.bs-theme-baby .sb-next b,
+body.bs-theme-toddler .sb-next b { color: var(--text); }
+body.bs-theme-teen details.set-sec,
+body.bs-theme-teen .cal-entry,
+body.bs-theme-teen .panel,
+body.bs-theme-teen .play-card {
+  background: linear-gradient(180deg, #2a2236, #1a1522);
 }
 

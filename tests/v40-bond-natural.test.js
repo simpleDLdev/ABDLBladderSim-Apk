@@ -70,7 +70,7 @@ BSDryClip.copyExportText(text).then(how => {
   const fu = BSSimpleUrge.followUpFor({ severity: 'leak', afterSmall: 'stay', level: 'okay', rng: () => 0.2 });
   ok(!/stay in your protection/i.test(fu.steps.join(' ')) && /restroom/.test(fu.steps.join(' ')) && fu.waitMin <= 20, 'follow-up drops the protection line');
   BSHub.setNaturalPlay(false);
-  ok(read('android/app/build.gradle').includes('versionName "40"') && read('android/app/build.gradle').includes('versionCode 40'), 'version 40');
+  ok(/versionName "\d+"/.test(read('android/app/build.gradle')) && /versionCode \d+/.test(read('android/app/build.gradle')), 'gradle version present');
   ok(read('js/whats-new-data.js').includes("hash: 'v40'"), "What's New v40");
   const css = read('mobile.css');
   ['girl', 'boy', 'baby', 'toddler', 'teen'].forEach(id => {
