@@ -1,0 +1,38 @@
+// v17 e2e: four-stage Path, I need to go → 2d6 → rule sheet, accident regress, mastery panel, Test Mode. Serve repo on :8765.
+const puppeteer = require('puppeteer-core');
+let fails = 0; const check = (n, ok, i) => { if (!ok) fails++; console.log((ok ? 'PASS ' : 'FAIL ') + n + (i ? ' — ' + i : '')); };
+const sl = ms => new Promise(r => setTimeout(r, ms));
+(async () => {
+  const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--disable-gpu'] });
+  const page = await browser.newPage(); await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2 });
+  const errs = []; page.on('pageerror', e => errs.push(e.message));
+  await page.goto('http://localhost:8765/index.html', { waitUntil: 'networkidle0' }); await sl(800);
+  await page.evaluate(() => { localStorage.setItem('profileMode', 'babysitter'); localStorage.removeItem('bs_path_v1'); }); await page.reload({ waitUntil: 'networkidle0' }); await sl(1000);
+  await page.evaluate(() => { if (typeof hideWhatsNewModal === 'function') hideWhatsNewModal(); const sb = document.getElementById('sessionSetupBackdrop'); if (sb) sb.style.display = 'none'; switchTab('path'); }); await sl(200);
+  check('setup: modes, stage picker, Test Mode', await page.evaluate(() => document.querySelectorAll('[data-mode]').length === 3 && !!document.getElementById('ppStage') && !!document.getElementById('ppTest')));
+  await page.evaluate(() => { document.getElementById('ppTest').click(); }); await sl(300);
+  const tm = await page.evaluate(() => { const b = BSPath.load(); return { steps: b.testSteps, sweep: b.testSweep.cases, bad: b.testSweep.bad.length, fin: b.finished }; });
+  check('Test Mode pass runs + table sweep', tm.steps > 0 && tm.sweep === 1248 && tm.bad === 0, JSON.stringify(tm));
+  await page.evaluate(() => { BSPath.save(null); renderPath(); document.getElementById('ppStage').value = '1'; document.getElementById('ppCls').value = 'scout'; document.querySelector('[data-mode="quiz"]').click(); }); await sl(300);
+  const st = await page.evaluate(() => ({ sq: document.querySelectorAll('#ppSvg .pp-sq').length, stop: [...document.querySelectorAll('#ppSvg text')].filter(t => t.textContent === 'STOP').length, need: !!document.getElementById('ppNeed'), rules: document.querySelectorAll('#ppRulesBox .pp-rules li').length, pos: BSPath.load().pos }));
+  check('board: 60 squares, ≥8 STOPs, I need to go button, 12-rule table, starts at stage 2', st.sq === 60 && st.stop >= 8 && st.need && st.rules === 12 && st.pos === 16, JSON.stringify(st));
+  await page.screenshot({ path: '/workspace/v17-board.png' });
+  await page.click('#ppNeed'); await sl(250); await page.screenshot({ path: '/workspace/v17-rolling.png' });
+  await page.waitForSelector('#ppEv', { timeout: 8000 }).catch(() => {});
+  const ev = await page.evaluate(() => ({ ev: !!document.getElementById('ppEv'), rule: /Rule|STOP/.test(document.querySelector('#ppEv h3').textContent), real: !!document.querySelector('#ppEv .pp-real'), urg: !!document.getElementById('ppU') }));
+  check('first go → rule sheet with Real need + user-entered urgency (Scout check-in)', ev.ev && ev.rule && ev.real && ev.urg, JSON.stringify(ev));
+  await page.screenshot({ path: '/workspace/v17-rule-sheet.png' });
+  const before = await page.evaluate(() => BSPath.load().pos);
+  await page.evaluate(() => { const u = document.getElementById('ppU'); u.value = 4; u.dispatchEvent(new Event('input')); document.querySelector('#ppEv [data-out="real"]').click(); }); await sl(300);
+  check('Real need: token stays', await page.evaluate(b => BSPath.load().pos === b && !BSPath.load().pending, before));
+  await page.evaluate(() => { document.getElementById('ppMastery').open = true; document.querySelector('[data-ml="dry"]').click(); }); await sl(200);
+  check('mastery panel logs a dry night', await page.evaluate(() => BSPath.load().mastery.bed >= 1));
+  await page.evaluate(() => { document.getElementById('ppMastery').open = true; document.getElementById('ppRulesBox').open = false; document.getElementById('ppMastery').scrollIntoView(); }); await sl(150);
+  await page.screenshot({ path: '/workspace/v17-mastery.png' });
+  await page.evaluate(() => { document.getElementById('ppRulesBox').open = true; document.getElementById('ppRulesBox').scrollIntoView(); }); await sl(150);
+  await page.screenshot({ path: '/workspace/v17-stage-table.png' });
+  await page.evaluate(() => { window.scrollTo(0, 0); document.getElementById('ppGear').click(); document.querySelector('.pp-ev details').open = true; }); await sl(150);
+  await page.screenshot({ path: '/workspace/v17-classes.png' });
+  check('no page errors', errs.length === 0, errs.join(' | '));
+  await browser.close(); console.log(fails ? fails + ' FAILED' : 'ALL PASS'); process.exit(fails ? 1 : 0);
+})();

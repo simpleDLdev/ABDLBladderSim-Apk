@@ -1,0 +1,46 @@
+// v16 unit tests: bed drinks, Potty Path (classes/dice/adaptive), quiz-plus scoring + campaign feeds. node tests/v16-path.test.js
+const path = require('path');
+let fails = 0; const check = (n, ok, i) => { if (!ok) fails++; console.log((ok ? 'PASS ' : 'FAIL ') + n + (i ? ' — ' + i : '')); };
+const store = {}; global.window = global;
+global.localStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } };
+['safety', 'bed-drinks', 'quiz-plus', 'potty-path'].forEach(f => require(path.join(__dirname, '..', 'js', f + '.js')));
+const BD = window.BSBedDrinks, P = window.BSPath, Q = window.BSQuizPlus;
+const now = new Date(2026, 9, 15, 22, 0).getTime();
+// --- bed drinks ---
+const tiers = [0, 1, 2, 3, 4].map(li => BD.suggest({ levelIdx: li, now, bedtime: now }));
+check('drinks: every suggestion ≤ 250 ml and ends with "Pee before bed."', tiers.every(t => t.ml <= 250 && t.endsWithPee), tiers.map(t => t.ml).join(','));
+check('drinks: high control gets a few sips ~15 min before', tiers[0].ml <= 60 && /15 min/.test(tiers[0].text));
+check('drinks: scaled up with lower control, max 1 glass', tiers[4].ml === 250 && tiers[0].ml < tiers[2].ml);
+const rec = BD.suggest({ levelIdx: 4, now, bedtime: now, drinks: [{ ts: now - 30 * 60000, ml: 200 }] });
+check('drinks: logged last-2h drinks reduce budget', rec.ml === 50, rec.ml);
+const full = BD.suggest({ levelIdx: 4, now, bedtime: now, drinks: [{ ts: now - 60 * 60000, ml: 300 }] });
+check('drinks: already a glass → no suggestion, still pee before bed', full.ml === 0 && full.endsWithPee);
+const old = BD.suggest({ levelIdx: 4, now, bedtime: now, drinks: [{ ts: now - 4 * 3600000, ml: 300 }] });
+check('drinks: drinks older than 2h ignored', old.ml === 250);
+check('drinks: not thirsty → ≤ 3 sips', BD.suggest({ levelIdx: 4, now, bedtime: now, thirsty: false }).ml <= 45);
+BD.accept(tiers[2], now);
+const sp = BD.suggest({ levelIdx: 2, now: now + 30 * 60000, bedtime: now + 30 * 60000 });
+check('drinks: respects safety.js 2 h spacing after an accepted prompt', sp.ml === 0 && /safety_spacing/.test(sp.reason) && sp.endsWithPee, sp.reason);
+// --- quizzes ---
+check('quiz: long board 30–40 Q, long campaign 30–40 Q', Q.QUIZZES.longBoard.qs.length >= 30 && Q.QUIZZES.longBoard.qs.length <= 40 && Q.QUIZZES.longCamp.qs.length >= 30 && Q.QUIZZES.longCamp.qs.length <= 40);
+check('quiz: long quizzes mix formats', ['choice', 'pair', 'slider'].every(k => Q.QUIZZES.longBoard.qs.some(q => q.kind === k)));
+check('quiz: 9 quiz types, distinct feeds', new Set(Object.keys(Q.QUIZZES).map(k => Q.scoreAnswers(k, []).feeds)).size >= 8);
+const cls = Q.scoreAnswers('classquiz', Array(12).fill({ baby: 1 }));
+check('quiz: which-class → % match', cls.classId === 'baby' && cls.pct === 100);
+const gear = Q.scoreAnswers('gear', [{ pads: 2 }, {}, {}, {}, { dayFloor: 3 }, { nightBump: 1 }, { spares: 1 }, { change: 'ask' }]);
+check('quiz: gear clamps floors to stash', gear.rules.dayFloor === 'pad' && gear.rules.nightFloor === 'pad' && !gear.stash.diapers, gear.summary);
+Q.setResult('gear', gear);
+check('quiz: class quiz gated by stash', Q.QUIZZES.classquiz.score({ baby: 5, padgirl: 2 }).classId === 'padgirl');
+const dare = Q.scoreAnswers('dare', [{ dare: { id: 'tidy5', task: 'x', stars: 2 } }]); Q.setResult('dare', dare);
+const db = P.newBoard({ seed: 3, mode: 'quiz' });
+check('quiz: dares become board tasks', db.tasks.length === 1 && db.tasks[0].id === 'tidy5');
+const sym = Q.scoreAnswers('symptom', [{ oab: 2 }, { dribbler: 1 }]);
+check('quiz: symptom unlock needs ≥2 and is user-confirmed (not auto-on)', sym.unlocked.join() === 'oab' && Q.flags().length === 0);
+Q.setFlag('oab', true); check('quiz: symptom flag can be switched off', Q.flags().includes('oab') && (Q.setFlag('oab', false), Q.flags().length === 0));
+Q.setResult('sliders', Q.scoreAnswers('sliders', [{ slider: 'warn', v: 9 }, { slider: 'hold', v: 9 }, { slider: 'gearwant', v: 1 }]));
+Q.setResult('scenario', Q.scoreAnswers('scenario', [{ grow: 2, spice: 2 }, { grow: 2, spice: 2, end: 1 }]));
+const day = Q.campaignDay({ feeds: {} }, now);
+check('campaign: feeds shape the day', day.control > 60 && day.difficulty >= 3 && day.dareOfDay && day.sources.length >= 3, day.sources.join(','));
+const off = Q.campaignDay({ feeds: { sliders: false, scenario: false, dare: false, gear: false } }, now);
+check('campaign: toggles remove a quiz feed', off.control == null && !off.difficulty && !off.dareOfDay);
+console.log(fails ? fails + ' FAILED' : 'ALL PASS'); process.exit(fails ? 1 : 0);

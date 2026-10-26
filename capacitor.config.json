@@ -1,0 +1,8 @@
+{
+  "appId": "dev.simpledl.bladdersim",
+  "appName": "Bladder Sim",
+  "webDir": "www",
+  "plugins": {
+    "LocalNotifications": { "iconColor": "#7cc4ff" }
+  }
+}
