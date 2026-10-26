@@ -58,7 +58,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   const confirmedAt = now - 5000, ig = confirmedAt + DC.IGNORE_AFTER_ARM_MS;
   ok(DC.IGNORE_AFTER_ARM_MS === 20000 && DC.DEDUPE_MS === 60000, 'window 20 s, dedupe 60 s');
   ok(DC.decideWet(W(0x03, 12), now, { ignoreUntil: ig }) === 'ignore_window', 'real log: 03-0C right after the armed confirmation → touch ignored');
-  ok(DC.decideWet(W(0x03, 40), ig + 10000, { ignoreUntil: ig }) === 'ignore_window', 'wet that STARTED inside the window stays ignored after it');
+  ok(DC.decideWet(W(0x03, 40), ig + 10000, { ignoreUntil: ig }) === 'latched_touch', 'wet that STARTED inside the window is latched_touch after it (clear once, do not re-arm)');
   ok(DC.decideWet(W(0x03, 3), ig + 30000, { ignoreUntil: ig }) === 'new', 'wet starting after the window → new event');
   const last = ig + 30000 - 3000;
   ok(DC.decideWet(W(0x03, 33), ig + 60000, { ignoreUntil: ig, lastWetAt: last }) === 'duplicate', 'same wet time (±60 s) → duplicate');

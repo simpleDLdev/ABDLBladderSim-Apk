@@ -74,40 +74,40 @@
 
   // ---------- Classes: Leaky Girl is the ± template. Ids stay stable. Every class has a small #2 modifier (poo). ----------
   const CLASSES = [
-    { id: 'bigkid', name: '🎓 Big Kid', band: 'Good', needs: [], back: 6, start: 3, move: 'full',
+    { id: 'bigkid', name: '🎓 Big Kid', from: 'Big Girl', band: 'Good', needs: [], back: 6, start: 3, move: 'full',
       plus: ['Move the full roll forward, not half.', 'You may follow the rule of the square just ahead or behind instead.'],
       minus: ['An accident in stage 3 or 4 sends you to the previous stage\'s STOP.', 'No Accident Mastery progress.'],
       poo: { potty: 1, note: '#2 in the potty is +2 on #2 Mastery.' } },
-    { id: 'scout', name: '🧭 Scout', band: 'Good', needs: [], back: 6, start: 2, move: 'half',
+    { id: 'scout', name: '🧭 Scout', from: 'Scout (v16)', band: 'Good', needs: [], back: 6, start: 2, move: 'half',
       plus: ['Spare kit: once per stage, an accident doesn\'t move you back.', 'Round up on rolls that reach a STOP.'],
       minus: ['Check in (enter your urgency) on every go.', 'Two accidents in a row also loses your spare kit for the stage.'],
       poo: { back: -1, note: '#2 accidents move back 1 less (at least 1).' } },
-    { id: 'padgirl', name: '🎀 Pad Girl', band: 'Okay', needs: ['pads'], back: 6, start: 2, move: 'half',
+    { id: 'padgirl', name: '🎀 Pad Girl', from: 'Lazy Gal', band: 'Okay', needs: ['pads'], back: 6, start: 2, move: 'half',
       plus: ['Pads are the protection: bed and #2 progress can go to Accident Mastery until that track is done.', 'Once a day, a go in your pad is free if you choose it before trying the potty.'],
       minus: ['One change a day until Accident Mastery — skin comfort always overrides.', 'Fail a STOP → back to square 2 of the stage.'],
       poo: { penalty: 1, note: '#2 accident is −1 on #2 Mastery (pads), not −2.' } },
-    { id: 'pullup', name: '💧 Pull-up Soft', band: 'Shaky', needs: ['pullups'], back: 6, start: 1, move: 'up',
+    { id: 'pullup', name: '💧 Pull-up Soft', from: 'Desperate Goer', band: 'Shaky', needs: ['pullups'], back: 6, start: 1, move: 'up',
       plus: ['Round half-rolls up.', 'Holds stay full length — this is not Leaky Girl.'],
       minus: ['Not making a "hold" rule counts as an accident.', 'Potty busy 1 in 6: wait 5 minutes (not an accident).'],
       poo: { back: -1, note: '#2 accidents move back 1 less. Holds are not shortened.' } },
-    { id: 'leaky', name: '💧 Leaky Girl', band: 'Shaky', needs: ['pads|pullups'], back: 6, start: 1, move: 'up',
+    { id: 'leaky', name: '💧 Leaky Girl', from: 'Dribbler', band: 'Shaky', needs: ['pads|pullups'], back: 6, start: 1, move: 'up',
       plus: ['Pads allowed with underwear.', 'Clear drip→potty chain once a dribble is logged.'],
       minus: ['Need-to-go unlocks only after a logged dribble.', 'Much shorter holds (higher change sat gate).'],
       flags: { needDribbleFirst: true, holdScale: 0.65, changeSatBump: 25, padsWithUndies: true },
       poo: { penalty: -1, note: '#2 accident is −3 on #2 Mastery (small extra).' } },
-    { id: 'little', name: '🌙 Night Little', band: 'Little', needs: ['pullups|diapers'], back: 4, start: 1, move: 'half',
+    { id: 'little', name: '🌙 Night Little', from: 'Bedwetter', band: 'Little', needs: ['pullups|diapers'], back: 4, start: 1, move: 'half',
       plus: ['Night focus: dry nights count double on Bed Mastery.', 'Potty after bedtime is allowed in stages 2–3.'],
       minus: ['A wet night is −6 on Bed Mastery (not −3).', 'After Bed Mastery, accidents always move you back 3 (no roll).'],
       poo: { bed: 1, note: 'A #2 accident also −1 Bed Mastery (night focus).' } },
-    { id: 'baby', name: '🍼 Baby', band: 'None', needs: ['diapers'], back: 0, start: 0, move: 'half',
+    { id: 'baby', name: '🍼 Baby', from: 'Forced Into Diapers', band: 'None', needs: ['diapers'], back: 0, start: 0, move: 'half',
       plus: ['Unlimited changes.', 'Never moved back for accidents in your diaper.'],
       minus: ['Diapers in every stage: potty rules become "use your diaper on or by the potty".', 'No #2 Mastery progress.'],
       poo: { note: '#2 in the diaper never moves you back and never touches #2 Mastery.' } },
-    { id: 'cascade', name: '🌊 Cascade Prone', band: 'Shaky–Little', needs: ['pullups|diapers'], back: 6, start: 1, move: 'half',
+    { id: 'cascade', name: '🌊 Cascade Prone', from: 'Panty Pooper', band: 'Shaky–Little', needs: ['pullups|diapers'], back: 6, start: 1, move: 'half',
       plus: ['When a rule allows the potty, #2 may always use it.', '#2 in the potty is +3 on #2 Mastery.'],
       minus: ['Tummy trouble every day — never take anything real.', '#2 accidents move back double.'],
       poo: { potty: 2, backMul: 2, note: '#2 in the potty is +3; #2 accidents move back double.' } },
-    { id: 'shy', name: '🙈 Shy Goer', band: 'Okay', needs: [], back: 6, start: 2, move: 'half',
+    { id: 'shy', name: '🙈 Shy Goer', from: 'Ashamed Pooper', band: 'Okay', needs: [], back: 6, start: 2, move: 'half',
       plus: ['After a roll you may move just 1 and use plain rule 1 instead.', 'Privacy always (no "someone watching" cards).'],
       minus: ['Landing on a "1" square moves you back 1 (still follow rule 1).', '#2 waits 5 minutes before any rule.'],
       poo: { wait: 5, note: '#2 waits 5 minutes before any rule.' } }
@@ -635,7 +635,14 @@
       <div class="quiz-nav"><button type="button" data-ml="dry">🛏 Dry night</button><button type="button" data-ml="wet">🌊 Wet night</button><button type="button" data-ml="clean">💧 Accident-free day</button><button type="button" data-ml="pooFree">💩 No #2 accident today</button></div></div>`;
   }
   function syncClipHold(b) {
-    try { if (window.BSClipBridge && window.BSClipBridge.syncFromBoard) window.BSClipBridge.syncFromBoard(b || null); } catch (e) {}
+    try {
+      const B = window.BSClipBridge;
+      if (!B) return;
+      if (B.syncFromBoard) { B.syncFromBoard(b || null); return; }
+      // Older bridge: a pending go is still hold context until the board clears it.
+      if (b && b.pending && B.setPathHold) B.setPathHold({ kind: 'path_hold', pending: true, untilResolve: true, endsAt: b.pending.holdEndsAt || 0, pos: b.pos, stage: b.pending.stage });
+      else if (B.clearPathHold) B.clearPathHold();
+    } catch (e) {}
   }
   function render() {
     const m = document.getElementById('pathMount'); if (!m) return; const b = load();

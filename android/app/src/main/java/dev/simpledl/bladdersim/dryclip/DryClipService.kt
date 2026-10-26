@@ -283,16 +283,7 @@ class DryClipService : Service() {
 
     private fun bondNow(): String = bondState(this, store.mac)
 
-    /** Ask Android to pair once. Does not loop settle or re-arm while the bond is missing. */
-    private fun tryCreateBond() {
-        val dev = device() ?: return
-        if (dev.bondState != BluetoothDevice.BOND_NONE) return
-        try {
-            if (dev.createBond()) log("conn", "Asked Android to pair the clip (bond was none)")
-        } catch (e: Exception) { log("warn", "createBond: " + (e.message ?: "failed")) }
-    }
-
-    /** Slow retry while unpaired. Never starts the settle / touch-clear / re-arm loop. */
+    /** Slow retry while unpaired. Does not force a bond, and does not start the settle / re-arm loop. */
     private fun holdForUnpaired(why: String) {
         h.removeCallbacks(autoRefresh)
         h.removeCallbacks(retryDirect)
@@ -303,7 +294,6 @@ class DryClipService : Service() {
         if (!unpairedLogged) {
             unpairedLogged = true
             log("conn", "Bond none — clip is not paired with this phone. Pair it in Android Bluetooth settings, then the watch reconnects. Not re-arming while unpaired. ($why)")
-            tryCreateBond()
         }
         h.postDelayed(retryDirect, UNPAIRED_RETRY_MS)
         refresh()

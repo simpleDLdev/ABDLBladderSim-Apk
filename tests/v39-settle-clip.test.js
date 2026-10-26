@@ -6,9 +6,21 @@ global.localStorage = { getItem: k => store[k] ?? null, setItem: (k, v) => { sto
 global.window = global;
 global.addEventListener = () => {};
 global.confirm = () => true;
+const els = [];
+function el() {
+  const o = { style: {}, className: '', innerHTML: '', children: [], dataset: {}, id: '',
+    appendChild(c) { this.children.push(c); return c; },
+    querySelector() { return el(); },
+    querySelectorAll() { return []; },
+    remove() {}, addEventListener() {}, setAttribute() {},
+    classList: { add() {}, toggle() {} }, onclick: null, textContent: ''
+  };
+  return o;
+}
 global.document = {
-  addEventListener() {}, getElementById: () => null, querySelector: () => null, querySelectorAll: () => [],
-  createElement: () => ({ style: {}, className: '', innerHTML: '', appendChild() {}, querySelector: () => null, querySelectorAll: () => [] }),
+  addEventListener() {}, getElementById: () => null, querySelector: () => null,
+  querySelectorAll: () => [],
+  createElement: () => { const e = el(); els.push(e); return e; },
   body: { appendChild() {} }
 };
 ['hub', 'calendar', 'accident', 'classes', 'control', 'campaign', 'potty-path', 'path-play', 'path-features', 'dryclip', 'clip-bridge'].forEach(f => {
@@ -70,7 +82,10 @@ ok(!BSClipBridge.pathHold(), 'assist off does not keep a hold');
 ok(/hold && !soft/.test(read('js/clip-bridge.js')), 'interrupt still needs a confirm; soft play does not auto-resolve');
 
 // --- D. classes: Leaky Girl template, Pull-up Soft, Night Little, #2 on every class ---
-ok(BSPath.CLASSES.every(c => c.poo && c.poo.note && !c.from), 'every Path class has a #2 note and no old from: alias');
+ok(BSPath.CLASSES.every(c => c.poo && c.poo.note), 'every Path class has a #2 note');
+const cardSrc = read('js/path-play.js');
+const cardFn = cardSrc.slice(cardSrc.indexOf('function classCardHtml'), cardSrc.indexOf('function classCardHtml') + 1600);
+ok(!/c\.from/.test(cardFn) && !read('js/potty-path.js').includes('${esc(c.from)}'), 'picker does not show old from: aliases');
 ok(/Pull-up Soft/.test(BSPath.CLASS_BY_ID.pullup.name), 'pullup display is Pull-up Soft');
 ok(/Night Little/.test(BSPath.CLASS_BY_ID.little.name), 'little display is Night Little');
 ok(/Pad Girl/.test(BSPath.CLASS_BY_ID.padgirl.name) && /Leaky Girl/.test(BSPath.CLASS_BY_ID.leaky.name), 'Pad Girl and Leaky Girl names');

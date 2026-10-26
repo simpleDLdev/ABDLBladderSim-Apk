@@ -38,7 +38,7 @@
       cloudyNight: false, // v30 one-tap: night watch + Match-protection re-arm
       settleIgnored: 0, // v30: count of touch/settle wets ignored (export telemetry)
       mommyCheck: true, // v39: padding check before auto-arm (new field on bs_dryclip_v1)
-      mommySpreadMin: 8 // random minutes before the nominal re-arm to aim at dry padding
+      mommySpreadMin: 8, // random minutes before the nominal re-arm to aim at dry padding
       night: null // { id, startedAt, wakeAt, eventIdx, lastSecs, gapFrom, gaps:[], saturatedAt, awaitingRearm, pendingCheckIn, totalSat }
     };
   }
