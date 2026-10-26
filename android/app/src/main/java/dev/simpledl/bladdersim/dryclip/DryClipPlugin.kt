@@ -2,9 +2,14 @@ package dev.simpledl.bladdersim.dryclip
 
 import android.Manifest
 import android.bluetooth.BluetoothManager
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.core.content.ContextCompat
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
@@ -143,7 +148,64 @@ class DryClipPlugin : Plugin() {
         call.resolve(r)
     }
 
-    /** Bonded devices (Android settings / nRF Connect bond). The clip doesn't advertise while bonded+connected, so we pick it from here. */
+    /**
+     * v40: short advert scan. DryClip is often used with Forget bond, so it is not in bondedDevices.
+     * Match the advertising name (DRYCLIP / DryClip) or a remembered MAC. No service-UUID filter —
+     * DC00 is not always in the advert. No classic bond required.
+     */
+    @PluginMethod
+    fun scanForClips(call: PluginCall) {
+        if (!DryClipService.hasScanPerm(context)) { call.reject("Allow Nearby devices first", "PERMISSION"); return }
+        val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter
+        if (adapter == null || !adapter.isEnabled) { call.reject("Bluetooth is off"); return }
+        val scanner = adapter.bluetoothLeScanner ?: run { call.reject("Bluetooth scanner unavailable"); return }
+        val wantMac = call.getString("mac")?.uppercase(Locale.US)
+        val found = JSArray()
+        val seen = HashSet<String>()
+        var done = false
+        val main = Handler(Looper.getMainLooper())
+        lateinit var cb: ScanCallback
+        cb = object : ScanCallback() {
+            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                val dev = result.device ?: return
+                val addr = dev.address ?: return
+                @Suppress("MissingPermission")
+                val name = dev.name ?: result.scanRecord?.deviceName ?: ""
+                val nameOk = name.lowercase(Locale.US).contains("dryclip")
+                val macOk = !wantMac.isNullOrBlank() && addr.equals(wantMac, ignoreCase = true)
+                if (!nameOk && !macOk) return
+                synchronized(seen) {
+                    if (!seen.add(addr.uppercase(Locale.US))) return
+                    val o = JSObject()
+                    o.put("address", addr.uppercase(Locale.US))
+                    o.put("name", if (name.isBlank()) "DryClip" else name)
+                    o.put("rssi", result.rssi)
+                    found.put(o)
+                }
+            }
+            override fun onScanFailed(errorCode: Int) {
+                main.post {
+                    if (done) return@post
+                    done = true
+                    try { @Suppress("MissingPermission") scanner.stopScan(cb) } catch (_: Exception) {}
+                    call.reject("Scan failed ($errorCode)")
+                }
+            }
+        }
+        val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build()
+        try {
+            @Suppress("MissingPermission")
+            scanner.startScan(null, settings, cb)
+        } catch (e: Exception) { call.reject("startScan: " + e.message); return }
+        main.postDelayed({
+            if (done) return@postDelayed
+            done = true
+            try { @Suppress("MissingPermission") scanner.stopScan(cb) } catch (_: Exception) {}
+            val r = JSObject(); r.put("clips", found); call.resolve(r)
+        }, 6000)
+    }
+
+    /** Optional extra: devices Android already lists as bonded. Not required to connect. */
     @PluginMethod
     fun findClip(call: PluginCall) {
         if (!DryClipService.hasConnectPerm(context)) { call.reject("Allow Nearby devices first", "PERMISSION"); return }

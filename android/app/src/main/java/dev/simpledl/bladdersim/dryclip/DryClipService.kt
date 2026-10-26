@@ -65,8 +65,6 @@ class DryClipService : Service() {
         const val ARM_DROP_WINDOW_MS = 30_000L
         const val ARM_CHECK_MS = 30_000L
         const val STILL_WET_RETRY_MS = 600_000L
-        /** v39: unpaired (bond none) must not tight-loop connect / settle / re-arm. */
-        const val UNPAIRED_RETRY_MS = 60_000L
         const val GAP_MIN_MS = 120_000L
         const val OP_TIMEOUT_MS = 4_000L
 
@@ -202,6 +200,7 @@ class DryClipService : Service() {
     fun stopWatch(why: String) {
         log("svc", "Background watch off · $why")
         store.running = false
+        unpairedLogged = false
         h.removeCallbacksAndMessages(null)
         stopScan(); closeGatt(); conn = "idle"
         try { ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE) } catch (_: Exception) {}
@@ -210,11 +209,7 @@ class DryClipService : Service() {
     }
 
     fun arm(source: String) {
-        if (bondNow() == "none") {
-            log("arm", "Arm held — bond none. Pair the clip in Android Bluetooth settings first.")
-            holdForUnpaired("arm")
-            return
-        }
+        // v40: BOND_NONE is normal (Forget bond). Arm queues until GATT connects; it does not require a classic bond.
         if (conn != "connected" || gatt == null) {
             armOnConnect = source
             log("arm", "Arm queued ($source). It goes out as soon as the clip connects.")
@@ -283,27 +278,17 @@ class DryClipService : Service() {
 
     private fun bondNow(): String = bondState(this, store.mac)
 
-    /** Slow retry while unpaired. Does not force a bond, and does not start the settle / re-arm loop. */
-    private fun holdForUnpaired(why: String) {
-        h.removeCallbacks(autoRefresh)
-        h.removeCallbacks(retryDirect)
-        stopScan()
-        closeGatt()
-        conn = "waiting"
-        if (downSince == 0L) downSince = now()
-        if (!unpairedLogged) {
-            unpairedLogged = true
-            log("conn", "Bond none — clip is not paired with this phone. Pair it in Android Bluetooth settings, then the watch reconnects. Not re-arming while unpaired. ($why)")
-        }
-        h.postDelayed(retryDirect, UNPAIRED_RETRY_MS)
-        refresh()
+    /** Diagnostic only. Forget-bond clips stay BOND_NONE and still take a GATT connection. */
+    private fun noteOptionalBond() {
+        if (bondNow() != "none" || unpairedLogged) return
+        unpairedLogged = true
+        log("conn", "Bond none — classic pairing is optional. Connecting over BLE.")
     }
 
-    /** One direct attempt, autoConnect=false, 6 s. Always closes the old GATT first; never overlaps. */
+    /** One direct attempt, autoConnect=false, 6 s. Always closes the old GATT first; never overlaps. Bond state does not block. */
     private fun connectDirect(reason: String) {
         if (!store.running) return
-        if (bondNow() == "none") { holdForUnpaired(reason); return }
-        unpairedLogged = false
+        noteOptionalBond()
         h.removeCallbacks(autoRefresh); h.removeCallbacks(retryDirect); stopScan(); closeGatt()
         val dev = device() ?: run { conn = "waiting"; h.removeCallbacks(retryDirect); h.postDelayed(retryDirect, AUTO_RETRY_MS); refresh(); return }
         conn = "connecting"; mode = "direct"; val my = ++attempt
@@ -409,12 +394,6 @@ class DryClipService : Service() {
             h.removeCallbacks(connectTimeout); h.removeCallbacks(autoRefresh); h.removeCallbacks(scanTick); stopScan()
             val bond = bondState(this, store.mac)
             log("conn", "Connected (" + mode + ") · bond " + bond)
-            if (bond == "none") {
-                closeGatt()
-                holdForUnpaired("link")
-                return
-            }
-            unpairedLogged = false
             conn = "connected"; lastSeen = now(); lastError = null
             // v28: touching the plate to wake/pair registers like wet — settle before any calendar wet
             val settleUntil = now() + DryClipProtocol.SETTLE_ON_CONNECT_MS
@@ -707,7 +686,6 @@ class DryClipService : Service() {
     }
 
     private fun notifText(): String = when {
-        bondNow() == "none" && store.running -> "Not paired · pair the clip in Bluetooth settings"
         conn != "connected" && store.running ->
             if (armPending) "Arming… reconnecting" else "Reconnecting · looking for clip"
         latchCleared -> "Touch latched · not re-arming until the plate is dry"

@@ -70,6 +70,7 @@
       <div class="fld"><span>Carrying</span><div>${S.SPARE.map(k => `<label class="urge-lbl" style="display:inline-block;width:48%">${esc(S.protLabel(k))} <input type="number" min="0" max="20" id="nsC_${k}" value="${i.spares[k] || 0}" style="width:56px"></label>`).join('')}</div></div>
       <label class="fld"><span>Control</span><select id="nsProf"></select></label>
       <div class="cal-legend">No drink or spasm prompts. Rolls, accidents and changes are collected into one summary.</div>
+      ${(window.BSHub && window.BSHub.naturalPlayOn && window.BSHub.naturalPlayOn()) ? '<div class="cal-legend">Natural / office play is on: protection prompts are a restroom trip or a hold (≤20 min).</div>' : ''}
       <div class="actions"><button class="ok" id="nsGo">▶ Start</button><button data-x>Cancel</button></div>`);
     const src = document.getElementById('suProf'); w.querySelector('#nsProf').innerHTML = src ? src.innerHTML : `<option value="match">Match my profile</option>`; w.querySelector('#nsProf').value = st.profileId;
     w.querySelector('[data-x]').onclick = () => w.remove();

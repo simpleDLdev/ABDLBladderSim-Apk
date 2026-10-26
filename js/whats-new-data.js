@@ -3,6 +3,18 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v40',
+    date: '2026-10-26',
+    title: 'v40 — BLE without a bond, copy log, natural play, deeper looks',
+    bullets: [
+      '🔗 DryClip connects and arms over BLE when the bond is none. Forget bond is fine. Find a clip scans for an advertising DryClip, or uses the last MAC. It does not ask you to re-pair.',
+      '📋 Copy log puts the JS log and the background-watch log on the clipboard, and still offers a file if the clipboard is unavailable.',
+      '🏢 Natural / office play (its own switch, not Office Mode): protection prompts become go to the restroom or a hold still at most 20 minutes. DryClip can still log a natural accident.',
+      '🎨 Baby, Toddler, and Teen bedwetter go deeper (wallpaper, playroom, dusk diary). Girl and Boy are full skins too: rose dusk and slate with a sky stripe.',
+      'Version 40.'
+    ]
+  },
+  {
     hash: 'v39',
     date: '2026-10-26',
     title: 'v39 — settle latch, clip assist, classes, maturity looks',

@@ -544,6 +544,14 @@
           </label>
         </div>
         <div class="muted" style="font-size:11px; margin:-4px 0 8px 12px;">Clip natural accidents (and confirmed flags) count toward Campaign leak / accident goals. Off by default.</div>
+        <div
+          style="display:flex; align-items:center; gap:10px; background:#1b2030; padding:8px 12px; border-radius:10px; border:1px solid #2b3348; margin-bottom:8px;">
+          <label
+            style="flex:1; display:flex; align-items:center; gap:8px; color:#cdd7e6; font-size:13px; cursor:pointer;">
+            <input type="checkbox" id="naturalPlayToggle" onchange="BSHub && BSHub.setNaturalPlay(this.checked); var u=document.getElementById('suNatural'); if(u) u.checked=this.checked; if(typeof toast==='function') toast(this.checked ? 'Natural / office play on' : 'Natural / office play off');"> Natural / office play
+          </label>
+        </div>
+        <div class="muted" style="font-size:11px; margin:-4px 0 8px 12px;">Separate from Office Mode. When on, protection prompts in Urge, Path, and follow-ups become “go to the restroom” or a hold (still ≤20 min). Real urge still wins. DryClip can log a natural accident. Off by default. Stored in bs_natural_play_v1.</div>
         <!-- Office Mode Toggle (v6) -->
         <div
           style="display:flex; align-items:center; gap:10px; background:#1b2030; padding:8px 12px; border-radius:10px; border:1px solid #2b3348; margin-bottom:8px;">
@@ -1664,6 +1672,7 @@
         var b = document.getElementById('pathClipBridgeToggle'); if (b) b.checked = !!p.pathClipBridge;
         var cap = document.getElementById('clipAssistPathToggle'); if (cap) cap.checked = !!p.clipAssistPath;
         var cac = document.getElementById('clipAssistCampaignToggle'); if (cac) cac.checked = !!p.clipAssistCampaign;
+        var np = document.getElementById('naturalPlayToggle'); if (np && BSHub.naturalPlayOn) np.checked = !!BSHub.naturalPlayOn();
         var th = (BSHub.themeId && BSHub.themeId()) || p.theme || 'neutral';
         try { if (BSHub.applyThemeDom) BSHub.applyThemeDom(th); else if (BSHub.setTheme) BSHub.setTheme(th); } catch (e2) {}
         try {

@@ -197,6 +197,19 @@
     const r = Object.assign({ n, stage }, STAGES[stage].table[n]);
     if (classId === 'baby' && stage > 0 && ['potty', 'mixed', 'race', 'mayi', 'urge'].includes(r.k)) { r.t = r.t.replace(/the potty|potty/gi, 'your diaper by the potty') + ' (Baby: diapers in every stage)'; r.k = 'gear'; }
     if (classId === 'baby' && r.then === 'potty') r.then = 'gear';
+    try {
+      if (window.BSHub && window.BSHub.naturalPlayOn && window.BSHub.naturalPlayOn()) {
+        const gearish = r.k === 'gear' || r.then === 'gear' || /use your protection|stay in your protection/i.test(String(r.t || ''));
+        if (gearish) {
+          const hold = Math.max(1, Math.min(HOLD_MAX, r.min || (((stage + 1) * 3 + ((+n) || 1)) % 16) + 4));
+          if (r.k === 'gear') r.k = 'potty';
+          if (r.then === 'gear') r.then = 'potty';
+          r.natural = true;
+          r.holdChoice = hold;
+          r.t = window.BSHub.naturalGearText(hold);
+        }
+      }
+    } catch (e) {}
     return r;
   }
   function classHoldScale(b) {

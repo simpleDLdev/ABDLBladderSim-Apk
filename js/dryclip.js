@@ -206,8 +206,19 @@
     const d = load();
     mac = mac || d.lastId;
     if (!mac || !/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/i.test(mac)) {
-      const r = await P.findClip(); const hit = ((r && r.bonded) || []).find(b => b.isDryClip);
-      if (!hit) throw new Error('No paired DryClip found. Pair it in Android Bluetooth settings or nRF Connect first.');
+      let hit = null;
+      try {
+        const r = await P.scanForClips({ mac: '' });
+        hit = (r && r.clips && r.clips[0]) || null;
+      } catch (e) { log('scan', e.message || String(e)); }
+      if (!hit) {
+        try {
+          const r = await P.findClip();
+          const b = ((r && r.bonded) || []).find(x => x.isDryClip);
+          if (b) hit = { address: b.address, name: b.name };
+        } catch (e) {}
+      }
+      if (!hit) throw new Error('No DryClip in range. Turn it on, close the other clip app, and use Find a clip. A classic Bluetooth bond is not required.');
       mac = hit.address; name = name || hit.name;
     }
     d.lastId = String(mac).toUpperCase(); if (name) d.lastName = name; save(d);
@@ -335,11 +346,13 @@
     const B = await getBle(); if (!B) throw new Error('No BLE');
     scanning = true; log('scan', 'Scanning for DryClip…');
     const hits = {};
-    await B.requestLEScan({ services: [SVC], allowDuplicates: true }, r => {
+    // v40: do not filter on DC00. The clip often omits that UUID from the advert (DryPing matches the name). Bond is irrelevant.
+    const remembered = (load().lastId || '').toUpperCase();
+    await B.requestLEScan({ allowDuplicates: true }, r => {
       const name = (r.localName || r.device?.name || '').toString();
       const id = r.device?.deviceId || r.deviceId;
       const svcs = (r.uuids || r.serviceUUIDs || []).map(u => String(u).toLowerCase());
-      const ok = svcs.some(u => u.indexOf('dc00') >= 0) || /dryclip/i.test(name);
+      const ok = /dryclip/i.test(name) || svcs.some(u => u.indexOf('dc00') >= 0) || (remembered && String(id || '').toUpperCase() === remembered);
       if (!ok || !id || hits[id]) return; hits[id] = 1;
       log('scan', 'Found ' + (name || id), { id }); onHit && onHit({ deviceId: id, name: name || ('DryClip • ' + id.slice(-5)), rssi: r.rssi });
     });
@@ -1365,26 +1378,59 @@
     return load();
   }
 
-  async function exportLog() {
-    const d = load();
-    let nativeText = '';
-    const P = nativePlugin();
-    if (P) { try { const r = await P.getLog(); nativeText = (r && r.text) || ''; } catch (e) {} }
+  /** Full export: JS event log plus the native background-watch section. */
+  function buildExportText(d, nativeText) {
+    d = d || load();
+    nativeText = nativeText || '';
     const lineRe = /ignored.*(touch|arming)|Settling.*ignor|touch.*ignored|during arming ignored/i;
     const jsLines = (d.log || []).filter(e => lineRe.test(String(e.msg || '') + ' ' + String(e.kind || ''))).length;
-    const nativeLines = nativeText ? nativeText.split(/\n/).filter(l => lineRe.test(l)).length : 0;
+    const nativeLines = nativeText ? String(nativeText).split(/\n/).filter(l => lineRe.test(l)).length : 0;
     const stored = +d.settleIgnored || 0;
     const summary = 'Settle telemetry: ' + stored + ' ignored touch wet(s) counted'
       + ' · log lines ' + jsLines + (nativeText ? ' · native lines ' + nativeLines : '');
     let text = summary + '\n\n' + (d.log || []).map(e => new Date(e.t).toISOString() + '\t' + e.kind + '\t' + e.msg + (e.wet != null ? '\twet=' + e.wet : '') + (e.settle ? '\tsettle=1' : '')).join('\n');
     if (nativeText) text += '\n\n--- background watch (native, local time) ---\n' + nativeText;
+    return text;
+  }
+  /** Copy export text. Returns 'clipboard' | 'capacitor' | 'exec' | ''. */
+  async function copyExportText(text) {
+    const clip = W.Capacitor && W.Capacitor.Plugins && W.Capacitor.Plugins.Clipboard;
+    if (clip && clip.write) { try { await clip.write({ string: text }); return 'capacitor'; } catch (e) {} }
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      try { await navigator.clipboard.writeText(text); return 'clipboard'; } catch (e) {}
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', '');
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand && document.execCommand('copy');
+      ta.remove();
+      if (ok) return 'exec';
+    } catch (e) {}
+    return '';
+  }
+  async function exportLog() {
+    const d = load();
+    let nativeText = '';
+    const P = nativePlugin();
+    if (P && P.getLog) { try { const r = await P.getLog(); nativeText = (r && r.text) || ''; } catch (e) {} }
+    const text = buildExportText(d, nativeText);
+    const how = await copyExportText(text);
+    if (how && typeof toast === 'function') toast('Log copied to clipboard');
+    let downloaded = false;
     try {
       const blob = new Blob([text], { type: 'text/plain' }); const a = document.createElement('a');
       a.href = URL.createObjectURL(blob); a.download = 'dryclip-log.txt'; a.click();
-    } catch (e) {
-      const w = document.createElement('div'); w.className = 'cal-sheet-wrap'; w.innerHTML = `<div class="cal-sheet"><h3>DryClip log</h3><pre class="cal-legend">${esc(summary)}</pre><textarea style="width:100%;height:240px">${esc(text)}</textarea><button type="button" id="dcX">Close</button></div>`;
-      document.body.appendChild(w); w.querySelector('#dcX').onclick = () => w.remove();
-    }
+      downloaded = true;
+    } catch (e) {}
+    if (!how && !downloaded) {
+      const w = document.createElement('div'); w.className = 'cal-sheet-wrap';
+      w.innerHTML = `<div class="cal-sheet"><h3>DryClip log</h3><textarea id="dcLogTa" style="width:100%;height:240px"></textarea><div class="actions"><button type="button" id="dcCopy">Copy</button><button type="button" id="dcX">Close</button></div></div>`;
+      document.body.appendChild(w);
+      const ta = w.querySelector('#dcLogTa'); if (ta) ta.value = text;
+      const c = w.querySelector('#dcCopy'); if (c) c.onclick = async () => { const h2 = await copyExportText(text); if (typeof toast === 'function') toast(h2 ? 'Log copied to clipboard' : 'Could not copy'); };
+      w.querySelector('#dcX').onclick = () => w.remove();
+    } else if (!how && typeof toast === 'function') toast('Clipboard unavailable — saved dryclip-log.txt');
   }
 
   // ---------- v23 status card ----------
@@ -1410,8 +1456,7 @@
     const touchIgnored = !!(s.wet && settling);
     const key = !run ? 'idle' : conn ? 'connected' : s.conn === 'connecting' ? 'connecting' : s.armPending ? 'rearming' : 'lost';
     const calm = run && !conn && armed && !s.armPending && !s.wet && !settling;
-    const connText = s.bonded === 'none' && !conn ? 'Not paired — pair the clip in Bluetooth settings'
-      : !run ? 'Not connected' : conn ? (settling && !s.armPending ? 'Pairing / settling…' : 'Connected')
+    const connText = !run ? 'Not connected' : conn ? (settling && !s.armPending ? 'Pairing / settling…' : 'Connected')
       : s.armPending ? CONN_TXT.rearming
       : calm ? 'Armed. The clip sleeps between checks; the background watch reconnects by itself' : 'Disconnected · looking for clip';
     let clip = '—';
@@ -1419,7 +1464,6 @@
       if (s.armPending) clip = 'Arming…';
       else if (settling && !s.stillWet) clip = touchIgnored ? 'Pairing / settling…' : 'Settling…';
       else if (s.latchCleared) clip = 'Touch latched — not re-arming';
-      else if (s.bonded === 'none') clip = 'Not paired';
       else if (s.stillWet) clip = "Still wet (can't re-arm yet)";
       else if (armed && !s.wet) clip = 'Armed, listening';
       else if (s.armedAssumed && !s.wet) clip = 'Armed, listening';
@@ -1438,7 +1482,7 @@
     return { conn: key, connText, dot: calm ? '#74b9ff' : (CONN_DOT[key] || '#8a93a6'), name: s.name || d.lastName || s.mac || d.lastId || '—',
       lastSeenAt: s.lastSeen || null, battery: s.battery != null ? s.battery : battery, clip,
       raw: s.raw ? { hex: s.raw, t: s.lastStateAt || s.lastSeen || now } : null,
-      hint: run && s.bonded && s.bonded !== 'bonded' && s.bonded !== 'unknown' ? "The clip isn't paired with this phone. Pair it in Android Bluetooth settings or nRF Connect first (it shows under Bonded)." : (s.lastError && !conn ? String(s.lastError) : ''),
+      hint: (s.lastError && !conn ? String(s.lastError) : ''),
       buttons: b, arming: !!s.armPending, armAssumed: !!s.armedAssumed,
       native: true, bg: run, bonded: s.bonded || 'unknown', rearmAt: +s.rearmAt || 0, queued: +s.queued || 0, armedSince: +s.armedSince || 0, stillWet: !!s.stillWet,
       settling: settling, phase: s.phase || (settling ? 'settling' : (armed ? 'listening' : key)) };
@@ -1483,7 +1527,7 @@
         <span class="muted">Battery</span><span>${u.battery == null ? '—' : u.battery + '%'}</span>
         <span class="muted">State</span><b id="dcClipTxt">${esc(u.clip)}</b>
         ${u.native ? `<span class="muted">Background</span><b id="dcBgTxt">Background watch: ${u.bg ? 'on' : 'off'}</b>
-        <span class="muted">Paired</span><span>${esc(u.bonded === 'bonded' ? 'Yes' : u.bonded === 'none' ? 'No' : u.bonded)}</span>
+        <span class="muted">Bond</span><span>${esc(u.bonded === 'bonded' ? 'Yes' : u.bonded === 'none' ? 'None · BLE is enough' : u.bonded)}</span>
         ${u.armedSince ? `<span class="muted">Armed since</span><span>${fmtHM(u.armedSince)}</span>` : ''}
         ${u.rearmAt ? `<span class="muted">Re-arm at</span><span>${fmtHM(u.rearmAt)}</span>` : ''}` : ''}
       </div>
@@ -1503,8 +1547,8 @@
     const r = lastRaw;
     return `<details class="camp-goal dc-test"><summary><b>🧪 Test the clip</b></summary>
       <ol style="margin:6px 0 6px 18px;font-size:13px;line-height:1.5;">
-        <li>Pair the clip with the phone first, in Android Bluetooth settings or in nRF Connect. It shows there as bonded.</li>
-        <li>Keep the DryClip app closed. The clip talks to one app at a time.</li>
+        <li>Turn the clip on and close the other clip app. A classic Bluetooth bond is not required — Forget bond is fine. Connect uses BLE, the same way DryPing does.</li>
+        <li>The clip talks to one app at a time. If Connect cannot see it, force-stop the other app first.</li>
         <li>Tap <b>Connect</b>. Allow Nearby devices and notifications. A quiet "DryClip background watch" notification stays up while it listens.</li>
         <li>Clip it on, and keep your fingers off the plate. The plate reads warmth, so a touch counts like wet.</li>
         <li>Tap <b>Arm</b>. The link drops for a few seconds while it arms. That's normal; it comes back by itself.</li>
@@ -1574,7 +1618,7 @@
         ${unconf ? `<div style="margin-top:6px;"><button type="button" id="dcCheckIn">☀️ Morning check-in (${unconf})</button></div>` : ''}
       </div>
       <div class="quiz-nav">
-        <button type="button" id="dcScan" ${(useNative() ? !bgOn() : connState === 'idle') ? '' : 'disabled'}>🔍 ${useNative() ? 'Pick a paired clip' : 'Find another clip'}</button>
+        <button type="button" id="dcScan" ${(useNative() ? !bgOn() : connState === 'idle') ? '' : 'disabled'}>🔍 Find a clip</button>
         <button type="button" id="dcSimNight">🌙 Simulate a night</button>
       </div>
       <div id="dcHits" class="cf-grid">${(useNative() ? bgOn() : connState === 'connected') ? '' : scanHits.map((h, i) => `<button type="button" class="hub-sub" data-hit="${i}">${esc(h.name + (h.rssi != null ? ' · ' + h.rssi + ' dBm' : ''))}</button>`).join('')}</div>
@@ -1583,7 +1627,7 @@
         secs since wet: <b>${st.secs == null ? '—' : st.secs}</b> · battery: <b>${battery == null ? '—' : battery + '%'}</b> · ${conn ? 'connected' : 'idle'}</div>
       <div class="quiz-nav">
         <button type="button" id="dcRearm" ${conn || bgOn() ? '' : 'disabled'}>↻ Re-arm after ack</button>
-        <button type="button" id="dcExport">⬇ Export log</button>
+        <button type="button" id="dcExport">📋 Copy log</button>
       </div>
       ${d.mock || mock.on ? `<div class="quiz-nav"><button type="button" id="dcWet">💧 Wet</button><button type="button" id="dcDry">✨ Dry</button><button type="button" id="dcArming">⏳ Arming→Armed</button></div>` : ''}
       <div class="cal-legend">Event log (newest last)</div>
@@ -1614,16 +1658,29 @@
       renderLab();
     };
     on('dcScan', async () => {
+      const d0 = load();
+      const seen = {};
+      scanHits = [];
+      const addHit = (id, name) => {
+        const key = String(id || '').toUpperCase(); if (!key || seen[key]) return; seen[key] = 1;
+        scanHits.push({ deviceId: key, name: name || ('DryClip · ' + key) });
+      };
+      if (d0.lastId) addHit(d0.lastId, (d0.lastName || 'DryClip') + ' · ' + String(d0.lastId).toUpperCase() + ' (last clip)');
+      renderLab();
+      if (typeof toast === 'function') toast('Scanning for a DryClip…');
       if (useNative()) {
-        const r = await nativePlugin().findClip();
-        scanHits = ((r && r.bonded) || []).filter(b => b.isDryClip || /clip/i.test(b.name || '')).map(b => ({ deviceId: b.address, name: (b.name || 'DryClip') + ' · ' + b.address + ' (paired)' }));
-        if (!scanHits.length) throw new Error('No paired DryClip found. Pair it in Android Bluetooth settings or nRF Connect first.');
-        renderLab(); return;
+        try {
+          const r = await nativePlugin().scanForClips({ mac: d0.lastId || '' });
+          ((r && r.clips) || []).forEach(c => addHit(c.address, (c.name || 'DryClip') + ' · ' + c.address + (c.rssi != null ? ' · ' + c.rssi + ' dBm' : '')));
+        } catch (e) { log('scan', e.message || String(e)); }
+        renderLab();
+        if (!scanHits.length) throw new Error('No DryClip advertising nearby. Turn the clip on and close the other clip app. A classic Bluetooth bond is not required.');
+        return;
       }
       const r = await init(); if (!r.ok && !mock.on) throw new Error(r.err || 'BLE unavailable');
       setConn('searching'); setTimeout(() => { if (connState === 'searching') setConn('idle'); }, 8500);
-      scanHits = [];
-      await scan(hit => { scanHits.push(hit); renderLab(); }, 8000);
+      await scan(hit => { addHit(hit.deviceId, hit.name + (hit.rssi != null ? ' · ' + hit.rssi + ' dBm' : '')); renderLab(); }, 8000);
+      if (!scanHits.length) throw new Error('No DryClip advertising nearby. Turn the clip on and close the other clip app.');
     });
     on('dcConnect', connectAuto);
     m.querySelectorAll('[data-hit]').forEach(b => { b.onclick = async () => {
@@ -1729,7 +1786,7 @@
     planMommyCheck, mommyCheckCopy, mommyCheckOn, mommySpread, openMommyCheck,
     applyNativeEvent, drainNative, nativeStart, nativeRefresh, nativeUiState, useNative, nightFor,
     get nativeStatus() { return nst; }, _setNativeStatus: s => { nst = s; },
-    get connState() { return connState; }, exportLog, renderLab, mockEnable, offerAccident,
+    get connState() { return connState; }, exportLog, buildExportText, copyExportText, renderLab, mockEnable, offerAccident,
     noteSettleIgnored, applyCloudyNight, cloudyNightActive,
     startNight, stopNight, pendingAlarm, maybeMorning, openMorningCheckIn, openWakeCheckIn, simulateNight, refreshBadge, setKeepAwake, wearMinutes, checkBatteryLow,
     get armPending() { return armPending; }, get armAssumed() { return armAssumed; }, get state() { return lastState; }, get battery() { return battery; }, get deviceId() { return deviceId; }

@@ -47,7 +47,7 @@ const proto = read('android/app/src/main/java/dev/simpledl/bladdersim/dryclip/Dr
 ok(proto.includes('LATCHED_TOUCH') && svc.includes('onLatchedTouch'), 'protocol + service name the latch');
 ok(/not re-arming until the plate reads dry/.test(svc), 'service does not re-arm a post-settle latch');
 ok(!svc.includes('arm("touch-clear")'), 'touch-clear re-arm loop is gone');
-ok(svc.includes('Bond none') && svc.includes('UNPAIRED_RETRY_MS'), 'unpaired reconnect backs off');
+ok(svc.includes('classic pairing is optional') && !svc.includes('holdForUnpaired') && !svc.includes('Arm held'), 'bond none is logged and does not block connect or arm');
 ok(svc.includes('mommyCheck') && svc.includes('Mommy check'), 'native padding check before auto-arm');
 
 // --- C. random padding check sits before the nominal re-arm ---
@@ -117,7 +117,7 @@ const hub = read('js/hub.js'), css = read('mobile.css');
 ok(css.includes('--bs-font') && css.includes('--card-radius') && css.includes('--bs-scene'), 'maturity skins set type, radius, and background');
 ok(css.includes('bs-theme-girl') && css.includes('bs-theme-boy'), 'girl and boy accents kept');
 ok(read('js/whats-new-data.js').includes("hash: 'v39'"), "What's New v39");
-ok(read('android/app/build.gradle').includes('versionName "39"') && read('android/app/build.gradle').includes('versionCode 39'), 'version 39');
+ok(/versionName "\d+"/.test(read('android/app/build.gradle')) && /versionCode \d+/.test(read('android/app/build.gradle')), 'gradle still has a version name and code');
 
 console.log(fail ? fail + ' FAILED' : 'ALL PASS');
 process.exit(fail ? 1 : 0);
