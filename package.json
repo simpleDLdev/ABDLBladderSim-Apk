@@ -1,0 +1,21 @@
+{
+  "name": "bladder-sim",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "rm -rf www && mkdir -p www && cp -r index.html styles.css mobile.css js www/",
+    "sync": "node scripts/patch-ble-plugin.js && npm run build && npx cap sync android",
+    "postinstall": "node scripts/patch-ble-plugin.js"
+  },
+  "dependencies": {
+    "@capacitor-community/bluetooth-le": "^6.1.0",
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/core": "^6.2.2",
+    "@capacitor/filesystem": "^6.0.4",
+    "@capacitor/local-notifications": "^6.1.3",
+    "@capacitor/share": "^6.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.2"
+  }
+}

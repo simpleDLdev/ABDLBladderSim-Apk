@@ -1,0 +1,47 @@
+// v15 smoke: Play hub, Quiz hub, Settings sections, Urge cleanup, quick-from-quiz. Serve repo on :8765.
+const puppeteer = require('puppeteer-core');
+let fails = 0; const check = (n, ok, i) => { if (!ok) fails++; console.log((ok ? 'PASS ' : 'FAIL ') + n + (i ? ' — ' + i : '')); };
+const sl = ms => new Promise(r => setTimeout(r, ms));
+(async () => {
+  const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: 'new', args: ['--no-sandbox', '--disable-gpu'] });
+  const page = await browser.newPage(); await page.setViewport({ width: 390, height: 844 });
+  const errs = []; page.on('pageerror', e => errs.push(e.message));
+  await page.goto('http://localhost:8765/index.html', { waitUntil: 'networkidle0' }); await sl(1200);
+  await page.evaluate(() => { localStorage.setItem('profileMode', 'babysitter'); if (typeof hideWhatsNewModal === 'function') hideWhatsNewModal(); const sb = document.getElementById('sessionSetupBackdrop'); if (sb) sb.style.display = 'none'; });
+  await page.reload({ waitUntil: 'networkidle0' }); await sl(1200);
+  await page.evaluate(() => { if (typeof hideWhatsNewModal === 'function') hideWhatsNewModal(); const sb = document.getElementById('sessionSetupBackdrop'); if (sb) sb.style.display = 'none'; switchTab('session'); });
+  const hub = await page.evaluate(() => ({ cards: document.querySelectorAll('#playHub .play-card').length, nm: document.querySelectorAll('#hubNewMech [data-nm]').length, nights: document.getElementById('hubNights').open, board: !!document.querySelector('#sessBoard #boardMount'), dupUrge: [...document.querySelectorAll('#tab-session button')].some(b => /roll to go/.test(b.textContent)) }));
+  check('Session play hub: 4 cards, new-mechanics, board on Session, no duplicate roll button', hub.cards === 4 && hub.nm >= 3 && hub.board && !hub.dupUrge, JSON.stringify(hub));
+  await page.screenshot({ path: '/workspace/screens/v15-session.png', fullPage: false });
+  await page.evaluate(() => document.getElementById('hubBoard').click()); await sl(300);
+  check('Potty Path card opens the v16 Path tab', await page.evaluate(() => currentTab() === 'path' && !!document.getElementById('pathMount'))); await page.evaluate(() => switchTab('session'));
+  await page.evaluate(() => { document.getElementById('hubNights').open = true; }); await sl(100);
+  await page.evaluate(() => document.getElementById('btnNaturalNight').click()); await sl(200);
+  check('Nights › Natural Night opens', await page.evaluate(() => !!document.getElementById('nnBedtime') || !!document.querySelector('.nn-wrap,#nnRoot,[id^=nn]')));
+  await page.evaluate(() => { try { BSNight.close(); } catch (e) {} });
+  await page.evaluate(() => switchTab('profiles')); await sl(200);
+  const qh = await page.evaluate(() => ({ n: document.querySelectorAll('.quiz-hub-card').length, first: document.querySelector('#tab-profiles .quiz-hub') !== null, imp: document.querySelectorAll('.qh-imp').length, a: !!document.getElementById('qzA') }));
+  check('Quiz hub: ≥8 cards with impacts, Quiz A id kept', qh.n >= 8 && qh.imp === qh.n && qh.a, JSON.stringify(qh));
+  await page.screenshot({ path: '/workspace/screens/v15-quizhub.png' });
+  await page.evaluate(() => switchTab('settings')); await sl(200);
+  const st = await page.evaluate(() => ({ n: document.querySelectorAll('details.set-sec').length, cal: !!document.querySelector('#setCalib #calibrationMount'), calProfiles: !!document.querySelector('#tab-profiles #calibrationMount') }));
+  check('Settings: 6 sections, calibration in Settings', st.n === 6 && st.cal && !st.calProfiles, JSON.stringify(st));
+  await page.screenshot({ path: '/workspace/screens/v15-settings.png' });
+  await page.evaluate(() => switchTab('urge')); await sl(200);
+  const ur = await page.evaluate(() => { const m = document.getElementById('simpleUrgeMount'); const top = [...m.children].filter(e => e.id !== 'suMore'); return { go: !!m.querySelector('#suGo'), cant: !!m.querySelector('#suCantHold'), chInMore: !!m.querySelector('#suMore [data-ch]'), chOutside: top.some(e => e.querySelector && e.querySelector('[data-ch]')), extras: !!m.querySelector('#suMore #classicUrge') }; });
+  check('Urge: single primary column, changes + classic roll inside More', ur.go && ur.cant && ur.chInMore && !ur.chOutside && ur.extras, JSON.stringify(ur));
+  await page.screenshot({ path: '/workspace/screens/v15-urge.png' });
+  await page.evaluate(() => BSHub.quickQuiz()); await sl(100);
+  for (let i = 0; i < 7; i++) { await page.evaluate(() => { const b = document.querySelector('#qqBody [data-k]'); b.click(); document.getElementById('qqNext').click(); }); await sl(60); }
+  const qq = await page.evaluate(() => ({ s: JSON.parse(localStorage.getItem('bs_quick_quiz_session_v1')), prof: BSSimpleUrge.settings().profileId, tab: document.body.dataset.tab, chip: !!document.getElementById('suQQ') }));
+  check('Quick-from-quiz stores session + switches Urge profile', qq.s && qq.s.active && qq.prof === 'cp_quickquiz' && qq.chip, JSON.stringify({ prof: qq.prof, tab: qq.tab, chip: qq.chip, sum: qq.s && qq.s.result.summary }));
+  await page.evaluate(() => BSHub.qqEnd()); await sl(100);
+  check('Quiz session ends + restores profile', await page.evaluate(() => BSSimpleUrge.settings().profileId !== 'cp_quickquiz' && !JSON.parse(localStorage.getItem('bs_quick_quiz_session_v1')).active));
+  check('v15 tables loaded', await page.evaluate(() => window.BS_V15_TABLES && window.BS_V15_TABLES.added >= 40), await page.evaluate(() => JSON.stringify(window.BS_V15_TABLES)));
+  const rc = await page.evaluate(() => { const Q = BSQuiz; const r = Q.scorePack('recap', { logged: 2, waits: 2, rerolls: 1, gear: 2, goals: 2, safe: true }); const all = Q.loadPacks(); all.recap = { ans: {}, result: r }; Q.savePacks(all);
+    BSCampaign.start({ playStyle: 'either' }); const a = Q.applyRecap(); const s = BSCampaign.load(); const sd = BSCampaign.scoreDay(s, r.day, []);
+    switchTab('profiles'); BSQuiz.render(); return { pass: r.pass, a: a.ok, stored: !!(s.recaps && s.recaps[r.day]), goal: sd.goals.some(g => g.id === 'recap' && g.ok), cards: document.querySelectorAll('.quiz-hub-card').length, applyBtn: !!document.querySelector('[data-qrecap]') }; });
+  check('Day-end recap → apply to campaign → counted as extra goal', rc.pass && rc.a && rc.stored && rc.goal && rc.cards >= 13 && rc.applyBtn, JSON.stringify(rc));
+  check('no page errors', errs.length === 0, errs.join(' | '));
+  await browser.close(); console.log(fails ? fails + ' FAIL' : 'ALL PASS'); process.exit(fails ? 1 : 0);
+})();
