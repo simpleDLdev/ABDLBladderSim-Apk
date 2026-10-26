@@ -1,5 +1,12 @@
 # Changelog
 
+## v41 — 2026-10-26
+
+Version name **41**, version code **41**.
+
+- Looks reach the big cards. Calendar day detail, Settings sections (including the navy rows that were painted inline), and the Path board use each skin’s panel, type, and accent. Baby, Toddler, Teen bedwetter, Girl, and Boy no longer leave a dark navy slab on a themed frame.
+- Light skins: helper text and the urgency / saturation tracks stay readable on the peach and yellow headers. App look swatches show a small scene plus card, still stored on `bs_play_prefs_v1.theme`.
+
 ## v40 — 2026-10-26
 
 Version name **40**, version code **40**.

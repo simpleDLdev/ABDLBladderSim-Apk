@@ -635,8 +635,8 @@
     const corners = STAGES.map((s, i) => { const [x, y] = pts[stageStart(i)]; return `<text x="${clamp(x, 40, W - 40)}" y="${y + 30}" text-anchor="middle" font-size="10" fill="${s.color}" font-weight="bold">${esc(s.short)}</text>`; }).join('');
     const tp = pts[b.pos];
     return `<svg id="ppSvg" viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Potty Path, 4 stages, token on ${b.pos}">
-      <rect width="${W}" height="${H}" rx="16" fill="#1e2a3a"/><path d="${pathD(pts)}" stroke="#3d5a80" stroke-width="24" fill="none" stroke-linecap="round"/>
-      <path d="${pathD(pts)}" stroke="#e0fbfc" stroke-width="2" fill="none" stroke-dasharray="4 6" opacity=".45"/>${corners}${sq}
+      <rect class="pp-board-bg" width="${W}" height="${H}" rx="16" fill="var(--board, #1e2a3a)"/><path class="pp-track" d="${pathD(pts)}" stroke="var(--track, #3d5a80)" stroke-width="24" fill="none" stroke-linecap="round"/>
+      <path class="pp-track-dash" d="${pathD(pts)}" stroke="var(--text, #e0fbfc)" stroke-width="2" fill="none" stroke-dasharray="4 6" opacity=".45"/>${corners}${sq}
       <g id="ppToken" style="transform:translate(${tp[0]}px,${tp[1]}px)"><circle r="12" cy="-8" fill="#fff" stroke="#6c5ce7" stroke-width="3"/><text y="-3" text-anchor="middle" font-size="14">${esc(c.name.split(' ')[0])}</text></g></svg>`;
   }
   const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
