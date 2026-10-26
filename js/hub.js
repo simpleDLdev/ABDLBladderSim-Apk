@@ -33,18 +33,38 @@
   function pathClipBridgeOn() { return !!playPrefs().pathClipBridge; }
   function clipAssistPathOn() { return !!playPrefs().clipAssistPath; }
   function clipAssistCampaignOn() { return !!playPrefs().clipAssistCampaign; }
+  /** v40 Natural / office play. Own key — not bs_office_mode (that one is discreet wording only). */
+  const NATURAL_KEY = 'bs_natural_play_v1';
+  function naturalPrefs() { const v = J(NATURAL_KEY, {}); return { on: !!(v && v.on) }; }
+  function naturalPlayOn() { return naturalPrefs().on; }
+  function setNaturalPlay(on) { localStorage.setItem(NATURAL_KEY, JSON.stringify({ on: !!on })); return naturalPrefs(); }
+  /** Pure: protection prompt → restroom or a hold. rng is a function returning 0..1, or a number. */
+  function naturalOfficeChoice(rng) {
+    const roll = typeof rng === 'function' ? rng() : +rng;
+    const u = isFinite(roll) ? Math.min(0.999, Math.max(0, roll)) : Math.random();
+    const holdMin = Math.max(1, Math.min(20, Math.round(1 + u * 19)));
+    return {
+      outcome: 'natural', holdMin,
+      text: 'Go to the restroom, or hold ' + holdMin + ' min. A natural accident still counts.',
+      goLabel: 'Go to the restroom', holdLabel: 'Hold ' + holdMin + ' min'
+    };
+  }
+  function naturalGearText(min) {
+    const hold = Math.max(1, Math.min(20, +min || 10));
+    return 'Natural play: go to the restroom, or hold ' + hold + ' minutes. A natural accident still counts.';
+  }
   /** v38 CSS look themes (stored in bs_play_prefs_v1.theme). Adult-safe color/look only. */
   const THEMES = {
     neutral:  { id: 'neutral',  label: 'Neutral',   blurb: 'Default dark violet accents' },
-    girl:     { id: 'girl',     label: 'Girl',      blurb: 'Rose accents on dark' },
-    boy:      { id: 'boy',      label: 'Boy',       blurb: 'Sky accents on dark' },
+    girl:     { id: 'girl',     label: 'Girl',      blurb: 'Rose dusk — soft cards, warm glow' },
+    boy:      { id: 'boy',      label: 'Boy',       blurb: 'Slate — sharp cards, sky stripe' },
     softpink: { id: 'softpink', label: 'Soft pink', blurb: 'Warm rose panels' },
     sky:      { id: 'sky',      label: 'Sky blue',  blurb: 'Cool blue panels' },
     lavender: { id: 'lavender', label: 'Lavender',  blurb: 'Soft purple glow' },
     midnight: { id: 'midnight', label: 'Midnight',  blurb: 'Near-black, cool cyan' },
-    baby:     { id: 'baby',     label: 'Baby',     blurb: 'Nursery cream, round cards, soft type' },
-    toddler:  { id: 'toddler',  label: 'Toddler',  blurb: 'Playroom color, big type, rounded cards' },
-    teen:     { id: 'teen',     label: 'Teen bedwetter', blurb: 'Dusk diary — serif type, sharper cards' }
+    baby:     { id: 'baby',     label: 'Baby',     blurb: 'Nursery wallpaper, round cards, soft type' },
+    toddler:  { id: 'toddler',  label: 'Toddler',  blurb: 'Playroom blocks, chunky cards, big type' },
+    teen:     { id: 'teen',     label: 'Teen bedwetter', blurb: 'Dusk diary — serif, thin cards, night chrome' }
   };
   const THEME_IDS = Object.keys(THEMES);
   function themeId() {
@@ -256,7 +276,7 @@
   function collapseSecondary() {
     ['bioLoggerWrapper', 'maintenanceContent'].forEach(id => { const el = document.getElementById(id); if (el && el.style.display !== 'none' && typeof toggleSidebarSection === 'function') toggleSidebarSection(id); });
   }
-  window.BSHub = { openQuick, openBoard, startBedwetting, startQuickSession, quickQuiz, qqScore, qqApply, qqEnd, qqLoad, QQ, QQ_KEY, PLAY_KEY, playPrefs, savePlayPrefs, softOn, pathClipBridgeOn, clipAssistPathOn, clipAssistCampaignOn, THEMES, THEME_IDS, themeId, themeMeta, themeClassList, applyThemeDom, setTheme, themeWords, themePickerHtml, renderHub, renderSafety, exportAll, openSettings, openCalibration, reveal };
+  window.BSHub = { openQuick, openBoard, startBedwetting, startQuickSession, quickQuiz, qqScore, qqApply, qqEnd, qqLoad, QQ, QQ_KEY, PLAY_KEY, playPrefs, savePlayPrefs, softOn, pathClipBridgeOn, clipAssistPathOn, clipAssistCampaignOn, NATURAL_KEY, naturalPrefs, naturalPlayOn, setNaturalPlay, naturalOfficeChoice, naturalGearText, THEMES, THEME_IDS, themeId, themeMeta, themeClassList, applyThemeDom, setTheme, themeWords, themePickerHtml, renderHub, renderSafety, exportAll, openSettings, openCalibration, reveal };
   window.addEventListener('load', () => setTimeout(() => {
     const n = document.getElementById('hubNights'); if (n) n.addEventListener('toggle', () => { if (n._prog) { n._prog = false; return; } n.dataset.user = '1'; });
     collapseSecondary(); renderHub(); renderSafety();

@@ -98,7 +98,8 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   ok(/reconnects by itself/.test(u.connText), 'armed + link down → calm text');
   u = DC.nativeUiState({ running: true, conn: 'waiting', armed: false });
   ok(u.connText === 'Disconnected · looking for clip', 'link down → "Disconnected · looking for clip"');
-  ok(DC.nativeUiState({ running: true, conn: 'connected', bonded: 'none' }).hint.includes("isn't paired"), 'not bonded → pairing hint');
+  const nobond = DC.nativeUiState({ running: true, conn: 'connected', bonded: 'none', armed: true, wet: false });
+  ok(!/pair|nRF/i.test(nobond.hint || '') && nobond.clip === 'Armed, listening', 'bond none stays connected and does not ask to re-pair');
 
   // Night on; events queued while the app was closed
   await DC.startNight({ wakeHour: 7, wakeMin: 0 });

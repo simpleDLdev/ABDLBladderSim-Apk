@@ -1,5 +1,14 @@
 # Changelog
 
+## v40 — 2026-10-26
+
+Version name **40**, version code **40**.
+
+- DryClip connect: `BOND_NONE` is logged and does not block connect, arm, re-arm, or the background watch. Forget bond is a supported workflow. Find a clip scans advertising names (and the remembered MAC). Classic pairing is optional.
+- Export log copies the full text (JS log plus the native background section) to the clipboard, with a toast. A file download remains if the clipboard is unavailable.
+- Natural / office play is a new key, `bs_natural_play_v1`. It is separate from Office Mode (`bs_office_mode`). Protection prompts in Urge, Path, and follow-ups become a restroom trip or a hold of at most 20 minutes. Real urge still wins. DryClip logging stays available.
+- Looks: Baby, Toddler, and Teen bedwetter are deeper skins (wallpaper or playroom or dusk diary: background, cards, type, and chrome). Girl and Boy are full skins too — rose dusk with soft cards, slate with a sky stripe — still stored on `bs_play_prefs_v1.theme`.
+
 ## v39 — 2026-10-26
 
 Version name **39**, version code **39**.

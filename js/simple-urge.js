@@ -178,6 +178,13 @@
     res.text = describe(res);
     if (res.stepText) res.text = res.stepText + (res.text ? ' · ' + res.text : '');
     if (opts.quick) res.quick = true;
+    try {
+      if (window.BSHub && window.BSHub.naturalPlayOn && window.BSHub.naturalPlayOn() && res.outcome === 'gear') {
+        const ch = window.BSHub.naturalOfficeChoice(rng);
+        res.outcome = 'natural'; res.waitMin = 0; res.hidden = false; res.gear = null; res.content = null;
+        res.severity = null; res.voice = ''; res.natural = ch; res.text = ch.text; res.stepText = '';
+      }
+    } catch (e) {}
     return res;
   }
   function pickGear(u, rng) {
@@ -209,7 +216,7 @@
     }
     return '';
   }
-  const COLOR = { go: '#55efc4', wait: '#74b9ff', hard: '#fdcb6e', dribble: '#a29bfe', gear: '#ff7675', custom: '#fd79a8' };
+  const COLOR = { go: '#55efc4', wait: '#74b9ff', hard: '#fdcb6e', dribble: '#a29bfe', gear: '#ff7675', custom: '#fd79a8', natural: '#00cec9' };
 
   // ---------- inventory (shared protection list, B9/B10) ----------
   function recDay() { try { const R = window.BSReport, d = R && R.gather ? R.gather() : null; const r = d && R.recommendWear(d); if (r && r.day) return r.day; } catch (e) {} try { const q = window.BSQuiz.load(); if (q && q.a && q.a.protDay) return q.a.protDay; } catch (e) {} return 'pullups'; }
@@ -243,6 +250,7 @@
   function record(res) {
     let i = null;
     if (res.outcome === 'gear') { i = useGear(); ctlEvent('gear'); } else if (res.outcome === 'go') ctlEvent('go');
+    else if (res.outcome === 'natural') { /* choice only — potty or hold is logged when they pick */ }
     log(`🙋 Simple urge (${res.urgency == null ? 'urgency not set' : res.urgency + '/10'}, ${res.profileName}): ${res.text}${i ? ' ' + invText(i) : ''}`, COLOR[res.outcome]);
     try { window.BSNatSession && window.BSNatSession.note({ k: 'roll', outcome: res.outcome, text: res.text, roll: res.id }); } catch (e) {}
     try {
@@ -281,7 +289,7 @@
     else if (sev === 'dribble') { if (li <= 1) kind = 'finish'; else if (li === 2) { if (rng() < 0.5) kind = 'finish'; else { kind = 'wait'; waitMin = ri(5, 10, rng); } } else { kind = 'stay'; waitMin = ri(10, 20, rng); } }
     else if (sev === 'leak') { check = true; if (li <= 1) kind = 'finish'; else if (li === 2) { kind = 'wait'; waitMin = ri(10, 15, rng); } else { kind = 'stay'; waitMin = ri(15, 20, rng); } }
     else { kind = 'rest'; check = true; waitMin = ri(15, 20, rng); }
-    const steps = [];
+    let steps = [];
     if (kind === 'finish') steps.push(sev === 'dribble' ? 'Permission granted: go finish on the potty now.' : 'Permission granted: go finish on the potty now, then check your gear.');
     if (kind === 'wait') steps.push(`Stay in your protection. Wait ${waitMin} min, then roll again.`);
     if (kind === 'stay') steps.push(`No potty for now — stay in your protection. Wait ${waitMin} min before the next roll.`);
@@ -294,7 +302,14 @@
       else if (sat >= th) { change = 'yes'; steps.push(`Saturation ${sat} ≥ change rule ${th}: change now.`); }
       else { change = 'no'; steps.push(`Saturation ${sat} is under the change rule (${th}): stay in it for now.`); }
     }
-    
+    try {
+      if (window.BSHub && window.BSHub.naturalPlayOn && window.BSHub.naturalPlayOn()) {
+        const hold = Math.max(1, Math.min(20, waitMin || 10));
+        const line = window.BSHub.naturalGearText(hold);
+        steps = steps.map(s => /protection|padding|your gear/i.test(s) ? line : s);
+        if (kind === 'stay' || kind === 'wait') waitMin = hold;
+      }
+    } catch (e) {}
     return { severity: sev, afterSmall: mode, kind, waitMin, check, change, threshold: th, sat, level: lvl ? lvl.key : null, text: steps[0], steps };
   }
   /** v14 S8: Simple Urge setting wins; otherwise the campaign quiz answer (prefs.afterAcc); otherwise 'level'. */
@@ -344,6 +359,24 @@
       ${f.steps.map(x => `<div class="urge-note">${esc(sw(x))}</div>`).join('')}
       ${f.until ? (waiting ? `<div class="urge-note" style="font-size:22px;font-weight:bold">⏳ Next roll in <span id="suFCount"></span></div>` : '<div class="urge-note" id="suFReady">✅ Timer done — you may roll again.</div>') : ''}
       <div class="urge-actions">${f.kind === 'ask' ? '<button type="button" id="suFAskFin">✅ Finish on potty</button><button type="button" id="suFAskStay">🧷 Stay in it</button>' : ''}${f.kind === 'finish' ? '<button type="button" id="suFPotty">✅ Finished on the potty</button>' : ''}${f.check ? '<button type="button" id="suFChange">🎲 May I change?</button>' : ''}<button type="button" id="suFDone">${waiting ? 'Skip wait' : 'Done'}</button></div></div>`;
+  }
+  /** Natural / office play: the gear card is a choice. 'go' heads to the restroom; 'hold' starts the rolled timer (≤20). */
+  function chooseNatural(which) {
+    const x = st(); const r = x.last; if (!r || r.outcome !== 'natural' || r.closed) return null;
+    const hold = Math.max(1, Math.min(20, (r.natural && r.natural.holdMin) || 10));
+    if (which === 'go') {
+      r.outcome = 'go'; r.text = 'Go to the restroom.'; r.waitMin = 0; r.closed = 'natural-go';
+      x.waitUntil = 0; x.fired = true; x.chain = 0; x.accFor = null;
+      try { window.BSCalendar && window.BSCalendar.addEntry({ source: 'sim', mode: 'simple_urge', type: 'potty', memo: r.text, link: { roll: r.id } }); } catch (e) {}
+      ctlEvent('go');
+    } else {
+      r.outcome = 'wait'; r.waitMin = hold; r.hidden = false; r.text = 'Hold ' + hold + ' min, then roll again.'; r.closed = '';
+      x.waitUntil = Date.now() + hold * 60000; x.waitStart = Date.now(); x.fired = false; x.accFor = r.id;
+      try { window.BSCalendar && window.BSCalendar.addEntry({ source: 'sim', mode: 'simple_urge', type: 'event', memo: r.text, link: { roll: r.id } }); } catch (e) {}
+    }
+    x.last = r; saveSt(x); render();
+    setTimeout(() => { try { window.nativeNotifySync && window.nativeNotifySync(); } catch (e) {} }, 0);
+    return r;
   }
   function press(urgency, rng, popts) {
     popts = popts || {};
@@ -504,7 +537,10 @@
     const qq = window.BSHub && window.BSHub.qqLoad ? window.BSHub.qqLoad() : null;
     const wear = (() => { try { return protLabel(i.wearing); } catch (e) { return i.wearing || '—'; } })();
     const nowLine = waiting ? (last && last.hidden ? 'Wait running (hidden)' : 'Wait running') : (followActive() ? 'Follow-up in progress' : (armed ? 'Accident button ready' : 'Ready — press when you need to go'));
+    const natOn = !!(window.BSHub && window.BSHub.naturalPlayOn && window.BSHub.naturalPlayOn());
     m.innerHTML = `<h2 style="margin:0 0 6px;">🙋 Natural Urge</h2>
+      <label class="urge-lbl"><input type="checkbox" id="suNatural" ${natOn ? 'checked' : ''}> Natural / office play</label>
+      <div class="cal-legend">At the office: “use your protection” becomes go to the restroom, or a hold still at most 20 minutes. DryClip can still log a natural accident. Separate from Office Mode wording.</div>
       <div class="su-glance" id="suGlance">
         <div class="pp-gl-row"><span class="pp-gl-k">Wear</span><span class="pp-gl-v">${esc(wear)}</span><span class="pp-gl-k">Control</span><span class="pp-gl-v">${esc(p.name || p.levelKey || '—')}</span></div>
         <div class="pp-gl-row"><span class="pp-gl-k">Now</span><span class="pp-gl-v">${esc(nowLine)}</span></div>
@@ -528,6 +564,7 @@
         ${waiting && !last.closed ? (last.hidden ? `<div class="urge-note" id="suHidden">Time hidden — carry on.${s.alarm ? ' One alarm when it ends.' : ''}</div>` : `<div class="urge-note">⏳ <span id="suCount"></span></div>`) : ''}
         ${x.waitUntil && !waiting && !last.closed ? `<div class="urge-note" id="suReveal">Time's up${last.hidden ? ` — you waited ${x.revealed || last.waitMin} min` : ''} — roll again.</div>` : ''}
         ${(last.outcome === 'hard' || last.outcome === 'dribble') && !last.closed ? `<div class="urge-actions"><button type="button" id="suReady">${last.outcome === 'hard' ? 'It\'s hard now — roll' : 'Dribble happened — roll'}</button></div>` : ''}
+        ${last.outcome === 'natural' && !last.closed ? `<div class="urge-actions"><button type="button" id="suNatGo">🚻 ${(last.natural && last.natural.goLabel) || 'Go to the restroom'}</button><button type="button" id="suNatHold">⏱ ${(last.natural && last.natural.holdLabel) || 'Hold'}</button></div>` : ''}
         ${last.calBody ? `<div class="urge-actions" id="suLogRow"><label class="urge-lbl"><input type="checkbox" id="suNoLog" ${last.unlogged ? 'checked' : ''}> Don't log this</label>${!last.closed ? '<button type="button" id="suReroll">🎲 Reroll, no log</button>' : ''}</div>` : ''}
         ${(last.content && last.content.guide) || (last.gear && last.gear.guide) || (last.event && last.event.guide && last.event.guide.length) ? '<div class="urge-actions"><button type="button" id="suGuide">▶ Guide</button></div>' : ''}
         </div>` : ''}
@@ -593,6 +630,9 @@
     on('suTables', () => openLevelTables());
     on('suExport', () => openTextSheet('⬇ Export profiles & events', exportJSON(), null));
     on('suImport', () => openTextSheet('⬆ Import profiles & events', '', txt => { const r = importJSON(txt); toastMsg(`Imported ${r.profiles} profile(s), ${r.events} event(s)`); render(); }));
+    const natEl = q('suNatural'); if (natEl) natEl.onchange = e => { try { window.BSHub && window.BSHub.setNaturalPlay(!!e.target.checked); } catch (err) {} toastMsg(e.target.checked ? 'Natural / office play on' : 'Natural / office play off'); const setBox = document.getElementById('naturalPlayToggle'); if (setBox) setBox.checked = !!e.target.checked; };
+    on('suNatGo', () => chooseNatural('go'));
+    on('suNatHold', () => chooseNatural('hold'));
     q('suFF').onchange = e => saveSettings({ fastFill: e.target.checked });
     q('suQS').onchange = e => saveSettings({ quietSignals: e.target.checked });
     if (q('suWC')) q('suWC').onchange = e => saveSettings({ waveCluster: e.target.checked });
@@ -706,7 +746,7 @@
     return w;
   }
 
-  window.BSSimpleUrge = { POTTY_ACCESS, sliderValue, continueUrge, followUpFor, followUp, followDone, followActive, followState: fst, roll, press, describe, profile, autoProfile, settings, saveSettings, inv, saveInv, invText, change, useGear, pendingAlarm, render, state: st, ALARM_ID, DEF_INV, OUT, PROT, SPARE,
+  window.BSSimpleUrge = { POTTY_ACCESS, sliderValue, continueUrge, followUpFor, followUp, followDone, followActive, followState: fst, roll, press, chooseNatural, describe, profile, autoProfile, settings, saveSettings, inv, saveInv, invText, change, useGear, pendingAlarm, render, state: st, ALARM_ID, DEF_INV, OUT, PROT, SPARE,
     customProfiles, upsertProfile, deleteProfile, customEvents, upsertEvent, deleteEvent, levelOdds, saveLevelOdds, ladderOdds, exportJSON, importJSON, inWaitState, endByAccident, needsDailyReset,
     openProfileEditor, openEventEditor, openEventList, openLevelTables, openLevelList, accidentArmed, dismissAccident, protLabel, recDay, cantHold, reroll, setLogged, afterSmallPref, followChoose, cascadeState, CKEY };
   window.addEventListener('load', () => setTimeout(render, 60));

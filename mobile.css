@@ -410,14 +410,22 @@ body.nn-open { overflow: hidden; }
   --ok: #55efc4; --nav: #121620; --btn: #1b2030; --chip: #1b2030; --status-bg: rgba(15,17,21,0.96);
 }
 html[data-bs-theme="girl"], body.bs-theme-girl {
-  --bg: #141018; --panel: #1c1520; --panel-2: #221824; --border: #3d2a38; --border-strong: #5a3a4e;
-  --muted: #b8a0b0; --text: #f5e9ef; --accent: #f8a5c2; --accent2: #e84393; --warn: #fdcb6e; --bad: #ff7675;
-  --ok: #55efc4; --nav: #1a1218; --btn: #251a22; --chip: #2a1c26; --status-bg: rgba(20,16,24,0.96);
+  --bg: #1a1018; --panel: #2a1824; --panel-2: #341e2c; --border: #6a3a52; --border-strong: #c45b86;
+  --muted: #e0b8c8; --text: #fff5f8; --accent: #ffc2d8; --accent2: #ff5c9a; --warn: #fdcb6e; --bad: #ff7675;
+  --ok: #7dffa8; --nav: #2a121c; --btn: #3a2030; --chip: #4a2838; --status-bg: rgba(42,18,28,0.94);
+  --bs-font: "Segoe UI", "Trebuchet MS", sans-serif;
+  --bs-display: "Segoe UI", "Trebuchet MS", sans-serif;
+  --bs-size: 16.5px; --card-radius: 18px;
+  --bs-scene: radial-gradient(140% 80% at 0% -20%, #a33b68 0%, transparent 52%), radial-gradient(90% 60% at 100% 0%, #5c2444 0%, transparent 46%), #1a1018;
 }
 html[data-bs-theme="boy"], body.bs-theme-boy {
-  --bg: #0e141c; --panel: #141c28; --panel-2: #182230; --border: #2a3a50; --border-strong: #3d5570;
-  --muted: #8ea8c4; --text: #e8f0f8; --accent: #74b9ff; --accent2: #0984e3; --warn: #ffeaa7; --bad: #ff7675;
-  --ok: #55efc4; --nav: #101820; --btn: #1a2433; --chip: #1c2838; --status-bg: rgba(14,20,28,0.96);
+  --bg: #0c1218; --panel: #15202c; --panel-2: #1a2838; --border: #2c4a68; --border-strong: #4d86c4;
+  --muted: #9ec0dc; --text: #eef6ff; --accent: #9fd0ff; --accent2: #2f9bff; --warn: #ffeaa7; --bad: #ff7675;
+  --ok: #55efc4; --nav: #0a1622; --btn: #173048; --chip: #1c3850; --status-bg: rgba(10,22,34,0.94);
+  --bs-font: "Segoe UI", system-ui, sans-serif;
+  --bs-display: "Segoe UI", system-ui, sans-serif;
+  --bs-size: 15px; --card-radius: 6px;
+  --bs-scene: linear-gradient(180deg, #1d4e86 0%, #0c1218 240px);
 }
 html[data-bs-theme="softpink"], body.bs-theme-softpink {
   --bg: #1a1216; --panel: #241820; --panel-2: #2a1c24; --border: #4a3040; --border-strong: #6b4560;
@@ -506,55 +514,163 @@ body[class*="bs-theme-"] .hr { background: var(--border); }
 .bs-sw-toddler .bs-sw-chip { background: linear-gradient(135deg, #fff3a8, #2e9bff); }
 .bs-sw-teen .bs-sw-chip { background: linear-gradient(135deg, #2a2238, #e2b4d4); }
 
-/* v39 maturity skins — background, cards, and type, not accent-only */
+/* v39 maturity skins — background, cards, and type, not accent-only.
+   v40 deepens baby / toddler / teen and gives girl / boy the same kind of skin. */
 html[data-bs-theme="baby"], body.bs-theme-baby {
   --bg: #fff3e8; --panel: #fffaf6; --panel-2: #ffe4d4; --border: #f0c2b0; --border-strong: #e39a8c;
   --muted: #8d5b62; --text: #4a2c32; --accent: #ff8fab; --accent2: #ffb703; --warn: #fb8500; --bad: #e85d4c;
-  --ok: #2a9d8f; --nav: #ffe8dc; --btn: #fffdfb; --chip: #ffe0ea; --status-bg: rgba(255,243,232,0.96);
+  --ok: #2a9d8f; --nav: #ffe8dc; --btn: #fffdfb; --chip: #ffe0ea; --status-bg: rgba(255,243,232,0.94);
   --bs-font: "Trebuchet MS", "Segoe UI", sans-serif;
   --bs-display: "Trebuchet MS", "Segoe UI", sans-serif;
-  --bs-size: 17px; --card-radius: 22px;
-  --bs-scene: radial-gradient(900px 420px at 0% 0%, #ffd6e7 0%, transparent 60%), radial-gradient(700px 380px at 100% 0%, #ffe8c2 0%, transparent 55%);
+  --bs-size: 18px; --card-radius: 26px;
+  --bs-scene: radial-gradient(circle at 16px 16px, #ffb3c7 1.6px, transparent 1.8px), radial-gradient(circle at 44px 44px, #ffd59a 1.6px, transparent 1.8px), radial-gradient(900px 420px at 0% 0%, #ffd6e7 0%, transparent 62%), radial-gradient(700px 380px at 100% 0%, #ffe8c2 0%, transparent 58%);
 }
 html[data-bs-theme="toddler"], body.bs-theme-toddler {
-  --bg: #fff6cf; --panel: #fffef8; --panel-2: #e5f6ff; --border: #f0c36a; --border-strong: #5eb1e4;
-  --muted: #5c6b7a; --text: #243140; --accent: #ff7a45; --accent2: #2e9bff; --warn: #e09f3e; --bad: #e85d4c;
-  --ok: #2a9d8f; --nav: #d7f0ff; --btn: #fffdf6; --chip: #fff1c9; --status-bg: rgba(255,246,207,0.96);
+  --bg: #fff4b8; --panel: #fffef6; --panel-2: #dff3ff; --border: #2e9bff; --border-strong: #ff7a45;
+  --muted: #3d5164; --text: #1b2836; --accent: #ff7a45; --accent2: #1a7fe0; --warn: #e09f3e; --bad: #e85d4c;
+  --ok: #1f8a72; --nav: #1a7fe0; --btn: #fffdf6; --chip: #fff1c9; --status-bg: rgba(255,229,102,0.94);
   --bs-font: "Arial Rounded MT Bold", "Trebuchet MS", "Segoe UI", sans-serif;
   --bs-display: "Arial Rounded MT Bold", "Trebuchet MS", sans-serif;
-  --bs-size: 17px; --card-radius: 20px;
-  --bs-scene: linear-gradient(180deg, #fff3a8 0%, #c8ecff 100%);
+  --bs-size: 18px; --card-radius: 16px;
+  --bs-scene: linear-gradient(180deg, #ffe566 0 120px, #7ec8ff 120px 100%);
 }
 html[data-bs-theme="teen"], body.bs-theme-teen {
-  --bg: #16121c; --panel: #241c2e; --panel-2: #2c2238; --border: #4a3b5c; --border-strong: #6d5a86;
-  --muted: #c3b3d1; --text: #f6eef8; --accent: #e2b4d4; --accent2: #8f86c9; --warn: #e6c07b; --bad: #e07a7a;
-  --ok: #8dcea0; --nav: #120e18; --btn: #2a2236; --chip: #32283f; --status-bg: rgba(18,14,24,0.96);
+  --bg: #100e14; --panel: #1c1624; --panel-2: #261e30; --border: #5c4a72; --border-strong: #e2b4d4;
+  --muted: #cbbad8; --text: #f8f1fa; --accent: #f0c6e2; --accent2: #a89be0; --warn: #e6c07b; --bad: #e07a7a;
+  --ok: #8dcea0; --nav: #0c0a10; --btn: #2a2236; --chip: #32283f; --status-bg: rgba(12,10,16,0.94);
   --bs-font: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
-  --bs-display: "Segoe UI", system-ui, sans-serif;
-  --bs-size: 16px; --card-radius: 8px;
-  --bs-scene: linear-gradient(160deg, #2a2238 0%, #141018 46%, #1a2433 100%);
+  --bs-display: Georgia, "Palatino Linotype", Palatino, serif;
+  --bs-size: 15.5px; --card-radius: 4px;
+  --bs-scene: linear-gradient(165deg, #3a2a48 0%, #120e16 42%, #1c2430 100%);
 }
+body.bs-theme-girl, body.bs-theme-boy,
 body.bs-theme-baby, body.bs-theme-toddler, body.bs-theme-teen {
-  font-family: var(--bs-font);
+  font-family: var(--bs-font, inherit);
   font-size: var(--bs-size, 16px);
-  background: var(--bs-scene, none), var(--bg);
+  line-height: 1.45;
+  background-color: var(--bg);
+  background-image: var(--bs-scene, none);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
-body.bs-theme-baby :is(.panel, .tab-page, .play-card, .cal-sheet, .camp-card, .hub-sub, .pp-glance, .pp-inline-go, .urge-result, header, #tabBar),
-body.bs-theme-toddler :is(.panel, .tab-page, .play-card, .cal-sheet, .camp-card, .hub-sub, .pp-glance, .pp-inline-go, .urge-result, header, #tabBar),
-body.bs-theme-teen :is(.panel, .tab-page, .play-card, .cal-sheet, .camp-card, .hub-sub, .pp-glance, .pp-inline-go, .urge-result, header, #tabBar) {
+body.bs-theme-baby {
+  background-size: 56px 56px, 56px 56px, auto, auto;
+  background-repeat: repeat, repeat, no-repeat, no-repeat;
+}
+body.bs-theme-girl :is(.panel, .tab-page, .play-card, .cal-sheet, .camp-card, .hub-sub, .pp-glance, .pp-inline-go, .urge-result),
+body.bs-theme-boy :is(.panel, .tab-page, .play-card, .cal-sheet, .camp-card, .hub-sub, .pp-glance, .pp-inline-go, .urge-result),
+body.bs-theme-baby :is(.panel, .tab-page, .play-card, .cal-sheet, .camp-card, .hub-sub, .pp-glance, .pp-inline-go, .urge-result),
+body.bs-theme-toddler :is(.panel, .tab-page, .play-card, .cal-sheet, .camp-card, .hub-sub, .pp-glance, .pp-inline-go, .urge-result),
+body.bs-theme-teen :is(.panel, .tab-page, .play-card, .cal-sheet, .camp-card, .hub-sub, .pp-glance, .pp-inline-go, .urge-result) {
   border-radius: var(--card-radius);
   font-family: inherit;
 }
+body.bs-theme-girl :is(h1, h2, h3, .panel h2),
+body.bs-theme-boy :is(h1, h2, h3, .panel h2),
 body.bs-theme-baby :is(h1, h2, h3, .panel h2),
-body.bs-theme-toddler :is(h1, h2, h3, .panel h2) {
-  font-family: var(--bs-display, var(--bs-font));
-  letter-spacing: 0.01em;
-}
+body.bs-theme-toddler :is(h1, h2, h3, .panel h2),
 body.bs-theme-teen :is(h1, h2, h3, .panel h2) {
   font-family: var(--bs-display, var(--bs-font));
+}
+
+/* Girl: warm rose dusk, soft cards */
+body.bs-theme-girl :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub) {
+  box-shadow: 0 12px 28px rgba(255, 92, 154, 0.16);
+  border-color: var(--border-strong);
+}
+body.bs-theme-girl header,
+body.bs-theme-girl #tabBar,
+body.bs-theme-girl #statusBar {
+  background: color-mix(in srgb, #2a121c 78%, #ff5c9a);
+  border-color: #c45b86;
+}
+body.bs-theme-girl :is(h1, h2, h3, .panel h2) { letter-spacing: 0.02em; font-weight: 650; }
+body.bs-theme-girl :is(button, .pill) { border-radius: 16px; }
+body.bs-theme-girl #tabBar button[aria-selected="true"] { color: #fff; }
+
+/* Boy: slate, sharp cards, sky stripe */
+body.bs-theme-boy :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub) {
+  border-left: 4px solid var(--accent2);
+  box-shadow: none;
+}
+body.bs-theme-boy header,
+body.bs-theme-boy #statusBar {
+  background: linear-gradient(180deg, #1d4e86, var(--bg));
+  border-color: var(--border-strong);
+}
+body.bs-theme-boy #tabBar {
+  background: #071018;
+  border-top: 3px solid var(--accent2);
+}
+body.bs-theme-boy .panel h2 { letter-spacing: 0.08em; text-transform: uppercase; font-size: 13px; }
+body.bs-theme-boy :is(button, .pill) { border-radius: 4px; letter-spacing: 0.03em; }
+
+/* Baby: nursery wallpaper, pill chrome, readable on cream */
+body.bs-theme-baby :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub) {
+  border-width: 2px;
+  box-shadow: 0 8px 0 rgba(255, 143, 171, 0.22);
+}
+body.bs-theme-baby header,
+body.bs-theme-baby #tabBar,
+body.bs-theme-baby #statusBar {
+  background: color-mix(in srgb, #fff3e8 84%, #ff8fab);
+  border-color: #f0c2b0;
+  color: var(--text);
+}
+body.bs-theme-baby :is(h1, h2, h3, .panel h2) { letter-spacing: 0.01em; }
+body.bs-theme-baby :is(button, .pill) { border-radius: 999px; }
+body.bs-theme-baby b { color: var(--text); }
+body.bs-theme-baby :is(input, select, textarea) {
+  background: #fffaf6; color: var(--text); border-color: var(--border); border-radius: 14px;
+}
+
+/* Toddler: primary-color playroom, chunky offset cards */
+body.bs-theme-toddler { font-weight: 600; line-height: 1.35; }
+body.bs-theme-toddler :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub) {
+  border-width: 3px;
+  border-color: #1a7fe0;
+  box-shadow: 5px 5px 0 #ff7a45;
+}
+body.bs-theme-toddler header,
+body.bs-theme-toddler #statusBar {
+  background: #ffe566;
+  color: #1b2836;
+  border-bottom: 4px solid #1a7fe0;
+}
+body.bs-theme-toddler #tabBar {
+  background: #1a7fe0;
+  border-top: 4px solid #ff7a45;
+}
+body.bs-theme-toddler #tabBar button { color: #eaf6ff; }
+body.bs-theme-toddler #tabBar button[aria-selected="true"] { color: #fff; }
+body.bs-theme-toddler :is(h1, h2, h3, .panel h2) { font-weight: 800; letter-spacing: 0; }
+body.bs-theme-toddler :is(button, .pill) { border-radius: 12px; font-weight: 800; border-width: 2px; }
+body.bs-theme-toddler b { color: var(--text); }
+body.bs-theme-toddler :is(input, select, textarea) {
+  background: #fff; color: var(--text); border: 3px solid #1a7fe0; border-radius: 12px; font-weight: 700;
+}
+
+/* Teen bedwetter: dusk diary, serif, hairline cards */
+body.bs-theme-teen { line-height: 1.6; }
+body.bs-theme-teen :is(.panel, .play-card, .cal-sheet, .camp-card, .hub-sub) {
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(240, 198, 226, 0.16);
+  background: linear-gradient(180deg, #2a2236, #1a1522);
+}
+body.bs-theme-teen header,
+body.bs-theme-teen #tabBar,
+body.bs-theme-teen #statusBar {
+  background: #0c0a10;
+  border-color: #5c4a72;
+}
+body.bs-theme-teen :is(h1, h2, h3, .panel h2) {
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  font-variant: small-caps;
+}
+body.bs-theme-teen :is(button, .pill) {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  border-radius: 2px;
   letter-spacing: 0.04em;
 }
-body.bs-theme-baby :is(button, .pill) { border-radius: 999px; }
-body.bs-theme-toddler :is(button, .pill) { border-radius: 14px; font-weight: 700; }
-body.bs-theme-teen :is(button, .pill) { border-radius: 6px; letter-spacing: 0.01em; }
 
