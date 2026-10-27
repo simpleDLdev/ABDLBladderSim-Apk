@@ -13,7 +13,7 @@
   const ACC_K = [2, 4, 6, 9, 12];        // accident % per urgency point above 5
   function settings() { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(SKEY) || '{}')); } catch (e) { return Object.assign({}, DEF); } }
   function saveSettings(s) { localStorage.setItem(SKEY, JSON.stringify(Object.assign(settings(), s))); }
-  const messyOn = () => typeof window.isMessyEnabled === 'function' && window.isMessyEnabled();
+  const messyOn = () => { try { if (typeof isMessyEnabled === 'function') return !!isMessyEnabled(); return JSON.parse(localStorage.getItem('messyModeEnabled') || 'false') === true; } catch (e) { return false; } };
   function levelIdx() { const l = typeof currentContinenceLevel !== 'undefined' ? currentContinenceLevel : 'mostly_continent'; const i = LV.indexOf(l); return i < 0 ? 1 : i; }
   function running() { return typeof sessionRunning !== 'undefined' && !!sessionRunning; }
   /** ms until the next major event, or null when no timer is running. */
@@ -43,10 +43,10 @@
     if (type === 2) acc = Math.round(acc * 0.6);
     acc = Math.min(70, acc); permit = Math.min(95, permit);
     const chances = { permit, accident: acc, level: LV[li], urgency: u, type };
-    if (u <= 1) return { outcome: 'not_yet', waitMin: 15, chances };
+    if (u <= 1) return maybeTummy({ outcome: 'not_yet', waitMin: 15, chances });
     const ms = nextMajorMs(now);
     if (ms != null && ms / 60000 <= s.waitWindowMin && u <= s.moderateMax) {
-      return { outcome: 'wait_timer', waitMin: Math.ceil(ms / 60000), chances: Object.assign(chances, { timerMin: Math.round(ms / 6000) / 10 }) };
+      return maybeTummy({ outcome: 'wait_timer', waitMin: Math.ceil(ms / 60000), chances: Object.assign(chances, { timerMin: Math.round(ms / 6000) / 10 }) });
     }
     const r = rng() * 100;
     if (r < acc) return { outcome: 'accident', waitMin: 0, chances };
@@ -55,11 +55,22 @@
       return { outcome: close ? 'close_call' : 'allowed', waitMin: 0, chances };
     }
     const waitMin = Math.max(2, Math.round((5 + rng() * 15) * (1 - u / 14)));
-    return { outcome: 'wait', waitMin, chances };
+    return maybeTummy({ outcome: 'wait', waitMin, chances });
+  }
+  function maybeTummy(res) {
+    if (!res || !res.chances || res.chances.type !== 2) return res;
+    if (res.outcome !== 'wait' && res.outcome !== 'wait_timer' && res.outcome !== 'not_yet') return res;
+    let on = false;
+    try { on = !!(window.BSCampaign && window.BSCampaign.tummyOn && window.BSCampaign.tummyOn()); } catch (e) {}
+    try { if (!on && window.BSPath && window.BSPath.load) { const b = window.BSPath.load(); on = !!(b && b.flags && b.flags.tummy); } } catch (e) {}
+    if (!on) return res;
+    res.outcome = 'allowed'; res.waitMin = 0; res.tummy = true;
+    return res;
   }
   const LABEL = { allowed: '✅ Allowed — go now', close_call: '😅 Allowed — close call!', wait: '⏳ Must wait', wait_timer: '⏱️ Wait for the timer', accident: '💦 Too late — accident', not_yet: '🙂 Not yet' };
   const COLOR = { allowed: '#55efc4', close_call: '#fdcb6e', wait: '#74b9ff', wait_timer: '#a29bfe', accident: '#ff7675', not_yet: '#8ea0b6' };
   function describe(res) {
+    if (res && res.tummy) return "🌀 Tummy trouble: this #2 can't wait — skip any waits.";
     const t = res.chances.type === 2 ? '#2' : '#1', u = res.chances.urgency;
     switch (res.outcome) {
       case 'allowed': return `${t} at ${u}/10: permission granted. Off you go!`;
@@ -98,6 +109,7 @@
   }
   // ---- UI ----
   let ui = { type: 1, urgency: 5, last: null, waitUntil: 0 };
+  try { if (settings().type === 2) ui.type = 2; } catch (e) {}
   function act(res) {
     record(res); ui.last = res;
     if (res.outcome === 'wait' || res.outcome === 'wait_timer' || res.outcome === 'not_yet') ui.waitUntil = Date.now() + res.waitMin * 60000;
@@ -105,8 +117,14 @@
     render();
     if (!settings().launchGuide || typeof startVoidGuide !== 'function') return;
     try {
-      if (res.outcome === 'accident') {
-        const tbl = res.chances.type === 2 && typeof MESSY_PUSHING_ACCIDENTS_D10 !== 'undefined' ? MESSY_PUSHING_ACCIDENTS_D10 : (typeof FULL_D20 !== 'undefined' ? FULL_D20 : []);
+      const pooTbl = (function () { try { if (typeof MESSY_PUSHING_ACCIDENTS_D10 !== 'undefined') return MESSY_PUSHING_ACCIDENTS_D10; } catch (e) {} return (typeof globalThis !== 'undefined' && globalThis.MESSY_PUSHING_ACCIDENTS_D10) || null; })();
+      if (res.chances.type === 2 && pooTbl && (res.outcome === 'accident' || res.outcome === 'allowed' || res.outcome === 'close_call')) {
+        const ev = pooTbl.filter(e => e.guide && e.guide.length);
+        const pickd = ev[Math.floor(Math.random() * ev.length)];
+        if (pickd) startVoidGuide(pickd.guide, `<b>Natural urge #2:</b> ${pickd.name || pickd.desc || 'Tummy'} — use protection or the potty.`, 'full');
+        try { if (window.BSCampaign && window.BSCampaign.setTummy) window.BSCampaign.setTummy(false, { fromPath: true }); } catch (e) {}
+      } else if (res.outcome === 'accident') {
+        const tbl = typeof FULL_D20 !== 'undefined' ? FULL_D20 : [];
         const ev = tbl.filter(e => e.guide && e.guide.length); const pickd = ev[Math.floor(Math.random() * ev.length)];
         if (pickd) startVoidGuide(pickd.guide, `<b>Natural urge:</b> ${pickd.desc || 'Too late!'}`, 'full');
       } else if (res.outcome === 'allowed' || res.outcome === 'close_call') {
@@ -140,8 +158,8 @@
         <label class="urge-lbl"><input id="urgeGuide" type="checkbox" ${s.launchGuide ? 'checked' : ''}> Open the guide for results</label>
       </details>`;
     const q = id => m.querySelector('#' + id);
-    q('urgeT1').onclick = () => { ui.type = 1; render(); };
-    q('urgeT2').onclick = () => { if (messyOn()) { ui.type = 2; render(); } };
+    q('urgeT1').onclick = () => { ui.type = 1; saveSettings({ type: 1 }); render(); };
+    q('urgeT2').onclick = () => { if (messyOn()) { ui.type = 2; saveSettings({ type: 2 }); render(); } };
     q('urgeLevel').oninput = e => { ui.urgency = +e.target.value; q('urgeLevelV').textContent = ui.urgency + '/10'; };
     q('urgeRoll').onclick = () => act(roll({ type: ui.type, urgency: ui.urgency }));
     q('urgeCheck').onclick = () => { const c = check(); q('urgeCheckOut').textContent = c.text; try { logToOutput(`<span style="color:#a29bfe">🔍 Urge timer check: ${esc(c.text)}</span>`); } catch (e) {} };

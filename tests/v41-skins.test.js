@@ -14,7 +14,7 @@ ok(css.includes('.sb-bar { background: #c96b7c') && css.includes('.sb-bar { back
 ok(pp.includes('var(--board, #1e2a3a)') && pp.includes('var(--track, #3d5a80)') && pp.includes('class="pp-board-bg"'), 'path board fill comes from the skin');
 ok(hub.includes("PLAY_KEY = 'bs_play_prefs_v1'") || hub.includes('bs_play_prefs_v1'), 'theme key unchanged');
 ['neutral', 'girl', 'boy', 'baby', 'toddler', 'teen'].forEach(id => ok(hub.includes(id + ':'), 'theme id ' + id));
-ok(read('android/app/build.gradle').includes('versionName "41"') && read('android/app/build.gradle').includes('versionCode 41'), 'version 41');
+ok(/versionName "\d+"/.test(read('android/app/build.gradle')) && /versionCode \d+/.test(read('android/app/build.gradle')), 'gradle version present');
 ok(read('js/whats-new-data.js').includes("hash: 'v41'"), "What's New v41");
 console.log(fail ? fail + ' FAILED' : 'ALL PASS');
 process.exit(fail ? 1 : 0);
