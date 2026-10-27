@@ -167,7 +167,7 @@
       holdScale: o.holdScale || (sliders ? sliders.holdScale : 1), hidden: !!o.hidden || !!(sliders && sliders.hidden),
       stars: 0, accStreak: 0, accDay: { day: dayKey(), n: 0 }, flags: {}, spareUsed: {}, freeGearDay: null, mastery: blankMastery(),
       goes: 0, pending: null, history: [], finished: false, shake: o.shake !== false, anim: o.anim !== false, createdAt: Date.now() };
-    if (classId === 'cascade') b.flags.tummy = true;
+    if (classId === 'cascade') { b.flags.tummy = true; mirrorTummy(true); }
     b.tasks = []; b.doneTasks = []; if (o.dares !== false && !softPlayOn() && window.BSQuizPlus && window.BSQuizPlus.result) { const dr = window.BSQuizPlus.result('dare'); if (dr) b.tasks = dr.dares.slice(0, o.dareMax || 3); }
     // v32 play start prefs
     try {
@@ -250,6 +250,11 @@
     { t: 'Natural accident: no potty this time — stay in your current protection (pull-up / trainers / diaper), let it happen naturally, then log it.', k: 'free', natural: true },
     { t: 'Protection rule: stay in your current protection (pull-up / trainers / diaper) and go in it — not the bathroom — then check it (change only if the May I change? rules say so).', k: 'free', prot: true }
   ];
+  const LOW_RULES_POO = [
+    { t: '#2 guidance: stay in your protection and follow one tummy event guide — not a pee guide (▶ #2 event guide).', k: 'free', guide: true },
+    { t: '#2: no potty this time — stay in your protection and let the tummy go happen, then log it.', k: 'free', natural: true },
+    { t: '#2 protection: use your protection for this tummy go — not the bathroom — then check it (change only if May I change? says so).', k: 'free', prot: true }
+  ];
   const CLASS_ACCESS = { bigkid: 0.15, scout: 0.1, padgirl: 0, pullup: 0, leaky: -0.05, shy: 0, little: -0.1, cascade: -0.05, baby: -1 };
   const STAGE_CAP = [0, 0.6, 0.85, 1];
   /** 0..1: how much potty choice an urge offers. 0 at very low / no control; phases in with control, class, stage. */
@@ -306,7 +311,8 @@
     // v18 low-control balance: potty-type rules phase in with control/class/stage.
     const acc = pottyAccess(b, st);
     if (acc < 1 && nums !== 'stop') {
-      let swapped = 0; rules = rules.map((r, i) => { if (!isPottyRule(r)) return r; if (acc >= 0.15 && rng() < acc) return r; swapped++; return Object.assign({ n: r.n, low: true }, LOW_RULES[(st + i + (b.goes % 3)) % LOW_RULES.length]); });
+      const pool = kind === 'poo' ? LOW_RULES_POO : LOW_RULES;
+      let swapped = 0; rules = rules.map((r, i) => { if (!isPottyRule(r)) return r; if (acc >= 0.15 && rng() < acc) return r; swapped++; return Object.assign({ n: r.n, low: true }, pool[(st + i + (b.goes % 3)) % pool.length]); });
       if (swapped) notes.push(`🧷 Low control (potty access ${Math.round(acc * 100)}%): potty options swapped for guidance / protection rules.`);
     }
     const poo = c.poo || {};
@@ -323,7 +329,7 @@
     return { board: b, roll, path, from, notes, move: mv };
   }
   function applyFx(b, fx, notes) {
-    if (!fx) return; if (fx.tummy) b.flags.tummy = true; if (fx.mercy) b.flags.mercy = true; if (fx.busy) b.flags.busy = true; if (fx.race) b.flags.race = true; if (fx.mayiToken) b.flags.mayiToken = true;
+    if (!fx) return; if (fx.tummy) { b.flags.tummy = true; mirrorTummy(true); } if (fx.mercy) b.flags.mercy = true; if (fx.busy) b.flags.busy = true; if (fx.race) b.flags.race = true; if (fx.mayiToken) b.flags.mayiToken = true;
     if (fx.doubleNext) b.flags.doubleNext = true; if (fx.pass) b.flags.pass = true; if (fx.nochange) b.flags.nochange = 1; if (fx.stars) b.stars += fx.stars;
     if (fx.move) { const s = stageOf(b.pos); b.pos = Math.min(b.pos + fx.move, b.pos < stageEnd(s) ? stageEnd(s) : N); }
   }
@@ -395,7 +401,7 @@
     if (p.dare && m.dareDone) { b.doneTasks = (b.doneTasks || []).concat(p.dare.id); b.stars += p.dare.stars; notes.push(`🎯 Dare done: +${p.dare.stars} ⭐.`); }
     if (m.sat != null && m.sat >= 60) notes.push('🧷 Saturation 60%+ — change now (skin comfort first).');
     if (b.flags.nochange) { notes.push('⏳ Cosy rule: no change until your next roll (skin comfort still wins).'); b.flags.nochange = 0; }
-    if (p.kind === 'poo' && outcome !== 'real' && b.flags.tummy && c.id !== 'cascade') b.flags.tummy = false;
+    if (p.kind === 'poo' && outcome !== 'real' && b.flags.tummy && c.id !== 'cascade') { b.flags.tummy = false; mirrorTummy(false); }
     b.pos = clamp(b.pos + move, 1, N);
     if (p.check && b.calib.need && b.calib.done < b.calib.need) b.calib.done++;
     b.history.push({ ts: Date.now(), pos: b.pos, stage: st, rules: p.rules.map(r => r.n), kind: p.kind, outcome, m });
@@ -450,7 +456,8 @@
     if (kind === 'pooFree') { M.pooRun++; bump(b, 'poo', Math.min(3, M.pooRun), notes); notes.unshift(`💩 #2-accident-free day: +${Math.min(3, M.pooRun)}.`); }
     return { ok: true, notes };
   }
-  function setClass(id) { const b = load(); if (!b || !classAllowed(id)) return null; if (b.pending) b.pendingClass = id; else b.classId = id; if (id === 'cascade') b.flags.tummy = true; save(b); return b; }
+  function mirrorTummy(on) { try { if (window.BSCampaign && window.BSCampaign.setTummy) window.BSCampaign.setTummy(!!on, { fromPath: true }); } catch (e) {} }
+  function setClass(id) { const b = load(); if (!b || !classAllowed(id)) return null; if (b.pending) b.pendingClass = id; else b.classId = id; if (id === 'cascade') { b.flags.tummy = true; mirrorTummy(true); } save(b); return b; }
 
   // ---------- Test Mode ----------
   function simulate(opts) {
@@ -685,7 +692,7 @@
         <button type="button" id="ppHydHint" class="pp-mini">💧 Hydration</button>
       </div>
       <div class="pp-dicebar"><button type="button" id="ppDie" class="pp-die pp-die2" aria-label="I need to go — roll" ${rollsLocked ? 'disabled' : ''}>${dieHtml((b.lastFaces || [1, 1])[0])}${dieHtml((b.lastFaces || [1, 1])[1])}</button>
-        <div class="pp-go"><button type="button" id="ppNeed" class="pp-need" ${rollsLocked ? 'disabled' : ''}>🚽 ${esc(tw.needToGo)}</button><button type="button" id="ppNeed2" class="pp-need2" ${rollsLocked ? 'disabled' : ''}>💩 #2</button>
+        <div class="pp-go"><button type="button" id="ppNeed" class="pp-need" ${rollsLocked ? 'disabled' : ''}>🚽 ${esc(tw.needToGo)}</button><button type="button" id="ppNeed2" class="pp-need2 messy-only" ${rollsLocked ? 'disabled' : ''}>💩 #2</button>
         <button type="button" id="ppMayChange" class="pp-need2" title="Standing May I change? roll">🧷 ${esc(tw.mayChange)}</button>
         ${c.id === 'shy' ? '<label class="qp-flag"><input type="checkbox" id="ppShy"> 🙈 Move 1, use rule 1</label>' : ''}<small class="muted">${b.pending ? 'Stay on the board — resolve the go below. Roll buttons locked while a go / timer is active. 🧷 May I change? stays available.' : 'Press when you really need to go. Roll 2d6, move ' + (c.move === 'full' ? 'the full roll' : 'half (' + (c.move === 'up' ? 'round up' : 'round down') + ')') + '. Tap dice or shake = 🚽. 🧷 = May I change? any time.'}</small></div></div>
       <div id="ppNotes" class="pp-notes">${lastNotes.map(n => `<div>${esc(n)}</div>`).join('')}</div>
@@ -816,10 +823,12 @@
   }
   function showQuest(b, m) {
     const q = b.quest, F = GW.BSPathFeatures && GW.BSPathFeatures.BY[q.id]; if (!F) return;
+    const pooQ = q.kind === 'poo' || (b.pending && b.pending.kind === 'poo');
+    const featDo = pooQ && pooFeat(q.id) ? pooFeat(q.id) : F.do;
     const left = q.until ? Math.max(0, Math.ceil((q.until - Date.now()) / 60000)) : null;
     const host = m.querySelector('#ppActiveHost') || m;
     const d = document.createElement('div'); d.className = 'pp-quest pp-inline-go'; d.id = 'ppQuest';
-    d.innerHTML = `<b>${F.icon} In progress: ${esc(F.name)}</b><div>${esc(F.do)}</div>${q.note ? `<div class="cal-legend">${esc(q.note)}</div>` : ''}${left != null ? `<div class="calib-big">${b.hidden ? '✋' : left + ' min'}</div>` : ''}
+    d.innerHTML = `<b>${F.icon} In progress: ${esc(pooQ && (q.id === 'guide_event' || q.id === 'guide_hold') ? ('#2 ' + F.name) : F.name)}</b><div>${esc(featDo)}</div>${q.note ? `<div class="cal-legend">${esc(q.note)}</div>` : ''}${left != null ? `<div class="calib-big">${b.hidden ? '✋' : left + ' min'}</div>` : ''}
       <div class="cal-legend">Auto-detects when it's done. Or finish it here. Refuse forces a dice rollback (⏸ real urge stays free).</div>
       <div class="quiz-nav"><button type="button" data-q="ok" class="pp-ok">✅ Done</button><button type="button" data-q="acc">💦 Accident</button><button type="button" data-q="refuse" class="pp-refuse">🙅 Refuse (dice rollback)</button><button type="button" data-q="real" class="pp-real pp-pause" title="Pause — no move">⏸ I'm going now</button><button type="button" data-q="re">▶ Reopen</button></div>`;
     host.innerHTML = ''; host.appendChild(d);
@@ -880,7 +889,21 @@
   function exportLog() { const b = load(); if (!b || !b.testLog) { if (typeof toast === 'function') toast('Run a test pass first'); return; } downloadText('potty-path-test.txt', formatLogText(b)); downloadText('potty-path-test.json', JSON.stringify({ meta: { classId: b.classId, steps: b.testSteps, seed: b.testSeed, cover: b.testCover, mastery: b.mastery }, log: b.testLog }, null, 2), 'application/json'); }
   function classTable() { return `<table class="pp-table"><tr><th>Class</th><th>Needs</th><th>Perks</th><th>Drawbacks</th></tr>${CLASSES.map(c => `<tr><td>${esc(c.name)}<br><small>${esc(c.band)} · start ${esc(STAGES[c.start].short)}</small></td><td>${esc(c.needs.join(', ').replace(/\|/g, ' or ') || '—')}</td><td>${c.plus.map(esc).join('<br>')}${c.poo ? '<br><b>#2</b> ' + esc(c.poo.note) : ''}</td><td>${c.minus.map(esc).join('<br>')}</td></tr>`).join('')}</table>`; }
   function animateToken(path, done) { const b = load(), { pts } = coords(), tok = document.getElementById('ppToken'); if (!tok || !b.anim || !path.length) return done(); let i = 0; const next = () => { if (i >= path.length) return done(); const p = pts[path[i++]]; tok.style.transform = `translate(${p[0]}px,${p[1]}px)`; setTimeout(next, 220); }; next(); }
+  function messyOn() { try { if (typeof isMessyEnabled === 'function') return !!isMessyEnabled(); return JSON.parse(localStorage.getItem('messyModeEnabled') || 'false') === true; } catch (e) { return false; } }
+  function pooGloss(r) {
+    if (r.guide) return '#2 event guide: tummy steps in protection, not a pee void.';
+    if (r.k === 'hold' || r.k === 'wait') return 'Tummy hold for #2. Tummy trouble skips this wait.';
+    if (r.k === 'potty' || r.then === 'potty' || r.k === 'race' || r.k === 'mayi' || r.k === 'urge') return '#2: the potty, when this rule allows — tummy, not pee.';
+    if (r.k === 'gear' || r.prot || r.natural) return '#2: use protection for this tummy go, or the potty if the rule says so.';
+    return '#2 tummy go — not a pee go.';
+  }
+  function pooFeat(id) {
+    if (id === 'guide_hold') return 'Follow a short #2 tummy hold in your protection.';
+    if (id === 'guide_event') return 'Follow one #2 tummy guide in your protection or on the potty, start to finish.';
+    return '';
+  }
   function doGo(kind) {
+    if (kind === 'poo' && !messyOn()) return;
     if (busy) return; const b = load(); if (!b || b.pending || b.finished) return;
     // Leaky: require urge lock before rolling
     if (kind === 'pee' && (b.dribbleGate || b.classId === 'leaky') && !b.urgeLock && !b.testMode) {
@@ -915,7 +938,7 @@
     if (p.feature && p.feature !== 'checkin_app') seen.add(p.feature);
     const add = (id, label) => { if (!seen.has(id)) { seen.add(id); out.push({ id, label }); } };
     (p.rules || []).forEach(r => {
-      if (r.guide) add('guide_event', '▶ Event guide');
+      if (r.guide) add('guide_event', p.kind === 'poo' ? '▶ #2 event guide' : '▶ Event guide');
       if (r.prot) add('may_change', '🧷 May I change?');
     });
     add('may_change', '🧷 May I change?');
@@ -945,8 +968,9 @@
     host.innerHTML = `<div class="pp-inline-go" id="ppEv">
       <div class="pp-evtype" style="background:${S.color}">${esc(S.short)} · square ${p.pos} ${p.tag ? TAG_ICON[p.tag] || '' : ''} · ${p.kind === 'poo' ? '💩 #2' : '💧 pee'}</div>
       <h3 style="margin:6px 0 4px;font-size:16px;">${p.tag === 'stop' ? '🛑 STOP' : 'Rule' + (p.rules.length > 1 ? 's ' : ' ') + p.rules.map(r => r.n).join(' + ')}</h3>
-      ${p.rules.map(r => `<div class="pp-do">${esc(r.t)}${r.free ? ' <small>(pick one from the table below)</small>' : ''}</div>`).join('')}
-      ${p.feature && GW.BSPathFeatures ? (f => `<div class="pp-feat"><b>${f.icon} Feature: ${esc(f.name)}</b><div>${esc(f.do)}</div>${p.feature === 'checkin_app' ? '' : '<button type="button" id="ppLaunch" class="pp-ok">▶ Launch ' + esc(f.name) + '</button> <button type="button" id="ppRefuseFeat" class="pp-refuse">🙅 Refuse</button>'}</div>`)(GW.BSPathFeatures.BY[p.feature]) : ''}
+      ${p.kind === 'poo' ? '<div class="pp-cons" id="ppPooSheet"><b>💩 #2 tummy go.</b> Steps and guides are for #2 — hold, use protection, or the potty. Not a pee guide.</div>' : ''}
+      ${p.rules.map(r => `<div class="pp-do">${esc(r.t)}${p.kind === 'poo' ? '<div class="cal-legend">' + esc(pooGloss(r)) + '</div>' : ''}${r.free ? ' <small>(pick one from the table below)</small>' : ''}</div>`).join('')}
+      ${p.feature && GW.BSPathFeatures ? (f => { const fd = (p.kind === 'poo' && pooFeat(p.feature)) || f.do; const fn = (p.kind === 'poo' && (p.feature === 'guide_event' || p.feature === 'guide_hold')) ? ('#2 ' + f.name) : f.name; return `<div class="pp-feat"><b>${f.icon} Feature: ${esc(fn)}</b><div>${esc(fd)}</div>${p.feature === 'checkin_app' ? '' : '<button type="button" id="ppLaunch" class="pp-ok">▶ Launch ' + esc(fn) + '</button> <button type="button" id="ppRefuseFeat" class="pp-refuse">🙅 Refuse</button>'}</div>`; })(GW.BSPathFeatures.BY[p.feature]) : ''}
       ${implied.length ? `<div class="pp-feat">${implied.map(x => `<button type="button" class="pp-ok" data-launch="${x.id}">${esc(x.label)}</button>`).join(' ')}</div>` : ''}
       ${p.mayi != null ? `<div class="pp-cons">🙋 May I? → <b>${(function(){ try { if (window.BSPathPlay && window.BSPathPlay.caregiverOn()) return window.BSPathPlay.line(p.mayi ? 'mayi_yes' : 'mayi_no'); } catch(e){} return p.mayi ? 'Yes, you may.' : 'Not yet — wait 5 minutes, then go.'; })()}</b></div>` : ''}
       ${p.tag === 'prot' ? `<div class="pp-cons">🧷 Protection square: wear ${esc(S.gear)} for this go.</div>` : ''}
@@ -1036,7 +1060,7 @@
       ${Object.keys(window.BSQuizPlus ? window.BSQuizPlus.SYMS : {}).map(k => `<label class="qp-flag"><input type="checkbox" data-sym="${k}" ${fl[k] ? 'checked' : ''}> ${esc(window.BSQuizPlus.SYMS[k])}</label>`).join('')}
       <details class="sess-more"><summary>📚 Classes</summary>${classTable()}</details>
       <div class="quiz-nav"><button type="button" id="ppSave" class="pp-ok">✓ Save</button><button type="button" id="ppTestNow" style="background:#fdcb6e;color:#000;font-weight:bold;">🧪 Test pass</button><button type="button" id="ppExportLog">📄 Export log</button><button type="button" id="ppNew">↺ New board</button><button type="button" id="ppX">Close</button></div>`);
-    w.querySelector('#ppSave').onclick = () => { const id = w.querySelector('#ppSw').value; if (id !== b.classId) setClass(id); const b2 = load(); b2.shake = w.querySelector('#ppShake').checked; b2.anim = w.querySelector('#ppAnim').checked; b2.hidden = w.querySelector('#ppHid').checked; b2.flags.tummy = w.querySelector('#ppTummy').checked; save(b2); w.querySelectorAll('[data-sym]').forEach(c => window.BSQuizPlus.setFlag(c.dataset.sym, c.checked)); w.remove(); render(); };
+    w.querySelector('#ppSave').onclick = () => { const id = w.querySelector('#ppSw').value; if (id !== b.classId) setClass(id); const b2 = load(); b2.shake = w.querySelector('#ppShake').checked; b2.anim = w.querySelector('#ppAnim').checked; b2.hidden = w.querySelector('#ppHid').checked; b2.flags.tummy = w.querySelector('#ppTummy').checked; save(b2); mirrorTummy(!!b2.flags.tummy); w.querySelectorAll('[data-sym]').forEach(c => window.BSQuizPlus.setFlag(c.dataset.sym, c.checked)); w.remove(); render(); };
     w.querySelector('#ppTestNow').onclick = () => { const bb = load(); const r = runTestPass({ mode: bb.mode, classId: bb.classId, seed: Date.now() & 0xffff }); w.remove(); if (typeof toast === 'function') toast('Test pass: ' + r.testSteps + ' goes'); render(); };
     w.querySelector('#ppExportLog').onclick = exportLog;
     w.querySelector('#ppNew').onclick = () => { if (confirm('Start a new Potty Path board?')) { save(null); w.remove(); lastNotes = []; render(); } };

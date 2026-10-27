@@ -3,6 +3,17 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v42',
+    date: '2026-10-27',
+    title: 'v42 — #2 guides, urge type, tummy flag',
+    bullets: [
+      '🎲 Path: #2 rolls open tummy guides (hold, protection, or the potty). #1 stays a pee guide. Messy content off keeps #2 tucked away. May I change? still follows a let-go in protection.',
+      '🙋 Urge: #1 and #2 are on the play screen, and they stay there after you start a natural session. The roll uses the type you picked.',
+      '🏅 Campaign shows when your tummy is rumbling. That #2 can\'t wait — the wait is skipped. It\'s a game flag only.',
+      'Version 42.'
+    ]
+  },
+  {
     hash: 'v41',
     date: '2026-10-26',
     title: 'v41 — skins reach the cards',

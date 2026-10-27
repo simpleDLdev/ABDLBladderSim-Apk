@@ -27,7 +27,29 @@
   const one = v => protLabel(v).replace(/s$/, '').toLowerCase();
 
   // ---------- settings ----------
-  function settings() { return Object.assign({ profileId: 'match', fastFill: false, quietSignals: false, alarm: true, askUrgency: true, useCalib: false, hideWaits: false, waveCluster: false, lastUrgency: null, afterSmall: '' }, J(SKEY, {})); }
+  function settings() { return Object.assign({ profileId: 'match', fastFill: false, quietSignals: false, alarm: true, askUrgency: true, useCalib: false, hideWaits: false, waveCluster: false, lastUrgency: null, afterSmall: '', type: 1 }, J(SKEY, {})); }
+  function messyOn() { try { if (typeof isMessyEnabled === 'function') return !!isMessyEnabled(); return JSON.parse(localStorage.getItem('messyModeEnabled') || 'false') === true; } catch (e) { return false; } }
+  function urgeType() { const t = settings().type === 2 ? 2 : 1; return t === 2 && !messyOn() ? 1 : t; }
+  function messyRows(which) {
+    let tbl = null;
+    try {
+      if (which === 'hold' && typeof MESSY_HOLDING_GAUNTLETS_D10 !== 'undefined') tbl = MESSY_HOLDING_GAUNTLETS_D10;
+      if (which !== 'hold' && typeof MESSY_PUSHING_ACCIDENTS_D10 !== 'undefined') tbl = MESSY_PUSHING_ACCIDENTS_D10;
+    } catch (e) {}
+    if (!tbl) { const g = typeof globalThis !== 'undefined' ? globalThis : {}; tbl = which === 'hold' ? g.MESSY_HOLDING_GAUNTLETS_D10 : g.MESSY_PUSHING_ACCIDENTS_D10; }
+    return (tbl || []).filter(e => e && e.guide && e.guide.length);
+  }
+  function pickMessy(which, rng) {
+    rng = rng || Math.random; const rows = messyRows(which); if (!rows.length) return null;
+    const e = rows[Math.floor(rng() * rows.length)], hold = which === 'hold';
+    return { label: e.name || (hold ? 'Tummy hold' : 'Tummy'), flow: e.desc || (hold ? 'Hold the tummy feeling in your protection.' : 'Tummy — use protection or the potty.'), guide: e.guide.slice(), kind: hold ? 'hold' : 'push', name: e.name || '' };
+  }
+  function tummyCantWait() {
+    try { if (window.BSCampaign && window.BSCampaign.tummyOn && window.BSCampaign.tummyOn()) return true; } catch (e) {}
+    try { const b = window.BSPath && window.BSPath.load && window.BSPath.load(); if (b && b.flags && b.flags.tummy) return true; } catch (e) {}
+    return false;
+  }
+  function clearTummy() { try { if (window.BSCampaign && window.BSCampaign.setTummy) window.BSCampaign.setTummy(false, { fromPath: true }); } catch (e) {} }
   function saveSettings(p) { localStorage.setItem(SKEY, JSON.stringify(Object.assign(settings(), p))); }
 
   // ---------- custom profiles / events / level tables ----------
@@ -175,25 +197,48 @@
     }
     if (res.outcome === 'dribble' && cont) res.gear = cont;
     if (res.outcome === 'hard' && cont) res.gear = cont;
+    res.type = (opts.type === 2 || (opts.type == null && urgeType() === 2)) && messyOn() ? 2 : 1;
+    if (res.type === 2 && !res.event) {
+      if (res.outcome === 'hard') { const h = pickMessy('hold', rng); if (h) { res.content = h; res.gear = h; } }
+      else if (res.outcome === 'gear' || res.outcome === 'dribble') { const h = pickMessy('push', rng); if (h) { res.content = h; res.gear = h; } }
+    }
     res.text = describe(res);
     if (res.stepText) res.text = res.stepText + (res.text ? ' · ' + res.text : '');
     if (opts.quick) res.quick = true;
     try {
       if (window.BSHub && window.BSHub.naturalPlayOn && window.BSHub.naturalPlayOn() && res.outcome === 'gear') {
         const ch = window.BSHub.naturalOfficeChoice(rng);
+        const kept = (res.content && res.content.guide) || (res.gear && res.gear.guide);
         res.outcome = 'natural'; res.waitMin = 0; res.hidden = false; res.gear = null; res.content = null;
-        res.severity = null; res.voice = ''; res.natural = ch; res.text = ch.text; res.stepText = '';
+        res.severity = null; res.voice = ''; res.natural = ch; res.text = (res.type === 2 ? '💩 #2 · ' : '') + ch.text; res.stepText = '';
+        if (res.type === 2 && kept) res.pooGuide = kept;
       }
     } catch (e) {}
+    if (res.type === 2 && tummyCantWait() && (res.outcome === 'wait' || res.outcome === 'natural' || res.outcome === 'hard')) {
+      res.outcome = 'go'; res.waitMin = 0; res.hidden = false; res.tummy = true; res.natural = null; res.stepText = '';
+      res.text = "🌀 Tummy trouble: this #2 can't wait — skip any waits.";
+    }
+    if (res.type === 2 && res.outcome === 'go' && !(res.pooGuide && res.pooGuide.length)) {
+      if (res.tummy) res.pooGuide = [{ text: 'TUMMY — POTTY OR PROTECTION', time: 0, type: 'stop' }];
+      else { const h = pickMessy('push', rng); if (h) res.pooGuide = h.guide; }
+    }
     return res;
   }
-  function pickGear(u, rng) {
-    const M = window.BSUrgeMatrix; if (M) { const c = M.content('okay', u >= 7 ? 'gear' : 'dribble', u, rng); if (c) return c; }
+  function pickGear(u, rng, type) {
+    type = type == null ? urgeType() : type;
+    if (type === 2 && messyOn()) { const h = pickMessy(u >= 7 ? 'push' : 'hold', rng); if (h) return h; }
+    const M = window.BSUrgeMatrix; if (M && type !== 2) { const c = M.content('okay', u >= 7 ? 'gear' : 'dribble', u, rng); if (c) return c; }
     const tbl = u >= 7 && typeof FULL_D20 !== 'undefined' ? FULL_D20 : (typeof MICRO_DIAPER_D8 !== 'undefined' ? MICRO_DIAPER_D8 : []);
     const ev = tbl.filter(e => e.guide && e.guide.length); const e = ev[Math.floor((rng || Math.random)() * ev.length)];
     return e ? { label: e.label, flow: e.flow, guide: e.guide, kind: u >= 7 ? 'full' : 'micro' } : null;
   }
   function describe(res) {
+    if (res && res.tummy) return "🌀 Tummy trouble: this #2 can't wait — skip any waits.";
+    const t = describeRaw(res);
+    if (res && res.type === 2 && t && !/#2|tummy/i.test(t)) return '💩 #2 · ' + t;
+    return t;
+  }
+  function describeRaw(res) {
     if (res.voice && (res.outcome === 'go' || res.outcome === 'wait' || (!res.content && !res.gear))) {
       if (res.outcome === 'wait' && !res.hidden) return res.voice + ` (${res.waitMin} min)`;
       if (res.outcome === 'wait' && res.hidden) return res.voice;
@@ -252,12 +297,14 @@
     if (res.outcome === 'gear') { i = useGear(); ctlEvent('gear'); } else if (res.outcome === 'go') ctlEvent('go');
     else if (res.outcome === 'natural') { /* choice only — potty or hold is logged when they pick */ }
     log(`🙋 Simple urge (${res.urgency == null ? 'urgency not set' : res.urgency + '/10'}, ${res.profileName}): ${res.text}${i ? ' ' + invText(i) : ''}`, COLOR[res.outcome]);
-    try { window.BSNatSession && window.BSNatSession.note({ k: 'roll', outcome: res.outcome, text: res.text, roll: res.id }); } catch (e) {}
+    try { window.BSNatSession && window.BSNatSession.note({ k: 'roll', outcome: res.outcome, text: res.text, roll: res.id, type: res.type || 1 }); } catch (e) {}
+    if (res.type === 2 && (res.outcome === 'go' || res.outcome === 'gear')) clearTummy();
     try {
       const C = window.BSCalendar; if (!C) return;
       const b = { source: 'sim', mode: 'simple_urge', memo: res.text, event: { kind: 'urge', label: res.text }, link: { roll: res.id } };
       if (res.urgency != null) b.urgency = res.urgency * 10;
       let e;
+      if (res.type === 2) b.messy = true;
       if (res.outcome === 'go') e = C.addEntry(Object.assign(b, { type: 'potty' }));
       else if (res.outcome === 'gear') e = C.addEntry(Object.assign(b, { type: res.severity === 'dribble' ? 'leak' : 'accident', severity: { dribble: 'damp', small: 'wet', major: 'soaked' }[res.severity] || 'wet', protection: i ? i.wearing : 'none' }));
       else e = C.addEntry(Object.assign(b, { type: 'event' }));
@@ -367,8 +414,9 @@
     if (which === 'go') {
       r.outcome = 'go'; r.text = 'Go to the restroom.'; r.waitMin = 0; r.closed = 'natural-go';
       x.waitUntil = 0; x.fired = true; x.chain = 0; x.accFor = null;
-      try { window.BSCalendar && window.BSCalendar.addEntry({ source: 'sim', mode: 'simple_urge', type: 'potty', memo: r.text, link: { roll: r.id } }); } catch (e) {}
+      try { window.BSCalendar && window.BSCalendar.addEntry({ source: 'sim', mode: 'simple_urge', type: 'potty', memo: r.text, link: { roll: r.id }, messy: r.type === 2 ? true : undefined }); } catch (e) {}
       ctlEvent('go');
+      if (r.type === 2) clearTummy();
     } else {
       r.outcome = 'wait'; r.waitMin = hold; r.hidden = false; r.text = 'Hold ' + hold + ' min, then roll again.'; r.closed = '';
       x.waitUntil = Date.now() + hold * 60000; x.waitStart = Date.now(); x.fired = false; x.accFor = r.id;
@@ -396,10 +444,10 @@
     saveSt(n); render();
     // Launch the session-style guide when we have one
     try {
-      const g = (res.content && res.content.guide) || (res.gear && res.gear.guide);
+      const g = (res.pooGuide && res.pooGuide.length ? res.pooGuide : null) || (res.content && res.content.guide) || (res.gear && res.gear.guide);
       if (g && g.length && typeof window.startVoidGuide === 'function') {
-        const title = (res.voice ? '<b>' + res.voice + '</b><br>' : '') + (res.content ? (res.content.label || '') : (res.gear && res.gear.label) || '');
-        window.startVoidGuide(g, title, res.outcome === 'hard' ? 'challenge' : (res.outcome === 'gear' ? 'full' : 'micro'));
+        const title = (res.type === 2 ? '<b>💩 #2</b> ' : '') + (res.voice ? '<b>' + res.voice + '</b><br>' : '') + (res.content ? (res.content.label || '') : (res.gear && res.gear.label) || '');
+        window.startVoidGuide(g, title, res.type === 2 && res.outcome === 'hard' ? 'gauntlet' : (res.outcome === 'hard' ? 'challenge' : (res.outcome === 'gear' || res.type === 2 ? 'full' : 'micro')));
       }
     } catch (e) {}
     setTimeout(() => { try { window.nativeNotifySync && window.nativeNotifySync(); } catch (e) {} }, 0);
@@ -554,6 +602,11 @@
         <div class="urge-actions"><button type="button" id="suDailySave">Save for today</button><button type="button" id="suDailyKeep">Keep as is</button></div></div>` : ''}
       ${sess ? NS.chip() : `<div class="urge-actions"><button type="button" id="suSessStart">▶ Start natural session</button></div>`}
       ${followHtml()}
+      <div class="urge-type" id="suType" role="group" aria-label="Type">
+        <button type="button" id="suT1" class="${urgeType() === 1 ? 'on' : ''}">#1 Pee</button>
+        <button type="button" id="suT2" class="messy-only ${urgeType() === 2 ? 'on' : ''}">#2</button>
+      </div>
+      ${urgeType() === 2 ? '<div class="cal-legend" id="suTypeNote">Rolling #2 — tummy guides (hold, protection, or potty), not pee steps.</div>' : ''}
       <button type="button" id="suGo" class="su-big" ${followActive() ? 'data-locked="1"' : ''} style="width:100%;min-height:72px;font-size:22px;font-weight:bold;background:${followActive() ? '#636e72' : '#ff7675'};color:#000;border-radius:16px;">${followActive() ? '⏳ Wait for the follow-up timer' : 'I need to go'}</button>
       <div class="pp-pause-row"><button type="button" id="suCantHold" class="pp-real pp-pause">${office ? '⚠️ Unplanned event' : "😣 I can't hold it"}</button></div>
       ${cascadeHtml()}
@@ -566,7 +619,7 @@
         ${(last.outcome === 'hard' || last.outcome === 'dribble') && !last.closed ? `<div class="urge-actions"><button type="button" id="suReady">${last.outcome === 'hard' ? 'It\'s hard now — roll' : 'Dribble happened — roll'}</button></div>` : ''}
         ${last.outcome === 'natural' && !last.closed ? `<div class="urge-actions"><button type="button" id="suNatGo">🚻 ${(last.natural && last.natural.goLabel) || 'Go to the restroom'}</button><button type="button" id="suNatHold">⏱ ${(last.natural && last.natural.holdLabel) || 'Hold'}</button></div>` : ''}
         ${last.calBody ? `<div class="urge-actions" id="suLogRow"><label class="urge-lbl"><input type="checkbox" id="suNoLog" ${last.unlogged ? 'checked' : ''}> Don't log this</label>${!last.closed ? '<button type="button" id="suReroll">🎲 Reroll, no log</button>' : ''}</div>` : ''}
-        ${(last.content && last.content.guide) || (last.gear && last.gear.guide) || (last.event && last.event.guide && last.event.guide.length) ? '<div class="urge-actions"><button type="button" id="suGuide">▶ Guide</button></div>' : ''}
+        ${(last.pooGuide && last.pooGuide.length) || (last.content && last.content.guide) || (last.gear && last.gear.guide) || (last.event && last.event.guide && last.event.guide.length) ? '<div class="urge-actions"><button type="button" id="suGuide">▶ Guide</button></div>' : ''}
         </div>` : ''}
       ${armed ? `<div class="urge-actions" id="suAccRow"><button type="button" id="suAcc" class="su-acc" style="flex:1;min-height:56px;background:#e17055;color:#000;font-weight:bold;font-size:18px;">💦 Had an accident</button><button type="button" id="suAccX" title="Dismiss" aria-label="Dismiss accident button" style="min-width:56px;min-height:56px">✕</button></div>
         ${ws ? '' : '<div class="urge-note" id="suAccNote">The wait is over — still here in case it happened. Press "I need to go" or ✕ to clear.</div>'}` : ''}
@@ -601,9 +654,11 @@
     const urg = () => q('suU').dataset.set ? +q('suU').value : null;
     q('suU').oninput = q('suU').onchange = e => { e.target.dataset.set = '1'; q('suUV').textContent = e.target.value + '/10'; saveSettings({ lastUrgency: +e.target.value, lastUrgencyTs: Date.now() }); }; // v18: persist on every move so re-renders keep it
     q('suProf').onchange = e => { saveSettings({ profileId: e.target.value }); render(); };
+    on('suT1', () => { saveSettings({ type: 1 }); render(); });
+    on('suT2', () => { if (messyOn()) { saveSettings({ type: 2 }); render(); } });
     on('suGo', () => press(urg()));
     on('suReady', () => { try { if (window.BSClasses && window.BSClasses.noteDribble) window.BSClasses.noteDribble(); } catch (e) {} continueUrge(urg()); });
-    on('suGuide', () => { const g = (last.content && last.content.guide) || (last.gear && last.gear.guide) || (last.event && last.event.guide); try { typeof startVoidGuide === 'function' && startVoidGuide(g, `<b>${esc(sw(last.text))}</b>`, last.outcome === 'hard' ? 'challenge' : last.outcome === 'gear' ? 'full' : 'micro'); } catch (e) {} });
+    on('suGuide', () => { const g = (last.pooGuide && last.pooGuide.length ? last.pooGuide : null) || (last.content && last.content.guide) || (last.gear && last.gear.guide) || (last.event && last.event.guide); try { typeof startVoidGuide === 'function' && startVoidGuide(g, (last.type === 2 ? '<b>💩 #2</b> ' : '') + `<b>${esc(sw(last.text))}</b>`, last.type === 2 ? (last.outcome === 'hard' ? 'gauntlet' : 'full') : (last.outcome === 'hard' ? 'challenge' : last.outcome === 'gear' ? 'full' : 'micro')); } catch (e) {} });
     on('suAcc', () => window.BSAccident && window.BSAccident.open({ ctx: 'simple_urge', instruction: last.text, roll: last.id, duringWait: ws || armed }));
     on('suAccX', dismissAccident);
     on('suCantHold', () => cantHold());
@@ -746,9 +801,10 @@
     return w;
   }
 
-  window.BSSimpleUrge = { POTTY_ACCESS, sliderValue, continueUrge, followUpFor, followUp, followDone, followActive, followState: fst, roll, press, chooseNatural, describe, profile, autoProfile, settings, saveSettings, inv, saveInv, invText, change, useGear, pendingAlarm, render, state: st, ALARM_ID, DEF_INV, OUT, PROT, SPARE,
+  window.BSSimpleUrge = { POTTY_ACCESS, sliderValue, continueUrge, followUpFor, followUp, followDone, followActive, followState: fst, roll, press, chooseNatural, describe, profile, autoProfile, settings, saveSettings, urgeType, pickMessy, pickGear, inv, saveInv, invText, change, useGear, pendingAlarm, render, state: st, ALARM_ID, DEF_INV, OUT, PROT, SPARE,
     customProfiles, upsertProfile, deleteProfile, customEvents, upsertEvent, deleteEvent, levelOdds, saveLevelOdds, ladderOdds, exportJSON, importJSON, inWaitState, endByAccident, needsDailyReset,
     openProfileEditor, openEventEditor, openEventList, openLevelTables, openLevelList, accidentArmed, dismissAccident, protLabel, recDay, cantHold, reroll, setLogged, afterSmallPref, followChoose, cascadeState, CKEY };
   window.addEventListener('load', () => setTimeout(render, 60));
+  window.addEventListener('bs:messy', () => { try { render(); } catch (e) {} });
   window.addEventListener('bs:control', () => { const m = document.getElementById('ctlChip'); if (m && window.BSControl) m.outerHTML = window.BSControl.chip(); });
 })();

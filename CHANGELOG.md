@@ -1,5 +1,13 @@
 # Changelog
 
+## v42 — 2026-10-27
+
+Version name **42**, version code **42**.
+
+- Path: a #2 roll uses tummy copy and the existing #2 guide tables (hold, or use protection / the potty). A #1 roll keeps the pee guides. With Messy content off, the #2 button and #2 guides stay hidden. A let-go guide in protection still chains into May I change?.
+- Urge: #1 and #2 sit on the Natural Urge play surface, including while a natural session is running. The roll and its guide follow the type you picked. Classic Natural Urge keeps its own #1 / #2 pair.
+- Campaign: a tummy-rumbling flag on the play card (“your next #2 can't wait”). It skips #2 waits, same idea as Path, and is stored on the existing campaign save.
+
 ## v41 — 2026-10-26
 
 Version name **41**, version code **41**.

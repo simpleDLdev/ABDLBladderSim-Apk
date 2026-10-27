@@ -64,6 +64,7 @@
     try { if (W.BSQuizPlus) { const q = W.BSQuizPlus.load(); q.flags = q.flags || {}; SYMPTOMS.forEach(s => { if (s.qp) q.flags[s.qp] = on.includes(s.id); }); W.BSQuizPlus.save(q); } } catch (e) {}
     const bs = on.map(id => BY[id].bs).filter(Boolean); try { localStorage.setItem('activeSymptoms', JSON.stringify(bs)); if (typeof activeSymptoms !== 'undefined') activeSymptoms = bs.slice(); } catch (e) {}
     try { if (W.BSPath) { const b = W.BSPath.load(); if (b && d.prefs.tummy_trouble) { b.flags.tummy = on.includes('tummy_trouble') || b.classId === 'cascade' && b.flags.tummy; W.BSPath.save(b); } } } catch (e) {}
+    try { if (on.includes('tummy_trouble') && W.BSCampaign && W.BSCampaign.setTummy) W.BSCampaign.setTummy(true, { fromPath: true }); } catch (e) {}
     d.appliedDay = dayKey(now); save(d); return on;
   }
   function defHtml(d, open) {

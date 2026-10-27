@@ -143,6 +143,38 @@
   function ctlDir(s) { return s.controlDir || (direction(s) === 'up' ? 'progress' : direction(s) === 'down' ? 'regress' : 'hold'); }
   function ctl(kind, s, k) { try { if (window.BSControl) { const [y, m, d] = k.split('-').map(Number); window.BSControl.event(kind, { direction: ctlDir(s), now: new Date(y, m - 1, d, 20).getTime() }); } } catch (e) {} }
   function restToday() { const s = load(); if (!s) return; const k = dayKey(Date.now()); s.restDays = (s.restDays || []).filter(x => x >= addDays(k, -60)); if (!s.restDays.includes(k)) s.restDays.push(k); save(s); }
+  /** Game flag only. Stored on the existing campaign object (bs_campaign_v1.flags.tummy). */
+  function tummyOn(s) { s = s || load(); return !!(s && s.flags && s.flags.tummy); }
+  function setTummy(on, opts) {
+    opts = opts || {};
+    const s = load(); if (!s) return null;
+    s.flags = s.flags || {};
+    let keep = false;
+    if (!on && !opts.user) {
+      try {
+        const b = window.BSPath && window.BSPath.load && window.BSPath.load();
+        if (b && b.classId === 'cascade' && b.flags && b.flags.tummy) keep = true;
+        const sym = window.BSSymptoms && window.BSSymptoms.activeToday && window.BSSymptoms.activeToday();
+        if (sym && sym.indexOf && sym.indexOf('tummy_trouble') >= 0) keep = true;
+      } catch (e) {}
+    }
+    s.flags.tummy = on ? true : !!keep;
+    save(s);
+    if (!opts.fromPath) {
+      try {
+        const P = window.BSPath, b = P && P.load && P.load();
+        if (b) {
+          b.flags = b.flags || {};
+          if (on) b.flags.tummy = true;
+          else if (opts.user && b.classId !== 'cascade') b.flags.tummy = false;
+          P.save(b);
+        }
+      } catch (e) {}
+    }
+    return s;
+  }
+  /** #2 waits become 0 while tummy is rumbling. Same idea as Path: skip the wait, no medical advice. */
+  function pooWaitMin(min) { return tummyOn() ? 0 : min; }
   function graceFor(r) { return { fgMinSec: r.grace.fg[0], fgMaxSec: r.grace.fg[1], bgMinMin: r.grace.bg[0], bgMaxMin: r.grace.bg[1] }; }
   /** Write the rank's modifiers: alarm-grace window + a "Campaign" custom profile (existing system). */
   function applyRank(s) {
@@ -190,10 +222,16 @@
     const s = { active: true, paused: false, startRank, rank: startRank, target, goal: (q && q.target && q.target.goal) || 'stay',
       source: opts.source || 'sim', promoteDays: time >= 3 ? 2 : 3, startedAt: Date.now(), lastEvalDay: addDays(dayKey(opts.now || Date.now()), -1),
       streakPass: 0, streakFail: 0, history: [], prevGrace, restPerWeek: opts.restPerWeek != null ? opts.restPerWeek : 1, restDays: [], playStyle: opts.playStyle || 'either',
-      lengthDays: opts.lengthDays ? Math.max(1, Math.min(365, +opts.lengthDays)) : null };
+      lengthDays: opts.lengthDays ? Math.max(1, Math.min(365, +opts.lengthDays)) : null, flags: { tummy: false } };
     if (opts.prefs) s.prefs = opts.prefs;
     if (s.lengthDays) s.endDay = addDays(dayKey(opts.now || Date.now()), s.lengthDays - 1);
     s.controlDir = opts.controlDir || ctlDir(s);
+    try {
+      const b = window.BSPath && window.BSPath.load && window.BSPath.load();
+      if (b && b.flags && b.flags.tummy) s.flags.tummy = true;
+      const sym = window.BSSymptoms && window.BSSymptoms.activeToday && window.BSSymptoms.activeToday();
+      if (sym && sym.indexOf && sym.indexOf('tummy_trouble') >= 0) s.flags.tummy = true;
+    } catch (e) {}
     try { window.BSControl && window.BSControl.saveSettings({ direction: s.controlDir }); } catch (e) {}
     save(s); applyRank(s); return s;
   }
@@ -276,8 +314,11 @@
     const today = scoreDay(s, dayKey(Date.now()));
     const dir = direction(s);
     const r = RANKS[s.rank];
+    const tummy = tummyOn(s);
     m.innerHTML = `<h2 style="margin:0 0 6px;">🏅 Campaign ${s.paused ? '(paused)' : ''}</h2>
       <div class="camp-card"><div class="calib-big">${esc(r.name)} <span style="font-size:12px;color:#8ea0b6;">→ target ${esc(RANKS[s.target].name)}</span></div>
+      ${tummy ? `<div class="pp-banner" id="cpTummyBanner" style="border-left:5px solid #e17055;margin:8px 0;padding:10px 12px;"><b>🌀 Tummy trouble: your next #2 can't wait.</b><div class="cal-legend">Game flag only. #2 waits are skipped until this rumble resolves.</div></div>` : '<div class="cal-legend" id="cpTummyQuiet">Tummy is quiet.</div>'}
+      <label class="qp-flag" id="cpTummyRow"><input type="checkbox" id="cpTummy" ${tummy ? 'checked' : ''}> 🌀 Tummy is rumbling — next #2 can't wait</label>
       <div class="cal-legend">${s.completedAt ? '🎉 Target reached! Keep playing here or start a new campaign.' : dir === 'hold' ? 'Holding steady at your target.' : `${s.streakPass}/${s.promoteDays} good days to rank ${dir === 'up' ? 'up (more continent)' : 'up (more padded)'} · 2 missed days in a row steps back one rank (never past your start).`}</div>
       <div class="cal-legend">Rules now: ${esc(r.warn)} · ${r.waves} urgency wave(s)/cycle · micros every ${r.micro[0]}–${r.micro[1]} min · hold odds ${r.hold}% · grace ${r.grace.fg[0]}–${r.grace.fg[1]} s (app open).</div>
       <div class="quiz-q">Today’s goals (${today.met}/${today.total}, need ${Math.ceil(today.total * 2 / 3)})</div>
@@ -312,6 +353,7 @@
     m.querySelector('#cpPlay').onclick = () => { applyRank(); if (typeof window.applyCustomProfile === 'function') window.applyCustomProfile('campaign'); };
     m.querySelector('#cpPause').onclick = () => { pause(!s.paused); render(); };
     m.querySelector('#cpAbandon').onclick = () => { if (confirm('Abandon this campaign? Your grace settings are restored.')) { abandon(); render(); } };
+    const tum = m.querySelector('#cpTummy'); if (tum) tum.onchange = () => { setTummy(tum.checked, { user: true }); render(); };
     const nf = m.querySelector('#cpNightFocus');
     if (nf) nf.onchange = () => { const n = load(); n.prefs = Object.assign({}, n.prefs || {}, { nightFocus: nf.checked }); save(n); try { window.BSPathPlay && window.BSPathPlay.saveStart({ nightFocus: nf.checked }); } catch (e) {} render(); };
   }
@@ -403,6 +445,6 @@
   window.openCampaignSetup = openSetup;
   // v11 (B12): also settle days on app resume, not only when the tab renders
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { try { evaluate(); } catch (e) {} } });
-  window.BSCampaign = { setupSteps, setupResult, MORE_Q, RANKS, KEY, load, save, start, openSetup, optsFromQuiz, startFromQuiz, optsFromLadder, pause, abandon, evaluate, restToday, weekKey, scoreDay, goalsFor, applyRank, levelToRank, dayKey, addDays, direction, render, launchGoal, goalRowHtml };
+  window.BSCampaign = { setupSteps, setupResult, MORE_Q, RANKS, KEY, load, save, start, openSetup, optsFromQuiz, startFromQuiz, optsFromLadder, pause, abandon, evaluate, restToday, weekKey, scoreDay, goalsFor, applyRank, levelToRank, dayKey, addDays, direction, render, launchGoal, goalRowHtml, tummyOn, setTummy, pooWaitMin };
   window.renderCampaign = render;
 })();

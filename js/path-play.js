@@ -470,6 +470,7 @@
     b.padsWithUndies = !!(meta && meta.flags && meta.flags.padsWithUndies);
     if (meta && meta.flags && meta.flags.tummyDaily) b.flags.tummy = true;
     P.save(b);
+    try { if (b.flags.tummy && window.BSCampaign && window.BSCampaign.setTummy) window.BSCampaign.setTummy(true, { fromPath: true }); } catch (e) {}
     const notes = [];
     if (caregiverOn()) notes.push(line('class_start', { className: (P.CLASS_BY_ID[b.classId] || {}).name }));
     else notes.push(`Board ready as ${(P.CLASS_BY_ID[b.classId] || {}).name}.`);

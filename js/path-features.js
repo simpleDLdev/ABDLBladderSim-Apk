@@ -49,6 +49,43 @@
     if (typeof W.closeVoidGuide === 'function' && !W.closeVoidGuide._bs18) { const o = W.closeVoidGuide; const w = function () { sig.guideClosed = Date.now(); return o.apply(this, arguments); }; w._bs18 = 1; W.closeVoidGuide = w; }
   }
   const calSince = (since, test) => { try { return (W.BSCalendar.load().entries || []).filter(e => e.ts >= since && test(e)); } catch (e) { return []; } };
+  function messyOn() {
+    try {
+      if (typeof isMessyEnabled === 'function') return !!isMessyEnabled();
+      return JSON.parse(localStorage.getItem('messyModeEnabled') || 'false') === true;
+    } catch (e) { return false; }
+  }
+  function messyTable(which) {
+    try {
+      if (which === 'hold' && typeof MESSY_HOLDING_GAUNTLETS_D10 !== 'undefined') return MESSY_HOLDING_GAUNTLETS_D10;
+      if (which !== 'hold' && typeof MESSY_PUSHING_ACCIDENTS_D10 !== 'undefined') return MESSY_PUSHING_ACCIDENTS_D10;
+    } catch (e) {}
+    const g = typeof globalThis !== 'undefined' ? globalThis : {};
+    return which === 'hold' ? (g.MESSY_HOLDING_GAUNTLETS_D10 || null) : (g.MESSY_PUSHING_ACCIDENTS_D10 || null);
+  }
+  /** Pee keeps the random void / hold generators. #2 (messy on) reuses MESSY_* tummy tables. */
+  function guideFor(kind, which, stage, rng) {
+    rng = rng || Math.random; which = which === 'hold' ? 'hold' : 'event';
+    const poo = kind === 'poo';
+    if (poo && !messyOn()) return { blocked: 'messy', seq: null, title: '', type: which === 'hold' ? 'gauntlet' : 'full', poo: true };
+    if (poo) {
+      const tbl = (messyTable(which) || []).filter(e => e && e.guide && e.guide.length);
+      if (tbl.length) {
+        const e = tbl[Math.floor(rng() * tbl.length)];
+        const hold = which === 'hold';
+        return {
+          blocked: null, seq: e.guide.slice(), poo: true, name: e.name || '',
+          type: hold ? 'gauntlet' : 'full',
+          title: hold
+            ? '<b>🎲 Potty Path #2:</b> ' + (e.name || 'Tummy hold') + ' — hold it in your protection. Tummy only.'
+            : '<b>🎲 Potty Path #2:</b> ' + (e.name || 'Tummy') + ' — use protection or the potty. Tummy only.'
+        };
+      }
+    }
+    if (which === 'hold') return { blocked: null, seq: W.buildRandomGauntlet(stage >= 3 ? 'medium' : 'easy'), title: '<b>🎲 Potty Path holding guide.</b>', type: 'challenge', poo: false };
+    const intensity = (BY.guide_event.intensity && BY.guide_event.intensity(stage)) || 'moderate';
+    return { blocked: null, seq: W.generateRandomGuideSteps(intensity), title: '<b>🎲 Potty Path:</b> follow this guide in your protection.', type: 'micro', poo: false };
+  }
   /** Launch the flow. Returns quest { id, since, ... }. */
   function launch(id, b, stage) {
     hook(); const f = BY[id], q = { id, since: Date.now(), stage };
@@ -58,8 +95,13 @@
         const sel = document.getElementById('profileSelect');
         if (typeof sessionRunning !== 'undefined' && sessionRunning) { q.note = 'A session is already running — its next main event counts.'; }
         else if (sel) { sel.value = f.profile; if (typeof W.applySelectedProfile === 'function') W.applySelectedProfile(); go('session'); if (typeof W.startSession === 'function') W.startSession(); }
-      } else if (id === 'guide_event') { W.startVoidGuide(W.generateRandomGuideSteps(f.intensity(stage)), '<b>🎲 Potty Path:</b> follow this guide in your protection.', 'micro'); }
-      else if (id === 'guide_hold') { W.startVoidGuide(W.buildRandomGauntlet(stage >= 3 ? 'medium' : 'easy'), '<b>🎲 Potty Path holding guide.</b>', 'challenge'); }
+      } else if (id === 'guide_event' || id === 'guide_hold') {
+        const kind = (b && b.pending && b.pending.kind) || 'pee';
+        q.kind = kind;
+        const g = guideFor(kind, id === 'guide_hold' ? 'hold' : 'event', stage, Math.random);
+        if (g.blocked) q.note = 'Messy content is off — #2 guides stay hidden.';
+        else if (typeof W.startVoidGuide === 'function' && g.seq) W.startVoidGuide(g.seq, g.title, g.type);
+      }
       else if (id === 'temp_wait') { q.until = Date.now() + Math.min(20, f.wait[0] + Math.floor(Math.random() * (f.wait[1] - f.wait[0] + 1))) * 60000; }
       else if (id === 'su_roll') { const s = W.BSSimpleUrge && W.BSSimpleUrge.state(); q.lastId = s && s.last ? s.last.id : null; go('urge'); }
       else if (id === 'may_change') { W.BSChange && W.BSChange.open({ ctx: 'potty_path' }); }
@@ -87,5 +129,5 @@
     window.addEventListener('load', hook);
     setInterval(() => { try { const P = W.BSPath; const b = P && P.load(); if (!b || !b.quest) return; const r = detect(b.quest); if (r) { P.finishQuest(r); if (typeof toast === 'function') toast('🎲 Potty Path: ' + r.info + ' — result added'); if (typeof currentTab === 'function' && currentTab() === 'path') P.render(); } } catch (e) {} }, 2000);
   }
-  W.BSPathFeatures = { FEATURES, BY, pick, launch, detect, hook, sig };
+  W.BSPathFeatures = { FEATURES, BY, pick, launch, detect, hook, sig, guideFor, messyOn };
 })();
