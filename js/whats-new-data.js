@@ -3,6 +3,17 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v43',
+    date: '2026-10-29',
+    title: 'v43 — DryClip connects, and an armed wet alerts',
+    bullets: [
+      '🔗 Connect does not need a Bluetooth bond. The app uses the last clip address directly, including right after Arm, when the clip drops its link and is not advertising.',
+      '💧 Armed: a touch or a wet posts a notification. The settle latch was hiding that reading. Not armed: no notification.',
+      'The background watch stays on. It does not block the wet alert.',
+      'Version 43.'
+    ]
+  },
+  {
     hash: 'v42',
     date: '2026-10-27',
     title: 'v42 — #2 guides, urge type, tummy flag',

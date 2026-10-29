@@ -68,21 +68,21 @@
   }
 
   // ---------- v26/v28 pure wet logic (mirror of DryClipProtocol.decide in the native service) ----------
-  const IGNORE_AFTER_ARM_MS = 20000, SETTLE_ON_CONNECT_MS = 20000, DEDUPE_MS = 60000;
+  /** v43: only the clip's 2–3 s arm disconnect. A wet reports ~30 s late, so the backdated start is not used to hide it. */
+  const POST_ARM_SUPPRESS_MS = 4000, IGNORE_AFTER_ARM_MS = POST_ARM_SUPPRESS_MS, SETTLE_ON_CONNECT_MS = 0, DEDUPE_MS = 60000;
   /** wet time from a reading: now − secsSinceWet (secs unknown → now). */
   function wetAtFromSecs(now, secs) { return secs == null || !isFinite(+secs) ? now : now - (+secs) * 1000; }
-  /** 'not_wet' | 'arming' | 'not_armed' | 'ignore_window' | 'latched_touch' | 'duplicate' | 'new'
-   *  o.settling / o.pairing: connect/wake/pair phase — never log a calendar wet.
-   *  latched_touch: wet began inside the settle window and is still latched after it.
-   *  That is not a new wet and must not schedule another arm (the settle loop). */
+  /** 'not_wet' | 'arming' | 'not_armed' | 'ignore_window' | 'duplicate' | 'new'
+   *  Armed + wet, after the few seconds of the arm disconnect, is always 'new' (a touch counts).
+   *  Not armed is 'not_armed' and must not notify. */
   function decideWet(st, now, o) {
     o = o || {};
     if (!st || !st.wet) return 'not_wet';
-    if (o.armPending || st.arming || o.settling || o.pairing) return 'arming';
+    if (o.armPending || st.arming) return 'arming';
     if (!st.armed) return 'not_armed';
-    const at = wetAtFromSecs(now, st.secs), ig = +o.ignoreUntil || 0;
+    const ig = +o.ignoreUntil || 0;
     if (ig && now < ig) return 'ignore_window';
-    if (ig && at < ig) return 'latched_touch';
+    const at = wetAtFromSecs(now, st.secs);
     if (o.lastWetAt && Math.abs(at - o.lastWetAt) <= DEDUPE_MS) return 'duplicate';
     return 'new';
   }
@@ -368,7 +368,6 @@
       clearInterval(mock.timer); mock.timer = setInterval(mockTick, 1000);
       const dm = load(); dm.lastName = 'DryClip Mock'; save(dm);
       lastSeenAt = Date.now(); manualDisc = false; connState = 'connected'; connHint = false;
-      ignoreUntil = Math.max(ignoreUntil, Date.now() + SETTLE_ON_CONNECT_MS);
       log('conn', 'Connected to mock'); onConnected(); return lastState;
     }
     if (connecting) throw new Error('Already connecting');
@@ -409,9 +408,7 @@
     connecting = false;
     if (!alive()) return lastState; // dropped during setup — disconnect callback already handled it
     connState = 'connected'; connHint = false; stopRetry();
-    // v28: plate-touch wake / connect settle
-    ignoreUntil = Math.max(ignoreUntil, Date.now() + SETTLE_ON_CONNECT_MS);
-    log('conn', 'Pairing / settling… ignoring wet for a short window');
+    log('conn', 'Link up. An armed touch or wet notifies. Not armed stays quiet.');
     onConnected();
     return lastState;
   }
@@ -522,24 +519,22 @@
     }
     // v27: on a re-arm from armed, the first reading is still the old 'armed' one; wait 3 s (like the native watch)
     if (armPending && cur.armed && !cur.arming && !cur.staleWet && !(armFromArmed && Date.now() - armAt < 3000)) {
-      armPending = false; clearTimeout(armTimer); clearTimeout(assumeTimer); log('arm', 'Clip armed');
-      ignoreUntil = Date.now() + IGNORE_AFTER_ARM_MS; // v26: the plate reads a touch; ignore WET for 20 s after the confirmation
+      armPending = false; clearTimeout(armTimer); clearTimeout(assumeTimer);
+      log('arm', 'Clip armed. A touch or wet notifies.');
     }
     const d0 = load();
     const nightOn = !!(d0.night && d0.wearingTonight);
     const dayWatch = !!(d0.daytimeWatch && !nightOn);
-    const dec = decideWet(cur, Date.now(), { armPending: armPending, ignoreUntil: ignoreUntil, settling: !!(ignoreUntil && Date.now() < ignoreUntil), lastWetAt: d0.lastWetAt });
+    const dec = decideWet(cur, Date.now(), { armPending: armPending, ignoreUntil: ignoreUntil, lastWetAt: d0.lastWetAt });
     if (!cur.wet && latchCleared) { latchCleared = false; log('arm', 'Plate reads dry. Arm when you are ready.'); }
-    if ((dec === 'arming' || dec === 'ignore_window') && cur.wet && !(prev && prev.wet)) {
-      noteSettleIgnored('Wet reading right after arming ignored (the plate reads a touch)');
-    } else if (dec === 'latched_touch') {
-      if (!latchCleared) {
-        latchCleared = true;
-        noteSettleIgnored('Touch still latched after settle. Ignored once — not re-arming until the plate reads dry or you tap Arm.');
-        ack().catch(() => {});
-      }
-    } else if (dec === 'new' && !(prev && prev.wet)) {
+    if (dec === 'not_armed' && cur.wet && !(prev && prev.wet)) log('wet', 'Wet reading while not armed — no notification.');
+    else if ((dec === 'arming' || dec === 'ignore_window') && cur.wet && !(prev && prev.wet)) {
+      noteSettleIgnored('Wet during the arm disconnect (a few seconds). An armed wet after that notifies.');
+    } else if (dec === 'new') {
+      const at = wetAtFromSecs(Date.now(), cur.secs);
+      d0.lastWetAt = at; save(d0);
       log('wet', 'Wet detected' + (cur.secs != null ? ' · secs=' + cur.secs : ''));
+      try { if (typeof toast === 'function') toast('💧 DryClip wet'); } catch (e) {}
       if (nightOn) handleNightWet(cur);
       else if (dayWatch) handleDaytimeUnnoticed(cur);
       else offerAccident(cur);
@@ -564,14 +559,14 @@
     if (useNative()) {
       if (!(nst && nst.running)) await nativeStart();
       await nativePlugin().arm();
-      log('arm', 'Arm sent. Arming takes 10–15 s; the link drops for a few seconds, which is normal. A touch right after arming is ignored.');
+      log('arm', 'Arm sent. The link drops for a few seconds, which is normal. After that, a touch or wet notifies.');
       setTimeout(nativeRefresh, 500); return;
     }
     const B = await getBle(); if (!B || !deviceId) throw new Error('Not connected');
     if (armBusy()) throw new Error('Arming in progress — give the clip a few seconds');
     // Vendor: single 0x01 to DC02, write WITHOUT response, nothing before or after it.
     armFromArmed = mode === 'armed';
-    armPending = true; armAt = Date.now();
+    armPending = true; armAt = Date.now(); ignoreUntil = armAt + POST_ARM_SUPPRESS_MS;
     armAssumed = false;
     clearTimeout(armTimer); armTimer = setTimeout(armCheck, CFG.armConfirmMs);
     clearTimeout(assumeTimer); assumeTimer = setTimeout(armAssume, CFG.armAssumeMs);
@@ -586,8 +581,8 @@
     if (!armPending) return;
     const st = lastState;
     if (deviceId && st && lastStateAt > armAt && !st.armed && !st.arming) return; // connected and clearly not armed: armCheck decides
-    armPending = false; armAssumed = true; clearTimeout(armTimer); ignoreUntil = Date.now() + IGNORE_AFTER_ARM_MS;
-    log('arm', 'Armed (assumed). The clip sleeps between checks. The app keeps looking for it every 12 s.');
+    armPending = false; armAssumed = true; clearTimeout(armTimer);
+    log('arm', 'Armed (assumed). A touch or wet notifies. The app keeps looking for the clip every 12 s.');
     if (!deviceId && !manualDisc) { if (connState === 'rearming') connState = 'lost'; startRetry(); }
     renderLab();
   }
@@ -769,6 +764,14 @@
     if (B && id) { try { await B.disconnect(id); } catch (e) {} }
   }
 
+  async function testWet() {
+    log('wet', 'Test wet: touch or wet the plate. Armed → a notification. Not armed → no notification. A wet takes about 30 s.');
+    if (mock.on || load().mock) { mockSetFlags(mock.state[0] | 0x01); return; }
+    const P = nativePlugin();
+    if (P && P.testWet) { try { await P.testWet(); } catch (e) { log('wet', e.message || String(e)); } return; }
+    if (lastState && !lastState.armed) log('wet', 'Test wet: clip is not armed, so a wet will not notify. Tap Arm first.');
+    else log('wet', 'Test wet: armed. Touch or wet the plate. The alert posts when the reading arrives.');
+  }
   function offerAccident(st, o) {
     const wetAt = o && o.wetAt ? o.wetAt : wetAtFromSecs(Date.now(), st.secs);
     try {
@@ -1471,7 +1474,7 @@
     }
     const off = run ? null : 'Tap Connect first';
     const b = {
-      connect: { on: !run, why: run ? 'Background watch is on' : '' },
+      connect: { on: !conn, why: conn ? 'Already connected' : '' },
       disconnect: { on: run, why: run ? '' : 'Not running' },
       arm: { on: run && !s.armPending, why: off || (s.armPending ? 'Arming…' : '') },
       ack: { on: run && !!s.wet && !s.armPending, why: off || 'Only when the clip reads Wet' }
@@ -1536,7 +1539,7 @@
       ${u.clip === 'Dry & armed' ? '<div class="muted" style="margin-top:6px;font-size:12px;">Clip armed. It sleeps between checks, so quiet is normal. A wet reading can take about 30 s to arrive.</div>' : ''}
       ${u.hint ? `<div class="camp-goal" style="border-color:#fdcb6e;margin-top:8px;font-size:13px;">${esc(u.hint)}</div>` : ''}
       ${u.native && u.bg && batUnrestricted === false ? `<div class="camp-goal" style="border-color:#fdcb6e;margin-top:8px;font-size:13px;">Android may pause the watch to save battery. <button type="button" id="dcBattery">Let it run in the background</button></div>` : ''}
-      ${(u.clip === 'Armed · touch ignored' || u.clip === 'Pairing / settling…' || u.clip === 'Settling…') ? '<div class="muted" style="margin-top:6px;font-size:12px;">Pairing / settling… A touch on the plate is ignored until the clip is armed and settled.</div>' : ''}
+      ${(u.clip === 'Pairing / settling…' || u.clip === 'Settling…') ? '<div class="muted" style="margin-top:6px;font-size:12px;">The clip is finishing its arm disconnect (a few seconds). After it is armed, a touch or wet notifies.</div>' : ''}
       ${u.clip === 'Armed, listening' ? '<div class="muted" style="margin-top:6px;font-size:12px;">Clip armed and listening. It sleeps between checks; a wet reading can take about 30 s.</div>' : ''}
       <div class="quiz-nav dc-btns" style="margin-top:8px;flex-wrap:wrap;align-items:flex-start;">
         ${btn('dcConnect', 'connect', '🔗 Connect')}${btn('dcDisc', 'disconnect', u.native ? '⏹ Stop watch' : '⏏ Disconnect')}${btn('dcArm', 'arm', B.arm.label || '🛡 Arm')}${btn('dcAck', 'ack', '✓ Acknowledge wet')}
@@ -1552,10 +1555,11 @@
         <li>Tap <b>Connect</b>. Allow Nearby devices and notifications. A quiet "DryClip background watch" notification stays up while it listens.</li>
         <li>Clip it on, and keep your fingers off the plate. The plate reads warmth, so a touch counts like wet.</li>
         <li>Tap <b>Arm</b>. The link drops for a few seconds while it arms. That's normal; it comes back by itself.</li>
-        <li>A touch right after arming is ignored.</li>
-        <li>To test, hold a warm damp cloth on the plate. The alert takes about 30 seconds.</li>
+        <li>The first few seconds after Arm are the clip dropping its link. After it is armed, a touch or a wet notifies. If it is not armed, nothing notifies.</li>
+        <li>Tap <b>Test wet</b>, then touch or wet the plate. The reading takes about 30 seconds. The log says whether it will notify.</li>
         <li>Check the Calendar for the wet time (with Night or Daytime watch on). The clip is acknowledged and re-armed after the re-arm delay.</li>
       </ol>
+      <div class="quiz-nav"><button type="button" id="dcTestWet">🧪 Test wet</button></div>
       <div style="font-family:monospace;font-size:12px;">DC01 raw: <span id="dcRawLine">${r ? esc(r.hex) + ' · ' + esc(new Date(r.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })) : 'nothing received yet'}</span></div>
     </details>`;
   }
@@ -1689,7 +1693,7 @@
       renderLab();
     }; });
     on('dcDisc', disconnect); on('dcArm', arm); on('dcAck', async () => { await ack(); scheduleRearm(rearmMinutesFor()); });
-    on('dcRearm', () => scheduleRearm(rearmMinutesFor())); on('dcExport', exportLog);
+    on('dcRearm', () => scheduleRearm(rearmMinutesFor())); on('dcExport', exportLog); on('dcTestWet', testWet);
     on('dcWet', () => mockSetFlags((mock.state[0] | 0x01) & ~0x10)); on('dcDry', () => mockSetFlags(mock.state[0] & ~0x01 & ~0x10));
     on('dcArming', () => { mockSetFlags(0x10); setTimeout(() => mockSetFlags(0x02), 1000); });
     on('dcSimNight', simulateNight);
@@ -1782,7 +1786,7 @@
     KEY, SVC, C, ALARM_ID, parseState, load, save, log, init, scan, stopScan, connect, disconnect,
     arm, ack, scheduleRearm, connectAuto, clipLabel, uiState, HINT, _cfg: CFG, _setBle: b => { ble = b; },
     // v26 background watch
-    wetAtFromSecs, decideWet, IGNORE_AFTER_ARM_MS, SETTLE_ON_CONNECT_MS, DEDUPE_MS, REARM_BY_PROT, rearmMinutesFor, currentProtection,
+    wetAtFromSecs, decideWet, POST_ARM_SUPPRESS_MS, IGNORE_AFTER_ARM_MS, SETTLE_ON_CONNECT_MS, DEDUPE_MS, REARM_BY_PROT, rearmMinutesFor, currentProtection, testWet,
     planMommyCheck, mommyCheckCopy, mommyCheckOn, mommySpread, openMommyCheck,
     applyNativeEvent, drainNative, nativeStart, nativeRefresh, nativeUiState, useNative, nightFor,
     get nativeStatus() { return nst; }, _setNativeStatus: s => { nst = s; },

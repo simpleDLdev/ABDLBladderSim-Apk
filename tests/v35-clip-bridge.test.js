@@ -120,7 +120,7 @@ const pp = fs.readFileSync(__dirname + '/../js/potty-path.js', 'utf8');
 ok(pp.includes('setPathHold'), 'path hold tracks clip bridge');
 
 // decideWet still ignores settle (balance)
-ok(BSDryClip.decideWet({ wet: true, armed: true, secs: 0 }, Date.now(), { settling: true }) === 'arming', 'settle ignored');
+ok(BSDryClip.decideWet({ wet: true, armed: true, secs: 0 }, Date.now(), { settling: true }) === 'new', 'armed wet is not dropped as settling');
 ok(BSDryClip.decideWet({ wet: true, armed: true, secs: 0 }, Date.now(), { ignoreUntil: Date.now() + 10000 }) === 'ignore_window', 'ignore window');
 
 console.log(fail ? `\n${fail} FAILED` : '\nALL PASS');
