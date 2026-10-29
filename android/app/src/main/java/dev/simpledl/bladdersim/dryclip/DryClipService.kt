@@ -53,7 +53,9 @@ class DryClipService : Service() {
 
     companion object {
         const val CHANNEL = "dryclip_watch"
+        const val WET_CHANNEL = "dryclip_wet"
         const val NOTIF_ID = 4260
+        const val WET_NOTIF_ID = 4263
         const val ACTION_START = "dev.simpledl.bladdersim.dryclip.START"
         const val ACTION_STOP = "dev.simpledl.bladdersim.dryclip.STOP"
         const val DIRECT_TIMEOUT_MS = 6_000L
@@ -105,6 +107,8 @@ class DryClipService : Service() {
     private var conn = "idle"            // idle | connecting | connected | waiting (autoConnect pending / between tries)
     private var mode = ""                // direct | auto
     private var attempt = 0
+    private var directTries = 0
+    private var discoverTries = 0
     private var downSince = 0L
     private var scanning = false
     private var lastScanLogAt = 0L
@@ -221,7 +225,8 @@ class DryClipService : Service() {
         // fresh post-arm ignore window and wet latch; the usual arm drop + reconnect follows (no gap marker for it).
         val wasArmed = isArmedNow()
         armPending = true; armAt = now(); armedAssumed = false; armSource = source
-        store.armedSince = 0L; store.ignoreUntil = now() + ARM_DROP_WINDOW_MS  // no wet while arming
+        // v43: suppress only the 2–3 s arm disconnect. A later armed touch or wet notifies.
+        store.armedSince = 0L; store.ignoreUntil = now() + DryClipProtocol.POST_ARM_SUPPRESS_MS
         if (source == "user") { touchClearDone = false; latchCleared = false; stillWetLogged = false; stillWet = false; ignoreLoggedFor = 0L }
         h.removeCallbacks(rearm); rearmAt = 0L
         h.removeCallbacks(assumeArm); h.postDelayed(assumeArm, DryClipProtocol.ARM_ASSUME_MS)
@@ -285,14 +290,16 @@ class DryClipService : Service() {
         log("conn", "Bond none — classic pairing is optional. Connecting over BLE.")
     }
 
-    /** One direct attempt, autoConnect=false, 6 s. Always closes the old GATT first; never overlaps. Bond state does not block. */
+    /** Direct connect to the saved MAC, autoConnect=false, 6 s. Bond state does not block. A quiet clip is often not advertising, so this does not wait for a scan. */
     private fun connectDirect(reason: String) {
         if (!store.running) return
+        if (reason == "start" || reason == "after arm drop" || reason == "seen in scan" || reason == "refresh" || reason == "arm" || reason == "setup failed") directTries = 1
+        else directTries++
         noteOptionalBond()
         h.removeCallbacks(autoRefresh); h.removeCallbacks(retryDirect); stopScan(); closeGatt()
         val dev = device() ?: run { conn = "waiting"; h.removeCallbacks(retryDirect); h.postDelayed(retryDirect, AUTO_RETRY_MS); refresh(); return }
         conn = "connecting"; mode = "direct"; val my = ++attempt
-        log("conn", "Connecting directly ($reason)")
+        log("conn", "Connecting directly to " + store.mac + " ($reason). Bond is not required.")
         gatt = connect(dev, false)
         if (gatt == null) { conn = "waiting"; h.postDelayed({ if (attempt == my) connectAuto() }, RECONNECT_GAP_MS) }
         else h.postDelayed(connectTimeout, DIRECT_TIMEOUT_MS)
@@ -303,7 +310,13 @@ class DryClipService : Service() {
         if (conn != "connecting" || mode != "direct") return
         log("conn", "Direct connect timed out (6 s)")
         closeGatt(); conn = "waiting"; refresh()
-        h.postDelayed({ if (conn == "waiting" && gatt == null) connectAuto() }, RECONNECT_GAP_MS)
+        if (directTries < 3) {
+            log("conn", "Trying the last MAC again. A clip that is not advertising will not show up in a scan.")
+            h.postDelayed({ if (gatt == null && conn != "connected") connectDirect("last MAC") }, RECONNECT_GAP_MS)
+        } else {
+            log("conn", "Direct tries failed. Waiting with auto-connect.")
+            h.postDelayed({ if (conn == "waiting" && gatt == null) connectAuto() }, RECONNECT_GAP_MS)
+        }
     }
 
     /** autoConnect=true: Android keeps it pending until the clip shows up. Plus scan windows on the address/name. */
@@ -395,12 +408,8 @@ class DryClipService : Service() {
             val bond = bondState(this, store.mac)
             log("conn", "Connected (" + mode + ") · bond " + bond)
             conn = "connected"; lastSeen = now(); lastError = null
-            // v28: touching the plate to wake/pair registers like wet — settle before any calendar wet
-            val settleUntil = now() + DryClipProtocol.SETTLE_ON_CONNECT_MS
-            if (settleUntil > store.ignoreUntil) {
-                store.ignoreUntil = settleUntil
-                log("conn", "Pairing / settling… ignoring wet until " + hm.format(Date(store.ignoreUntil)))
-            }
+            directTries = 0; discoverTries = 0
+            // v43: do not open a wet-ignore window on connect. An armed touch or wet notifies.
             if (downSince > 0) {
                 val from = downSince; downSince = 0
                 val armDrop = armAt > 0 && from >= armAt - 5_000L && from - armAt < ARM_DROP_WINDOW_MS // v27: expected arm/re-arm drop
@@ -436,8 +445,15 @@ class DryClipService : Service() {
 
     private fun onDiscovered(g: BluetoothGatt, status: Int) {
         if (status != BluetoothGatt.GATT_SUCCESS || g.getService(DryClipProtocol.SVC) == null) {
+            if (discoverTries < 1 && g === gatt) {
+                discoverTries++
+                log("conn", "Service discovery failed (status $status). Retrying on this link.")
+                if (g.discoverServices()) return
+            }
+            discoverTries = 0
             err("Service discovery failed (status $status)"); dropAndReconnect(); return
         }
+        discoverTries = 0
         // Serialized: CCCDs one at a time, then one read of DC01 and battery. No MTU request.
         enqueue(Op("notify", DryClipProtocol.SVC, DryClipProtocol.STATE))
         if (g.getService(DryClipProtocol.BAT_SVC) != null) enqueue(Op("notify", DryClipProtocol.BAT_SVC, DryClipProtocol.BAT))
@@ -529,10 +545,7 @@ class DryClipService : Service() {
             else if (armedAssumed) { armedAssumed = false; log("arm", "Clip confirms it is armed") }
             else if (store.armedSince == 0L) {
                 store.armedSince = t // already armed when we connected
-                // v28: still settle — plate-touch wake often latches WET on connect
-                val until = t + DryClipProtocol.IGNORE_AFTER_ARM_MS
-                if (until > store.ignoreUntil) store.ignoreUntil = until
-                log("arm", "Clip already armed on connect. Settling… ignoring wet until " + hm.format(Date(store.ignoreUntil)) + ".")
+                log("arm", "Clip already armed on connect. A touch or wet notifies.")
             }
         } else if (!st.armed && !st.arming && !armPending && (armedAssumed || store.armedSince > 0) && !st.wet) {
             armedAssumed = false; store.armedSince = 0L
@@ -550,9 +563,11 @@ class DryClipService : Service() {
                     if (ignoreLoggedFor != -rearmAt) { ignoreLoggedFor = -rearmAt; log("wet", "Wet reading while waiting to re-arm (not counted)") }
                 } else recordWet(st, t)
             DryClipProtocol.Decision.IGNORE_WINDOW -> {
-                if (ignoreLoggedFor != armAt) { ignoreLoggedFor = armAt; log("wet", "Wet reading during arming ignored (the plate reads a touch)") }
+                if (ignoreLoggedFor != armAt) { ignoreLoggedFor = armAt; log("wet", "Wet reading during the arm disconnect (a few seconds). An armed wet after that notifies.") }
             }
-            DryClipProtocol.Decision.LATCHED_TOUCH -> onLatchedTouch()
+            DryClipProtocol.Decision.NOT_ARMED -> {
+                if (st.wet && ignoreLoggedFor != -1L) { ignoreLoggedFor = -1L; log("wet", "Wet reading while not armed — no notification.") }
+            }
             else -> {}
         }
         refresh()
@@ -562,8 +577,8 @@ class DryClipService : Service() {
         val t = now()
         armPending = false; armedAssumed = false
         h.removeCallbacks(assumeArm)
-        if (store.armedSince == 0L) { store.armedSince = t; store.ignoreUntil = t + DryClipProtocol.IGNORE_AFTER_ARM_MS }
-        log("arm", "Clip armed ($how). Ignoring wet until " + hm.format(Date(store.ignoreUntil)) + ".")
+        if (store.armedSince == 0L) store.armedSince = t
+        log("arm", "Clip armed ($how). A touch or wet on the plate notifies.")
     }
 
     private fun onArmAssume() {
@@ -572,8 +587,8 @@ class DryClipService : Service() {
         if (conn == "connected" && st != null && lastStateAt > armAt && !st.armed && !st.arming) return // clearly not armed: armCheck decides
         val t = now()
         armPending = false; armedAssumed = true
-        store.armedSince = t; store.ignoreUntil = t + DryClipProtocol.IGNORE_AFTER_ARM_MS
-        log("arm", "Armed (assumed after 12 s, like the DryClip app)")
+        store.armedSince = t
+        log("arm", "Armed (assumed after 12 s). A touch or wet notifies.")
         refresh()
     }
 
@@ -583,11 +598,7 @@ class DryClipService : Service() {
             if (now() - armAt < 300_000L) h.postDelayed(armCheck, 15_000L)
             return
         }
-        if (st.wet && armSource != "user") {
-            val at = st.secs?.let { now() - it * 1000L } ?: now()
-            if (store.ignoreUntil > 0 && at < store.ignoreUntil) { onLatchedTouch(); return }
-            if (!st.armed || now() >= store.ignoreUntil) { onStillWet(); return }
-        }
+        if (st.wet && !st.armed && armSource != "user") { onStillWet(); return }
         if (!st.armed && !st.arming && !st.wet) {
             armPending = false; armedAssumed = false; store.armedSince = 0L
             if (armSource == "user") log("arm", "Arm didn't take. The clip still reads not armed. Tap Arm again.")
@@ -636,7 +647,8 @@ class DryClipService : Service() {
         val ev = JSONObject().put("kind", "wet").put("n", n).put("wetAt", wetAt).put("detectedAt", t)
             .put("secs", st.secs ?: JSONObject.NULL).put("battery", battery ?: JSONObject.NULL).put("rawHex", st.hex)
         store.addEvent(ev)
-        log("wet", "WET #$n at " + hm.format(Date(wetAt)) + " (secs=" + st.secs + "). Queued. Ack, re-arm in " + fmtMin(store.rearmMin) + ".")
+        log("wet", "WET #$n at " + hm.format(Date(wetAt)) + " (secs=" + st.secs + "). Notification posted. Ack, re-arm in " + fmtMin(store.rearmMin) + ".")
+        postWetNotif(wetAt)
         emit("wet", ev)
         armedAssumed = false; store.armedSince = 0L
         ackWet(false)
@@ -675,6 +687,23 @@ class DryClipService : Service() {
     }
 
     // ---------- notification / events ----------
+    /** Logs the test and, if the clip is already armed and wet, posts the same alert a live reading would. */
+    fun debugTestWet() {
+        val st = last
+        log("wet", "Test wet: touch or wet the plate. Armed → notification. Not armed → no notification. A wet takes about 30 s.")
+        if (st == null) { log("wet", "Test wet: no reading yet. Connect, arm, then touch the plate."); return }
+        if (!st.armed && !armedAssumed && store.armedSince == 0L) {
+            log("wet", "Test wet: clip is not armed, so this will not notify. Tap Arm first.")
+            return
+        }
+        if (!st.wet) { log("wet", "Test wet: armed and dry. Touch or wet the plate. The alert posts when the reading arrives."); return }
+        val at = DryClipProtocol.wetAt(now(), st.secs)
+        if (store.lastWetAt > 0 && Math.abs(at - store.lastWetAt) <= DryClipProtocol.DEDUPE_MS) {
+            log("wet", "Test wet: this armed wet was already notified."); return
+        }
+        recordWet(st, now())
+    }
+
     private fun ensureChannel() {
         if (Build.VERSION.SDK_INT < 26) return
         val nm = getSystemService(NotificationManager::class.java)
@@ -683,6 +712,28 @@ class DryClipService : Service() {
                 description = "Keeps the link to your DryClip while the screen is off"; setShowBadge(false)
             })
         }
+        if (nm.getNotificationChannel(WET_CHANNEL) == null) {
+            nm.createNotificationChannel(NotificationChannel(WET_CHANNEL, "DryClip wet", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Alerts when an armed DryClip reports wet"; enableVibration(true)
+            })
+        }
+    }
+
+    private fun postWetNotif(wetAt: Long) {
+        ensureChannel()
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 23) PendingIntent.FLAG_IMMUTABLE else 0)
+        val open = PendingIntent.getActivity(this, 4264, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), flags)
+        val whenTxt = SimpleDateFormat("HH:mm", Locale.US).format(Date(wetAt))
+        val n = NotificationCompat.Builder(this, WET_CHANNEL)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle("DryClip wet")
+            .setContentText("Wet at $whenTxt")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setAutoCancel(true)
+            .setContentIntent(open)
+            .build()
+        try { getSystemService(NotificationManager::class.java)?.notify(WET_NOTIF_ID, n) } catch (_: Exception) {}
     }
 
     private fun notifText(): String = when {

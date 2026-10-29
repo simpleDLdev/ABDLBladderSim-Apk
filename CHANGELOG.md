@@ -1,5 +1,12 @@
 # Changelog
 
+## v43 — 2026-10-29
+
+Version name **43**, version code **43**.
+
+- DryClip connect does not need a classic bond. It connects straight to the last MAC, and it tries that address again when a scan cannot see the clip (a connected clip stops advertising). After Arm, the clip drops the link on purpose and the app connects again.
+- An armed wet, including a touch on the plate, posts a wet notification and is logged. The old settle latch was treating that late reading (about 30 seconds) as “still settling,” so it never alerted. A disarmed clip does not notify. The quiet background-watch notification stays up and does not replace the wet alert.
+
 ## v42 — 2026-10-27
 
 Version name **42**, version code **42**.
