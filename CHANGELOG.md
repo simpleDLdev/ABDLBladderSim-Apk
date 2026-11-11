@@ -1,5 +1,18 @@
 # Changelog
 
+## v44 — 2026-11-11
+
+Version name **44**, version code **44**.
+
+- Conditioning is opt-in. Day and night each have a control meter and a target. An old save is migrated; the previous numbers stay on `legacy`. Real accidents move a meter only after you turn that on.
+- Consent, a body check that can pause the mode, and one-tap reverse or stop.
+- A partial release can come up on "I need to go" once conditioning is on. The percent follows direction, target, and debt. The daily cap defaults to 4. Emptying on the toilet afterwards is a setting (on by default) with one line about retention and UTIs. It is not enforced.
+- A potty pass is a request. The answer can be no, yes, or yes with a compromise. It is not a guaranteed toilet trip.
+- Drink log: one-tap sizes, same again, and a missed day stays blank instead of counting as zero.
+- Gear recommendation comes from the quiz and check-ins. Pads are their own step. The pass card says if you're wearing lighter or heavier gear than that.
+- Sleep import is ready (JSON now, Health Connect when a plugin exists). LuckRing has no public API in its store listing.
+- Safety copy: no "hold until you can't", no max-clench kegel holds, drink prompts say sip if you're thirsty, and a night "stay in bed" result has a way to get up.
+
 ## v43 — 2026-10-29
 
 Version name **43**, version code **43**.

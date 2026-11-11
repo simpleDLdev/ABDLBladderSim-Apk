@@ -96,9 +96,13 @@ try {
     severity: 'wet', tags: ['natural accident', 'clip-flagged']
   });
 } catch (e) { console.warn(e); }
+const before = BSCampaign.scoreDay(camp, day);
+const beforeScore = before.goals.find(g => g.id === 'simleaks' || g.id === 'cap');
+ok(beforeScore && beforeScore.val === 0, 'clip accident waits for real-progress opt-in, val=' + (beforeScore && beforeScore.val));
+BSControl.saveSettings({ countWaitAccidents: true });
 const scored = BSCampaign.scoreDay(camp, day);
 const leakScore = scored.goals.find(g => g.id === 'simleaks' || g.id === 'cap');
-ok(leakScore && leakScore.val >= 1, 'clip accident counted in goal val=' + (leakScore && leakScore.val));
+ok(leakScore && leakScore.val >= 1, 'clip accident counted after opt-in val=' + (leakScore && leakScore.val));
 
 // Caregiver line
 BSPathPlay.saveStart({ mode: 'caregiver' });

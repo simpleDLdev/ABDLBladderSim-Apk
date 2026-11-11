@@ -625,6 +625,7 @@ function testSelectedGuide() {
 }
 
 function triggerHydrationEvent(force = false) {
+  if (window.BSSymptoms && window.BSSymptoms.paused && window.BSSymptoms.paused()) return;
   if (!force && window.hydrationEnabled === false) return;
   if (!force && typeof isBedwettingSilent === 'function' && isBedwettingSilent()) return;
   // 1. Define Intensity from config
@@ -640,12 +641,12 @@ function triggerHydrationEvent(force = false) {
 
   const templates = [
     `<b>Hydration Order:</b> Take <b>${count} ${unitType}</b> of your <b>${drinkType}</b> immediately.`,
-    `<b>Drink Check:</b> Time for <b>${count} ${unitType}</b> of your <b>${drinkType}</b>. No excuses.`,
+    `<b>Drink check:</b> Time for <b>${count} ${unitType}</b> of your <b>${drinkType}</b>, if you're thirsty.`,
     `<b>Refill Request:</b> Pour yourself <b>${drinkType}</b> and take <b>${count} ${unitType}</b> now.`,
-    `<b>Forced Hydration:</b> You're looking thirsty. <b>${count} ${unitType}</b> of <b>${drinkType}</b>, please.`,
+    `<b>Sip time:</b> <b>${count} ${unitType}</b> of <b>${drinkType}</b> if you're thirsty.`,
     `<b>Bladder Maintenance:</b> Feed the cycle with <b>${count} ${unitType}</b> of <b>${drinkType}</b>.`,
     `<b>Top Up:</b> Ensure the flow continues. <b>${count} ${unitType}</b> of <b>${drinkType}</b>.`,
-    `<b>Liquid Intake:</b> <b>${count} ${unitType}</b> of <b>${drinkType}</b>. Keep the pressure rising.`
+    `<b>Liquid Intake:</b> <b>${count} ${unitType}</b> of <b>${drinkType}</b> if you want them.`
   ];
 
   const msg = pick(templates);
