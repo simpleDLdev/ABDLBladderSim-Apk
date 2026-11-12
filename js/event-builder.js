@@ -323,6 +323,18 @@ const PROFILE_DETAILS = {
       ['Extras', 'Symptoms, Curses, Potty Passes, Progression']
     ]
   },
+  conditioning: {
+    color: '#55efc4',
+    title: '🌿 My Conditioning',
+    loop: 'Uses the profile from the conditioning intake quiz. Timers, sip reminders, and prompts follow the methods you opted into. Sip reminders stay inside the drink cap, and they are skips if you are not thirsty. A real-need button stays free. The level on the card changes only after check-ins agree.',
+    rows: [
+      ['Comes from', 'Settings → Conditioning intake quiz'],
+      ['Day and night', 'Each track has its own direction and level'],
+      ['Sips', 'From your methods, still inside the safety cap'],
+      ['Prompts', 'Today’s practice, at the same cue times'],
+      ['Real need', 'Always available']
+    ]
+  },
   custom: {
     color: '#e17055',
     title: '🧪 Custom — Create Your Own Profile',

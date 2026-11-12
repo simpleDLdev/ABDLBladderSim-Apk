@@ -110,7 +110,7 @@ ok(N.realProgress('night') === true && N.realProgress('day') === false && C.mode
 N.stop();
 ok(C.mode() === 'game' && N.realProgress('night') === false, 'stop clears real progress');
 
-ok(fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8').includes('versionName "44"'), 'version 44');
+ok(/versionName "(\d+)"/.test(fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8')) && +fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8').match(/versionName "(\d+)"/)[1] >= 44, 'version at least 44');
 ok(fs.readFileSync(path.join(root, 'js/whats-new-data.js'), 'utf8').includes("hash: 'v44'"), "What's New v44");
 
 console.log(fail ? fail + ' FAILED' : 'ALL PASS');

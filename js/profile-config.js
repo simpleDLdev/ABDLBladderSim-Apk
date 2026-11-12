@@ -252,6 +252,27 @@ const PROFILE_CONFIG = {
     showBabysitterPanel: false,
   },
 
+  /* ---- MY CONDITIONING (v45 intake profile) ---- */
+  conditioning: {
+    label: 'My Conditioning',
+    microTable: () => (typeof MICRO_STD_D6 !== 'undefined' ? MICRO_STD_D6 : []),
+    microSource: 'MICRO_STD_D6',
+    microDie: () => (typeof d === 'function' ? d(6) : 1),
+    macroTable: () => (typeof FULL_D20 !== 'undefined' ? FULL_D20 : []),
+    macroSource: 'FULL_D20',
+    mainMin: 30, mainMax: 70,
+    microMin: 5, microMax: 15,
+    hydrationSips: [1, 2],
+    scheduler: 'standard',
+    alarmText: ['💧 <b>Practice</b>', 'Follow today’s method. Sip only if you are thirsty.'],
+    microCompleteMsg: '💧 Logged.',
+    leakLimit: null,
+    setupKey: null,
+    showHydrationPanel: true,
+    showCanIGoBtn: true,
+    showBabysitterPanel: false,
+  },
+
   /* ---- GAUNTLET ONLY (no bladder sim) ---- */
   gauntlet_only: {
     label: 'Gauntlet Only',

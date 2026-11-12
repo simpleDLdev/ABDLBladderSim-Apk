@@ -1,6 +1,6 @@
 # ANALYSIS — Control conditioning (both directions), day/night tracks and the Infinite Campaign
 
-*Branch `cursor/bladdersim-v43-ccdd` @ `c15d067` (v43). Design document. Revision 2 (2026-11-11): day/night tracks, check-ins, gear ladder, advisor, Potty Pass, night scoring, behaviour/symptom tracking. Revision 3 (2026-11-11, owner): a partial release is one weighted "I need to go" outcome (the percent scales with direction, target gap, and debt; the daily cap is a setting, default 4). A Potty Pass is a request for better odds, not a guarantee — denied, granted, or granted with a compromise. "Empty fully on the toilet after a partial" is a setting, default on, with one settings line that emptying fully helps avoid retention and UTIs. It is not a forced rule. Drink logging is a first-class input (quick-add, repeat last, missed days left out of the estimate). Sleep stages come from a pluggable source (Health Connect, then manual import). Recommended gear is computed from the calibration baseline; pads/liners are their own ladder step. v44 implements phase 1 plus these data structures.*
+*Branch `cursor/bladdersim-v43-ccdd` @ `4475725` (v44 merged). Design document. Revision 2 (2026-11-11): day/night tracks, check-ins, gear ladder, advisor, Potty Pass, night scoring, behaviour/symptom tracking. Revision 3 (2026-11-11, owner): a partial release is one weighted "I need to go" outcome (the percent scales with direction, target gap, and debt; the daily cap is a setting, default 4). A Potty Pass is a request for better odds, not a guarantee — denied, granted, or granted with a compromise. "Empty fully on the toilet after a partial" is a setting, default on, with one settings line that emptying fully helps avoid retention and UTIs. It is not a forced rule. Drink logging is a first-class input (quick-add, repeat last, missed days left out of the estimate). Sleep stages come from a pluggable source (Health Connect, then manual import). Recommended gear is computed from the calibration baseline; pads/liners are their own ladder step. v44 implements phase 1 plus these data structures. Revision 4 (2026-11-12): conditioning starts from the intake quiz in §13.1. Methods are the catalogue in §6.6. The saved profile is "My Conditioning" in the existing session and Natural Urge pickers.*
 
 **Framing.** BladderSim is for consenting adults. This design lets a player choose, on purpose and with clear information, to practise habits that move their real control **down** (toward bedwetting and protection-first habits) or **up** (toward dryness), on the day track, the night track, or both, for as long as they like. Weeks or months of consistent practice can change real habits; the app says so plainly at onboarding and the player decides. Physical-safety guardrails are built in as features (caps, pauses, a reverse button, a no-cost override), not as warnings the player has to read every day.
 
@@ -327,6 +327,40 @@ Goal: longer, calmer intervals, good urge handling, dry nights. These are standa
 - **Night-only players** get A3/A4/A5 (A) or B5 (B) as their core, plus check-ins focused on night metrics. Day objectives are limited to logging.
 - **Day-only players** get A1/A2/A6/A8 (A) or B1–B4/B7 (B). Nights are logged in check-ins for context but generate no objectives.
 - **Both:** the generator balances objectives across tracks in proportion to each track's gap (§11.5).
+
+### 6.6 Training-methods catalogue (v45)
+
+Each method is an opt-in on the intake quiz, with a one-line explanation. Defaults are checked from the goals in §13.1. The player can turn any of them off. A method plays as a short daily task and as a session prompt. Logging it is the score. It does not move the track level. The level moves one step only after two check-ins in a row sit in the next band toward the goal.
+
+**Relaxed release** is passive. No holding back and no pushing. The player relaxes and lets it happen when it happens. It is not overflow and it is not stretching.
+
+| Id | Track | Dir | How it plays | How it scores |
+| --- | --- | --- | --- | --- |
+| `first_urge` | Day | A | Go at the first urge. Do not wait it out. | A logged trip is practice. One trip does not move the level. |
+| `relaxed` | Day | A | When it starts, soften and let it happen. Do not push and do not hold it back. | Logged as a passive release. |
+| `positions` | Day | A | Let a release happen while sitting, standing, or lying down. | The position is stored with the log. |
+| `cue` | Day | A | The same phrase or breath, then release. | The cue counts when it is logged with the release. |
+| `no_toilet` | Day | A | A block of time with no toilet, in the gear chosen for that place. A real need ends the block. | Finishing the block is the log. Leaving for a real need is not a miss. |
+| `reverse_kegel` | Day | A | Breathe out and let the pelvic floor drop for a few seconds, then rest. No clench. | A set is logged. A maximal hold is not the exercise. |
+| `stay_bed` | Night | A | On a wake, stay in bed. Getting up for a real need is fine. | Staying is logged. A real-need get-up does not count against the streak. |
+| `before_awake` | Night | A | Let a release happen before fully sitting up. | A wet with no full wake scores higher for Night A than waking to change. |
+| `lying` | Night | A | A release while lying down. No pushing. | Logged as a lying-down drill. |
+| `bedtime_cue` | Night | A | The same short routine at the same time: gear, cue, lights out. | Doing the routine counts, even if the night is dry. |
+| `deeper_sleep` | Night | A | Same bedtime, dark room, no late screen. | A deep-sleep wet with no wake (DryClip, no wake) scores higher for Night A than a wake-and-change. `sSl` ≤ 20 is 3 points; a wake (`sSl` ≥ 70) is 1. |
+| `timed_void` | Day, night | B | Go at the planned time, even if the urge is small. | A planned trip is logged. |
+| `urge_surf` | Day, night | B | Notice the wave, let the peak ease, then go. Stop if it gets strong. | Finishing a surf is logged. Stopping because it got strong still counts. |
+| `kegels` | Day, night | B | Gentle 3–5 second squeeze, then a full relax. | A set with a full relax is logged. |
+| `double_void` | Day | B | Go, wait a few breaths, go again. | Logged when the second void happens. |
+| `alarm` | Night | B | DryClip alarm mode. A wet is meant to wake you. | A wake-and-change is the result this mode is for. |
+| `front_load` | Day | B | More of the day's drinks earlier. Late prompts stay a sip, and only if thirsty. | Still goes through `BSSafety.capDrink` (≤ 250 ml, ≤ 1 L/day). A missed drink day stays blank. |
+
+Habit shape around the catalogue:
+
+- Cues stay at the same times (morning 08:00, midday 13:00 on steady/intense, bedtime 22:00).
+- Intensity picks how many tasks show: gentle 1, steady 2, intense 3 per track, and how many successful days raise the task one stage (5 / 4 / 3). A stage has three lines, and it only gets harder after that streak.
+- Logging a task gives an immediate line ("Logged… Streak N").
+- One missed day keeps the streak (a single shield). A second miss starts the streak again.
+- The weekly review is written at the check-in.
 
 ---
 
@@ -1014,14 +1048,21 @@ New keys use the existing `bs_*_v1` naming. All are local-only (`localStorage`),
 
 ## 13. UI flows (screens)
 
-### 13.1 Onboarding (first run of conditioning mode)
-1. **Welcome** — what conditioning mode is, in two lines; **Continue / Stay in game mode**.
-2. **Consent** (§14.1) — plain text + checkboxes; per-track real-progress switches.
-3. **Tracks** — Night only / Day only / Both; direction per track shown as you set targets.
-4. **Quiz A** (now, per track) → **Quiz B** (target slider + band picker per track, pace).
-5. **Gear & bed** — tick what you own, set capacities (or keep defaults), bed protection, home prep.
-6. **Baseline** — "Start a 3-day diary now / tomorrow / skip".
-7. **Summary** — estimate vs target per track, this week's first objectives, check-in schedule.
+### 13.1 Onboarding (v45 intake — this is how conditioning starts)
+
+Settings → Conditioning opens the intake quiz. The old screen with a bare "target 70" box is gone. Consent checkboxes are the last step of the quiz, not a separate form. There is no new start screen: after the quiz, **My Conditioning** is a profile in the full session setup and in the Natural Urge / natural-session picker.
+
+1. **Where you are now**, asked separately for day and night. Day: urge frequency, suddenness, hold after the first urge, trips, leaks per 30 days. Night: wet nights per week, whether you wake when wet, sleep depth (typed, or filled from `sleep-source.js` when a night is imported). Gear by context: home, work, out, night. Overlapping questions reuse Quiz A (`js/quiz.js`) instead of a second copy. The answers become a 0–100 starting level per track, shown later as a ladder name.
+2. **Where you want to go.** Per track: Off, A (less control), or B (more control). Then a level card. Cards use the `control.js` ladder names (Big Kid … Infant) plus a plain-language line, for example "Toddler at night: wet most nights, rarely wakes." The numeric target is the middle of that band and is not typed.
+3. **What you want out of it.** Multi-select: bedwetting, urgency / not quite making it, wetting in thin gear or underwear, relaxed/passive wetting, more control / staying dry, deeper sleep. Plus intensity (gentle / steady / intense) and timeframe (open-ended, ~1 month, ~3 months, ~6 months).
+4. **Methods.** The catalogue in §6.6. Each row has a one-line explanation. Defaults follow the goals and the direction. Anything can be unchecked.
+5. **Consent.** Adult; understands this may change real control. Real day and real night progress are separate. Safety settings stay settings: body check, drink caps in `safety.js`, Reverse, Stop, and a free real-need button. "Finish on the toilet after a partial" stays a setting (default on) with one line about retention and UTIs.
+6. **Baseline.** "Start a 2–3 day baseline diary" (drinks in the drink log; voids with optional volume, urges, leaks, night wets on the practice card; a skipped day stays blank) or "Skip and use my current bladder capacity estimate" (from `calibration.js` when a trial exists, otherwise the quiz level). Check-ins every 3 days compare with that baseline and update the estimate. The displayed level moves one band only after two check-ins in a row agree.
+7. **Summary card.** Level names and a bar toward the goal. The 0–100 numbers sit behind Advanced. Retake and Edit are on the card. Today's practice lists the cue time and the current stage of each opted-in method.
+
+Someone who already accepted in v44 keeps that consent, those targets, and real-progress switches. The numeric target is mapped onto the nearest ladder card, and the card asks them to take the intake quiz. Their logs are not wiped.
+
+`bs_conditioning_v1` holds the profile: starting level, target, direction, goals, intensity, timeframe, methods, recommended gear per the baseline (`BSGear.recommend`), calibration choice, diary rows, cues, streaks, and task stage.
 
 ### 13.2 Urge tab (main daily screen)
 - Top: two **track chips** (☀ Day 58 → 30 · 🌙 Night 40 → 15), each with a tiny trend arrow.

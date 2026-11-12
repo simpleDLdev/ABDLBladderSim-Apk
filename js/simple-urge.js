@@ -94,9 +94,19 @@
   /** Resolve the active profile → { id, name, levelKey, levelIdx, level, hold, odds, hiddenWait, fastFill, quietSignals, sources } */
   function profile(id) {
     const s = settings(); id = id || s.profileId || 'match';
-    let lk, name, hold, odds, hidden, ff = s.fastFill, qs = s.quietSignals, src = [];
+    let lk, name, hold, odds, hidden, ff = s.fastFill, qs = s.quietSignals, src = [], cond = null;
     const cp = customProfiles().find(x => x.id === id);
-    if (cp) {
+    if (id === 'conditioning') {
+      const info = window.BSOnboard && window.BSOnboard.playProfile ? window.BSOnboard.playProfile() : null;
+      cond = info;
+      lk = info && info.levelKey ? info.levelKey : (window.BSControl ? window.BSControl.band() : 'okay');
+      const l = (window.BSControl && window.BSControl.level(lk)) || { label: lk, wait: [5, 15], hidden: false };
+      name = 'My Conditioning' + (info && info.levelName ? ' · ' + info.levelName : '');
+      hold = (l.wait || [5, 15]).slice(); odds = ladderOdds(lk); hidden = l.hidden;
+      src.push('conditioning profile');
+      if (info && info.direction) src.push('direction ' + info.direction);
+      if (info && info.gear && info.gear.recommended) src.push('gear ' + (info.gear.recommended.day || ''));
+    } else if (cp) {
       lk = cp.level || (window.BSControl ? window.BSControl.band() : 'okay'); name = cp.name; hold = cp.wait.slice(); odds = Object.assign({}, cp.odds); hidden = cp.hiddenWait;
       ff = ff || cp.traits.fastFill; qs = qs || cp.traits.quietSignals; src.push('custom profile');
     } else {
@@ -111,7 +121,7 @@
     if (s.holdOverride) hold = s.holdOverride.slice(); // dev/test hook (pre-v11 API)
     if (s.oddsOverride) odds = Object.assign({}, odds, s.oddsOverride);
     const lv = L().find(x => x.key === lk); const li = lv ? lv.li : 1;
-    return { id, name, levelKey: lk, levelIdx: li, level: LV[li], hold, odds, hiddenWait: !!(hidden || s.hideWaits), fastFill: ff, quietSignals: qs, sources: src };
+    return { id, name, levelKey: lk, levelIdx: li, level: LV[li], hold, odds, hiddenWait: !!(hidden || s.hideWaits), fastFill: ff, quietSignals: qs, sources: src, conditioning: cond };
   }
 
   // ---------- pure roll ----------
@@ -145,6 +155,12 @@
       ['wait', 'hard'].forEach(k => { const take = w[k] * lean; w[k] -= take; w.gear += take * 0.7; w.go += take * 0.3; });
     }
     if (opts.final || (M && chain >= M.MAX_CHAIN)) w = M ? M.finalRoll(w, level) : w;
+    try {
+      if (p && p.id === 'conditioning' && window.BSOnboard && window.BSOnboard.rollMods) {
+        const mods = window.BSOnboard.rollMods();
+        Object.keys(mods).forEach(k => { if (w[k] != null) w[k] *= mods[k]; });
+      }
+    } catch (e) {}
     // Custom events (user-defined) still mix in at their own weight
     const evs = (opts.events || customEvents()).filter(e => e.enabled !== false && e.weight > 0 && (!e.levels.length || e.levels.includes(p.levelKey)));
     const messyRoll = (opts.type === 2 || (opts.type == null && urgeType() === 2)) && messyOn();
@@ -595,6 +611,7 @@
     return `<option value="match" ${sel === 'match' ? 'selected' : ''}>🎯 Match my profile${ctl ? ' (' + (window.BSControl.label(ctl, officeOn())) + ')' : ''}</option>` +
       L().slice().reverse().map(l => `<option value="${l.key}" ${sel === l.key ? 'selected' : ''}>${esc(window.BSControl.label(l, officeOn()))}</option>`).join('') +
       `<option value="off" ${sel === 'off' ? 'selected' : ''}>${esc(window.BSControl ? window.BSControl.label('off', officeOn()) : 'Sitting out')}</option>` +
+      (window.BSOnboard && window.BSOnboard.pickerOption ? window.BSOnboard.pickerOption(sel) : `<option value="conditioning" ${sel === 'conditioning' ? 'selected' : ''}>My Conditioning</option>`) +
       customProfiles().map(p => `<option value="${esc(p.id)}" ${sel === p.id ? 'selected' : ''}>⭐ ${esc(p.name)}</option>`).join('');
   }
   function supplyForm(i, pre) {
@@ -833,7 +850,7 @@
     return w;
   }
 
-  window.BSSimpleUrge = { POTTY_ACCESS, sliderValue, continueUrge, followUpFor, followUp, followDone, followActive, followState: fst, roll, press, chooseNatural, describe, profile, autoProfile, settings, saveSettings, urgeType, pickMessy, pickGear, inv, saveInv, invText, change, useGear, pendingAlarm, render, state: st, ALARM_ID, DEF_INV, OUT, PROT, SPARE,
+  window.BSSimpleUrge = { POTTY_ACCESS, sliderValue, continueUrge, followUpFor, followUp, followDone, followActive, followState: fst, roll, press, chooseNatural, describe, profile, profileOptions, autoProfile, settings, saveSettings, urgeType, pickMessy, pickGear, inv, saveInv, invText, change, useGear, pendingAlarm, render, state: st, ALARM_ID, DEF_INV, OUT, PROT, SPARE,
     customProfiles, upsertProfile, deleteProfile, customEvents, upsertEvent, deleteEvent, levelOdds, saveLevelOdds, ladderOdds, exportJSON, importJSON, inWaitState, endByAccident, needsDailyReset,
     openProfileEditor, openEventEditor, openEventList, openLevelTables, openLevelList, accidentArmed, dismissAccident, protLabel, recDay, cantHold, reroll, setLogged, afterSmallPref, followChoose, cascadeState, CKEY };
   window.addEventListener('load', () => setTimeout(render, 60));
