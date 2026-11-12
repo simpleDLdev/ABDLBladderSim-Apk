@@ -1,5 +1,48 @@
 # Changelog
 
+## v46 — 2026-11-12
+
+Version name **46**, version code **46**.
+
+- The conditioning intake uses the same quiz screen as the other quizzes: one question, option cards, a progress bar, and a result card. It is no longer a separate form.
+- About 57 questions. The same scenes are asked twice — where you are now, then where you want that scene to land — across gear, place, and urge. The gap sets each track's level, target, and practice.
+- Wetting in thick gear counts less toward low control than the same ending in underwear. You can save and resume, and skip the optional feelings section.
+- The result card names the day and night result, the gear it points to, and the practice, then consent, then the diary-or-skip baseline. A v45 profile still loads. Retaking overwrites it.
+- The intake is also on the quiz hub.
+
+## v45 — 2026-11-12
+
+Version name **45**, version code **45**.
+
+- Conditioning starts from an intake quiz in Settings → Conditioning. The bare target number is gone. Consent is the last step of the quiz.
+- The quiz asks where you are (day and night, plus gear at home, work, out, and night), where you want to go as a named level, what you want out of it, and which practice to opt into. Quiz A questions are reused where they match.
+- After the quiz: a 2–3 day baseline diary, or skip and use a saved bladder-capacity estimate. Check-ins stay every 3 days. A level changes only after two check-ins in a row agree.
+- The summary card uses level names and a bar. Numbers sit under Advanced. Retake and Edit are on the card.
+- My Conditioning is a profile in the full session setup and in Natural Urge. Session sips and prompts follow the methods you picked, and sips stay inside the drink cap.
+- Today's practice uses the same cue times, short tasks that get harder only after a streak, an immediate log line, and a streak that survives one missed day.
+- A v44 consent is kept. The old target is shown as the nearest level, and the card asks you to take the quiz.
+- Relaxed release is passive: no holding back and no pushing. It is not overflow and not stretching. A deep-sleep wet with no wake still scores higher for Night A than waking to change.
+
+## v44 — 2026-11-11
+
+Version name **44**, version code **44**.
+
+- Conditioning is opt-in. Day and night each have a control meter and a target. An old save is migrated; the previous numbers stay on `legacy`. Real accidents move a meter only after you turn that on.
+- Consent, a body check that can pause the mode, and one-tap reverse or stop.
+- A partial release can come up on "I need to go" once conditioning is on. The percent follows direction, target, and debt. The daily cap defaults to 4. Emptying on the toilet afterwards is a setting (on by default) with one line about retention and UTIs. It is not enforced.
+- A potty pass is a request. The answer can be no, yes, or yes with a compromise. It is not a guaranteed toilet trip.
+- Drink log: one-tap sizes, same again, and a missed day stays blank instead of counting as zero.
+- Gear recommendation comes from the quiz and check-ins. Pads are their own step. The pass card says if you're wearing lighter or heavier gear than that.
+- Sleep import is ready (JSON now, Health Connect when a plugin exists). LuckRing has no public API in its store listing.
+- Safety copy: no "hold until you can't", no max-clench kegel holds, drink prompts say sip if you're thirsty, and a night "stay in bed" result has a way to get up.
+
+## v43 — 2026-10-29
+
+Version name **43**, version code **43**.
+
+- DryClip connect does not need a classic bond. It connects straight to the last MAC, and it tries that address again when a scan cannot see the clip (a connected clip stops advertising). After Arm, the clip drops the link on purpose and the app connects again.
+- An armed wet, including a touch on the plate, posts a wet notification and is logged. The old settle latch was treating that late reading (about 30 seconds) as “still settling,” so it never alerted. A disarmed clip does not notify. The quiet background-watch notification stays up and does not replace the wet alert.
+
 ## v42 — 2026-10-27
 
 Version name **42**, version code **42**.

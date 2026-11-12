@@ -189,6 +189,13 @@
     }
     // v11: natural accident during an in-game wait — flag + link back to the roll / session
     if (raw.failedWait && type !== 'night') e.failedWait = true;
+    if (raw.track === 'day' || raw.track === 'night') e.track = raw.track;
+    if (raw.gear && /^G[0-6]$/.test(String(raw.gear))) e.gear = String(raw.gear);
+    if (raw.context && ['home', 'office', 'out', 'car', 'bed'].includes(raw.context)) e.context = raw.context;
+    if (raw.partial && typeof raw.partial === 'object' && isFinite(+raw.partial.pct)) {
+      e.partial = { pct: Math.max(0, Math.min(0.3, +raw.partial.pct)) };
+      if (raw.partial.finishOnToilet === true || raw.partial.finishOnToilet === false) e.partial.finishOnToilet = raw.partial.finishOnToilet;
+    }
     if (raw.link && typeof raw.link === 'object') { const l = {}; ['roll', 'instr', 'session', 'ctx'].forEach(k => { if (raw.link[k] != null) l[k] = String(raw.link[k]).slice(0, 200); }); if (Object.keys(l).length) e.link = l; }
     if (raw.confirmed && (type === 'accident' || type === 'leak')) e.confirmed = true;
     if (raw.clip && typeof raw.clip === 'object' && (type === 'accident' || type === 'leak')) {
@@ -281,6 +288,9 @@
   function addEntry(e) {
     const d = load();
     const now = Date.now();
+    if (e && !e.track && window.BSControl && window.BSControl.trackFor) {
+      try { e.track = window.BSControl.trackFor(e.ts || now, e.context || (e.type === 'night' ? 'bed' : undefined)); } catch (err) {}
+    }
     const entry = normalize(Object.assign({ id: uid(), ts: now, source: 'natural', createdAt: now, updatedAt: now }, e));
     if (!entry) return null;
     d.entries.push(entry); save(d); refresh();

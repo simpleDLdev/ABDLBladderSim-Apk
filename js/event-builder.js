@@ -300,7 +300,7 @@ const PROFILE_DETAILS = {
   omorashi_hold: {
     color: '#81ecec',
     title: '💧 Omorashi — Hold & Release',
-    loop: 'A structured hold challenge with a set session timer (30–90 min). You receive hydration orders and periodic stress tests (hold guides). At the end of the session, or if you fail a stress test, you either get permission or are forced to release. Optional: hold until you physically can\'t, then trigger the release guide yourself. Pure omorashi experience.',
+    loop: 'A structured hold challenge with a set session timer (30–90 min). You receive hydration orders and periodic stress tests (hold guides). At the end of the session, or if you fail a stress test, you either get permission or are forced to release. Holds end at the timer or at a strong urge.',
     rows: [
       ['Mode type', 'Timed hold session with stress tests'],
       ['Potty success', '~50% at session end (configurable)'],
@@ -321,6 +321,18 @@ const PROFILE_DETAILS = {
       ['Not Potty Trained', 'Available for Mostly/Fully Incontinent — auto-voids only'],
       ['Protection changes', 'Automatic based on performance (3 success = upgrade)'],
       ['Extras', 'Symptoms, Curses, Potty Passes, Progression']
+    ]
+  },
+  conditioning: {
+    color: '#55efc4',
+    title: '🌿 My Conditioning',
+    loop: 'Uses the profile from the conditioning intake quiz. Timers, sip reminders, and prompts follow the methods you opted into. Sip reminders stay inside the drink cap, and they are skips if you are not thirsty. A real-need button stays free. The level on the card changes only after check-ins agree.',
+    rows: [
+      ['Comes from', 'Settings → Conditioning intake quiz'],
+      ['Day and night', 'Each track has its own direction and level'],
+      ['Sips', 'From your methods, still inside the safety cap'],
+      ['Prompts', 'Today’s practice, at the same cue times'],
+      ['Real need', 'Always available']
     ]
   },
   custom: {

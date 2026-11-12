@@ -1,7 +1,8 @@
 /* ===========================
    board.js — Potty Path board demo + Test Mode (v14b)
    Storage: bs_board_v1 (v2 shape). Landings are phone-simple event guides.
-   Hard rules: no sexual content; no real-body untraining; real-urge override on every square;
+   Hard rules: no sexual content; real-urge override on every square.
+   In-game rules only, unless you opt in to conditioning mode (docs/ANALYSIS-control-conditioning-infinite-campaign.md).
    skin-safety note on change gates. Office mode uses coach/neutral deny lines.
    =========================== */
 (function () {

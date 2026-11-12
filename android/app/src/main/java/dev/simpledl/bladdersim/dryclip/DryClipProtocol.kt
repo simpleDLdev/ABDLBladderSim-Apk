@@ -16,9 +16,15 @@ object DryClipProtocol {
     val BAT: UUID = u("2a19")
     val CCCD: UUID = u("2902")
 
-    const val IGNORE_AFTER_ARM_MS = 20_000L
-    /** v28: plate-touch wake / connect / pairing — ignore WET this long after a fresh link. */
-    const val SETTLE_ON_CONNECT_MS = 20_000L
+    /**
+     * v43: only the clip's own arm disconnect (it drops the link 2–3 s after 01 is written to DC02).
+     * A wet takes about 30 s to report, so this window must not use the backdated wet time.
+     * Once it has passed and the clip is armed, a touch or a wet notifies.
+     */
+    const val POST_ARM_SUPPRESS_MS = 4_000L
+    const val IGNORE_AFTER_ARM_MS = POST_ARM_SUPPRESS_MS
+    /** v43: a fresh link does not open a wet-ignore window. Bond is not required to connect. */
+    const val SETTLE_ON_CONNECT_MS = 0L
     const val DEDUPE_MS = 60_000L
     const val ARM_ASSUME_MS = 12_000L
 
@@ -40,24 +46,22 @@ object DryClipProtocol {
 
     fun wetAt(now: Long, secs: Long?): Long = if (secs == null) now else now - secs * 1000L
 
-    enum class Decision { NOT_WET, ARMING, NOT_ARMED, IGNORE_WINDOW, LATCHED_TOUCH, DUPLICATE, NEW }
+    enum class Decision { NOT_WET, ARMING, NOT_ARMED, IGNORE_WINDOW, DUPLICATE, NEW }
 
     /**
      * Is this reading a NEW wet event?
-     * - wet bit set, clip armed (bit 0x02), not arming and no arm pending
-     * - outside the post-arm ignore window: now >= ignoreUntil AND the wet did not start inside it (wetAt >= ignoreUntil)
-     *   (the plate reads warmth: a finger touch while arming latches WET)
-     * - a wet that started inside the window and is still latched after it is LATCHED_TOUCH:
-     *   ignore it once, do not treat it as a new wet, and do not re-arm (that settle-loops)
-     * - not the same event as the last one (computed wet time within ±60 s)
+     * - not armed → NOT_ARMED (no notification)
+     * - arm write still in flight, or the few seconds of the clip's own disconnect → ARMING / IGNORE_WINDOW
+     * - armed and wet after that → NEW, including a touch. secsSinceWet is not used to hide it
+     *   (the plate reports about 30 s late, so a backdated start used to look like "settling")
+     * - same wet time within ±60 s → DUPLICATE
      */
     fun decide(st: State, now: Long, armPending: Boolean, ignoreUntil: Long, lastWetAt: Long?): Decision {
         if (!st.wet) return Decision.NOT_WET
         if (armPending || st.arming) return Decision.ARMING
         if (!st.armed) return Decision.NOT_ARMED
-        val at = wetAt(now, st.secs)
         if (ignoreUntil > 0 && now < ignoreUntil) return Decision.IGNORE_WINDOW
-        if (ignoreUntil > 0 && at < ignoreUntil) return Decision.LATCHED_TOUCH
+        val at = wetAt(now, st.secs)
         if (lastWetAt != null && lastWetAt > 0 && Math.abs(at - lastWetAt) <= DEDUPE_MS) return Decision.DUPLICATE
         return Decision.NEW
     }

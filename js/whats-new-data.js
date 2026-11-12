@@ -3,6 +3,53 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v46',
+    date: '2026-11-12',
+    title: 'v46 — Conditioning intake is a real quiz',
+    bullets: [
+      'Settings → Conditioning uses the same one-question quiz as the rest of the app: option cards, a progress bar, and a result card.',
+      'The same scenes are asked twice — where you are now, then where you want them to land — across underwear through thick diapers, at home, work, out, and in bed.',
+      'You can save and come back, and skip the optional feelings part. Consent is still the last step, then the diary or your saved capacity.',
+      'A profile you already saved still loads. Retaking the quiz replaces it.',
+      'Version 46.'
+    ]
+  },
+  {
+    hash: 'v45',
+    date: '2026-11-12',
+    title: 'v45 — Conditioning starts with a quiz',
+    bullets: [
+      'Settings → Conditioning is an intake quiz: where you are, where you want to go (named levels, not a bare number), what you want, and which practice to turn on. Consent is the last step.',
+      'Then a 2–3 day diary, or skip and use your capacity estimate. The summary card shows level names and a bar. Today’s practice is a short list at the same times.',
+      'My Conditioning shows up in the full session and in Natural Urge. Sips and prompts follow what you picked, and sips stay inside the drink cap.',
+      'If you already started in v44, your settings stay. The old target is shown as the nearest level, and you can take the quiz when you want.',
+      'Version 45.'
+    ]
+  },
+  {
+    hash: 'v44',
+    date: '2026-11-11',
+    title: 'v44 — Day and night control, if you opt in',
+    bullets: [
+      '☀🌙 Day and night each keep their own meter and target. Your old meter is copied across. Real accidents count only if you turn that on.',
+      'Consent, a body check, and one tap to reverse a track or stop. Game mode stays until you start conditioning.',
+      'A partial ("let some go") can show up on I need to go. A potty pass is a request — it can be denied, granted, or a compromise. Emptying on the toilet after a partial is a setting, on by default.',
+      'Log drinks with one tap. A day you skip is left blank. Recommended gear, including pads, follows your check-ins.',
+      'Version 44.'
+    ]
+  },
+  {
+    hash: 'v43',
+    date: '2026-10-29',
+    title: 'v43 — DryClip connects, and an armed wet alerts',
+    bullets: [
+      '🔗 Connect does not need a Bluetooth bond. The app uses the last clip address directly, including right after Arm, when the clip drops its link and is not advertising.',
+      '💧 Armed: a touch or a wet posts a notification. The settle latch was hiding that reading. Not armed: no notification.',
+      'The background watch stays on. It does not block the wet alert.',
+      'Version 43.'
+    ]
+  },
+  {
     hash: 'v42',
     date: '2026-10-27',
     title: 'v42 — #2 guides, urge type, tummy flag',

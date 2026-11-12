@@ -420,7 +420,8 @@
       { id: 'qzA', take: () => begin('a'), title: '🧭 Quiz A · Where you are now', purpose: `Your real-life starting point (${questions('a').length} Q, informational only).`, last: d.baseline ? `${d.baseline.level.replace(/_/g, ' ')} · control ${d.baseline.control}%` : '', impacts: 'Control baseline · program starting level', goL: '🙋 Urge', go: () => switchTab('urge'), done: !!d.a },
       { id: 'qzB', take: () => begin('b'), title: '🗺️ Quiz B · Where you want to go', purpose: `Where you’re headed (${questions('b').length} Q).`, last: d.target ? `${d.target.target.replace(/_/g, ' ')} · intensity ${d.target.intensity}/3` : '', impacts: 'Program target · traits · Campaign suggestions', goL: '🏅 Campaign', go: () => { const c = document.getElementById('campaignMount'); if (c) c.scrollIntoView({ block: 'start' }); }, done: !!d.b },
       { id: 'qzC', take: () => begin('c'), title: '🧸 Quiz C · What kind of little are you?', purpose: `Playful personality card (${questions('c').length} Q).`, last: d.cResult ? d.cResult.title : '', impacts: 'Suggested classes & cards (flavour)', goL: '🧷 Profiles', go: () => { const c = document.getElementById('pottyReportMount'); if (c) c.scrollIntoView({ block: 'start' }); }, done: !!d.c },
-      { id: 'qzCamp', take: () => window.openCampaignSetup && window.openCampaignSetup(), title: '🏅 Campaign quiz', purpose: 'Direction, pace + optional extra questions (lives in Campaign setup).', last: camp ? `Campaign ${camp.status || 'active'}${camp.prefs ? ' · ' + Object.keys(camp.prefs).length + ' extra answers' : ''}` : '', impacts: 'Campaign prefs · gates · rank direction', goL: '🏅 Campaign', go: () => { const c = document.getElementById('campaignMount'); if (c) c.scrollIntoView({ block: 'start' }); }, done: !!camp, takeL: camp ? '↺ New campaign' : '▶ Take' }
+      { id: 'qzCamp', take: () => window.openCampaignSetup && window.openCampaignSetup(), title: '🏅 Campaign quiz', purpose: 'Direction, pace + optional extra questions (lives in Campaign setup).', last: camp ? `Campaign ${camp.status || 'active'}${camp.prefs ? ' · ' + Object.keys(camp.prefs).length + ' extra answers' : ''}` : '', impacts: 'Campaign prefs · gates · rank direction', goL: '🏅 Campaign', go: () => { const c = document.getElementById('campaignMount'); if (c) c.scrollIntoView({ block: 'start' }); }, done: !!camp, takeL: camp ? '↺ New campaign' : '▶ Take' },
+      { id: 'qzIntake', take: () => { try { if (typeof switchTab === 'function') switchTab('settings'); const el = document.getElementById('setCondition'); if (el) el.open = true; if (window.BSOnboard && window.BSOnboard.startIntake) window.BSOnboard.startIntake(); } catch (e) {} }, title: '🌿 Conditioning intake', purpose: 'One scene at a time: where you are now, then the same scenes the way you want them.', last: (function () { try { const p = window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile; if (p && p.levelKey) return 'Day ' + (window.BSOnboard.levelCard(p.levelKey.day, 'day').name || '') + ' → ' + (window.BSOnboard.levelCard(p.targetKey.day, 'day').name || ''); } catch (e) {} return ''; })(), impacts: 'My Conditioning · day and night levels · methods · gear', goL: '⚙ Conditioning', go: () => { try { if (typeof switchTab === 'function') switchTab('settings'); const el = document.getElementById('setCondition'); if (el) { el.open = true; el.scrollIntoView({ block: 'start' }); } } catch (e) {} }, done: !!(function () { try { return window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().completedAt; } catch (e) { return false; } })() }
     ].concat(Object.keys(PACKS).map(id => ({ pack: id, take: () => begin(id), title: PACKS[id].title, purpose: PACKS[id].blurb, last: pk(id), done: !!pk(id),
       impacts: { voice: 'Voice (check-ups, permission denies)', board: 'Board intent (N / direction / pace)', symptoms: 'Symptom flags · roll intensity', protection: 'Gear suggestion (day / night) · stash warning', maturity: 'Tone & starting difficulty (suggestion)', nightrisk: 'Night flavour · morning check · board nights', readiness: 'Campaign length & rest-day suggestion', recap: 'Campaign rank (with your logs) · rest days' }[id] || 'Pack settings',
       goL: { voice: '🎧 Voice', board: '🎲 Board', symptoms: '🙋 Urge', protection: '🧷 Gear', maturity: '🏅 Campaign', nightrisk: '🌙 Nights', readiness: '🏅 Campaign', recap: '🏅 Campaign' }[id] || '',
@@ -509,6 +510,74 @@
     };
   }
 
-  window.BSQuiz = { applyRecap, dayKeyLocal, QA, QB, QC, PACKS, PACK_KEY, scoreC, scorePack, C_TYPES, questions, LEVELS, SYMPTOMS, load, save, loadPacks, savePacks, scoreA, scoreB, buildProgram, personality, recommend, finish, prefillFromCalendar, render, begin };
+  /** Same one-question screen as Quiz A/B/C: progress bar, option cards, Back / Next. */
+  function runFlow(spec) {
+    spec = spec || {};
+    const m = typeof document !== 'undefined' ? document.getElementById(spec.mountId || 'conditioningMount') : null;
+    if (!m) return { ok: false, reason: 'mount' };
+    const qs = (typeof spec.questions === 'function' ? spec.questions() : spec.questions) || [];
+    const state = { i: Math.max(0, spec.startAt || 0), ans: Object.assign({}, spec.answers || {}), skipped: Object.assign({}, spec.skipped || {}), gate: null };
+    const persist = () => { try { if (spec.onSave) spec.onSave({ i: state.i, ans: state.ans, skipped: state.skipped }); } catch (e) {} };
+    const secOf = i => (qs[i] && qs[i].section) || '';
+    const paint = () => {
+      if (state.i >= qs.length) { if (spec.onFinish) spec.onFinish(state.ans, { skipped: state.skipped }); return; }
+      const q = qs[state.i];
+      const sec = q.section || '';
+      const first = state.i === 0 || secOf(state.i - 1) !== sec;
+      if (q.optional && first && !state.skipped[sec] && state.gate !== sec) {
+        const n = qs.filter(x => x.section === sec).length;
+        m.innerHTML = `<h2 style="margin:0 0 6px;">${esc(spec.title || 'Quiz')}</h2>
+          <div class="cal-legend">${esc(q.step || sec)} · optional · ${state.i + 1} / ${qs.length}</div>
+          <div class="quiz-progress"><i style="width:${Math.round(state.i / Math.max(1, qs.length) * 100)}%"></i></div>
+          <div class="quiz-q">${esc(q.step || 'Optional')}</div>
+          <div class="cal-legend">${n} questions in this part. Skip it, or answer them.</div>
+          <div class="quiz-opts"><button type="button" id="qzEnter">I'll answer these</button><button type="button" id="qzSkipSec">Skip this part</button></div>
+          <div class="quiz-nav"><button type="button" id="qzBack">${state.i ? '← Back' : '✕ Cancel'}</button><button type="button" id="qzSave">Save and resume later</button></div>`;
+        m.querySelector('#qzEnter').onclick = () => { state.gate = sec; paint(); };
+        m.querySelector('#qzSkipSec').onclick = () => { state.skipped[sec] = true; while (state.i < qs.length && secOf(state.i) === sec) state.i++; state.gate = null; persist(); paint(); };
+        m.querySelector('#qzSave').onclick = () => { persist(); if (spec.onPause) spec.onPause(state); };
+        m.querySelector('#qzBack').onclick = () => { if (state.i) { state.i--; state.gate = null; paint(); } else if (spec.onCancel) spec.onCancel(); };
+        return;
+      }
+      const cur = state.ans[q.id];
+      const on = v => q.multi ? (cur || []).indexOf(v) >= 0 : cur === v;
+      m.innerHTML = `<h2 style="margin:0 0 6px;">${esc(spec.title || 'Quiz')}</h2>
+        <div class="cal-legend">${esc(q.step || '')} · ${state.i + 1} / ${qs.length}</div>
+        <div class="quiz-progress"><i style="width:${Math.round((state.i + 1) / qs.length * 100)}%"></i></div>
+        <div class="quiz-q">${esc(q.q)}</div>
+        <div class="quiz-opts">${(q.opts || []).map((x, k) => `<button type="button" data-k="${k}" class="${on(x.v) ? 'on' : ''}">${esc(x.l)}</button>`).join('')}</div>
+        <div class="quiz-nav"><button type="button" id="qzBack">${state.i ? '← Back' : '✕ Cancel'}</button><button type="button" id="qzSave">Save and resume later</button>${q.multi ? `<button type="button" id="qzNext" style="background:#55efc4;color:#000;font-weight:bold;">${state.i === qs.length - 1 ? '✓ See my result' : 'Next →'}</button>` : ''}</div>`;
+      m.querySelectorAll('[data-k]').forEach(b => {
+        b.onclick = () => {
+          const v = q.opts[+b.dataset.k].v;
+          if (q.multi) {
+            let a = state.ans[q.id] || [];
+            if (v === 'none') a = ['none'];
+            else { a = a.filter(x => x !== 'none'); a = a.indexOf(v) >= 0 ? a.filter(x => x !== v) : a.concat([v]); }
+            state.ans[q.id] = a;
+            persist(); paint();
+          } else {
+            state.ans[q.id] = v;
+            state.i++; state.gate = null; persist(); paint();
+          }
+        };
+      });
+      const back = m.querySelector('#qzBack');
+      if (back) back.onclick = () => {
+        if (!state.i) { if (spec.onCancel) spec.onCancel(); return; }
+        state.i--; state.gate = null;
+        while (state.i > 0 && state.skipped[secOf(state.i)]) state.i--;
+        paint();
+      };
+      const saveBtn = m.querySelector('#qzSave');
+      if (saveBtn) saveBtn.onclick = () => { persist(); if (spec.onPause) spec.onPause(state); };
+      const next = m.querySelector('#qzNext');
+      if (next) next.onclick = () => { state.i++; state.gate = null; persist(); paint(); };
+    };
+    paint();
+    return { ok: true, state: state };
+  }
+
+  window.BSQuiz = { applyRecap, dayKeyLocal, QA, QB, QC, PACKS, PACK_KEY, scoreC, scorePack, C_TYPES, questions, LEVELS, SYMPTOMS, load, save, loadPacks, savePacks, scoreA, scoreB, buildProgram, personality, recommend, finish, prefillFromCalendar, render, begin, runFlow };
   window.renderMyProfile = render;
 })();

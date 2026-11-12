@@ -9,8 +9,10 @@
        from the alarm's scheduled fire time (default 10 … 15 min).
        On return we compute elapsed time and either still offer Run-to-potty
        (with the remaining time) or declare the accident.
-   Control comes from the session's continence level (currentContinenceLevel,
-   Settings/Session → "Continence level"): fully_continent = 1.0 … fully_incontinent = 0.0.
+   Control comes from the session's continence level while you are in game mode.
+   In conditioning mode the window follows the day or night control meter
+   (BSControl.continenceLevel / controlFraction). When the window runs out,
+   the sim counts an accident. This is not a prompt to hold for real.
    Bedwetting mode: never starts a grace window and never auto-declares anything.
    Pure helpers are exposed on window.BSGrace for tests.
    =========================== */
@@ -40,6 +42,9 @@
 
   /** 0 (no control) … 1 (full control) from the continence level. */
   function controlValue(level) {
+    if (level == null && window.BSControl && window.BSControl.mode && window.BSControl.mode() === 'conditioning' && window.BSControl.controlFraction) {
+      try { return window.BSControl.controlFraction(window.BSControl.trackFor(Date.now())); } catch (e) {}
+    }
     const lv = level || (typeof currentContinenceLevel !== 'undefined' ? currentContinenceLevel : 'mostly_continent');
     const list = (typeof CONTINENCE_LEVELS !== 'undefined') ? CONTINENCE_LEVELS
       : ['fully_continent', 'mostly_continent', 'somewhat_incontinent', 'mostly_incontinent', 'fully_incontinent'];
@@ -183,8 +188,8 @@
     const s = settings();
     const c = controlValue();
     m.innerHTML = `<h2 style="margin:0 0 6px;">🏃 Run-to-potty grace</h2>
-      <p class="section-desc">When a main alarm fires you must respond (🏃 Run to potty / Reveal / Skip) before the grace window ends, or an accident is declared automatically.
-      The window scales with your continence level (current control: <b>${Math.round(c * 100)}%</b>). Never used in Bedwetting mode.</p>
+      <p class="section-desc">When a main alarm fires you must respond (🏃 Run to potty / Reveal / Skip) before the grace window ends, or the sim counts an accident. This is not a prompt to hold for real.
+      The window scales with your continence level in game mode, and with the control meter in conditioning (current control: <b>${Math.round(c * 100)}%</b>). Never used in Bedwetting mode.</p>
       <label class="toggle-row"><span>Auto-accident when grace runs out</span><input type="checkbox" id="grEnabled" ${s.enabled ? 'checked' : ''}></label>
       <div class="cal-row"><label class="fld"><span>App open: low control (s)</span><input id="grFgMin" type="number" min="5" max="600" value="${s.fgMinSec}"></label>
         <label class="fld"><span>App open: high control (s)</span><input id="grFgMax" type="number" min="5" max="900" value="${s.fgMaxSec}"></label></div>

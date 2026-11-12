@@ -48,7 +48,17 @@
     o = o || {}; const rng = o.rng || Math.random, s = settings();
     const u = Math.max(0, Math.min(10, Math.round(+o.urgency || 0)));
     const li = o.level != null ? o.level : levelIdx();
-    const chance = Math.max(5, Math.min(95, ALLOW[li] + (u - 5) * 4));
+    let base = ALLOW[Math.max(0, Math.min(ALLOW.length - 1, li))];
+    if (o.level == null && o.band == null && window.BSControl && window.BSControl.band) {
+      try {
+        const b = window.BSControl.level(window.BSControl.band('night'));
+        if (b && b.allow != null) base = b.allow;
+      } catch (e) {}
+    } else if (o.band && window.BSControl && window.BSControl.level) {
+      const b = window.BSControl.level(o.band);
+      if (b && b.allow != null) base = b.allow;
+    }
+    const chance = Math.max(5, Math.min(95, base + (u - 5) * 4));
     const allowed = rng() * 100 < chance;
     const sips = s.sipsMin + Math.floor(rng() * (s.sipsMax - s.sipsMin + 1));
     return { outcome: allowed ? 'allowed' : 'stay', chance, urgency: u, sips: allowed ? Math.min(SIPS_CAP, sips) : 0 };
@@ -235,7 +245,8 @@
         <button id="nnDoRoll" class="nn-big nn-primary">🎲 Roll</button><button id="nnBack" class="nn-btn">◀ Back</button>`;
     } else if (panel === 'stay') {
       body = `<div class="nn-result stay">🛌 Stay in bed — try to sleep.</div>${lastRoll ? `<div class="nn-muted">${lastRoll.chance}% chance at urgency ${lastRoll.urgency}/10.</div>` : ''}
-        <button id="nnSleep" class="nn-big nn-primary">😴 Back to sleep</button>`;
+        <button id="nnSleep" class="nn-big nn-primary">😴 Back to sleep</button>
+        <button id="nnGetUp" class="nn-big">Need to get up anyway? That's fine.</button>`;
     } else if (panel === 'check') {
       body = `<h3>🔎 Log check</h3>${satSel('nnCS', 0)}${urgSel('nnCU', 5)}
         <div class="nn-fld"><span>Did it leak?</span>${seg('nnCL', [['1', 'Yes'], ['0', 'No']], '0')}</div>
@@ -266,6 +277,15 @@
     on('nnOptDrink', () => { panel = 'drink'; renderNight(); });
     on('nnBack', () => { panel = null; renderNight(); });
     on('nnSleep', () => { sleep(); panel = null; lastRoll = null; renderNight(); });
+    on('nnGetUp', () => {
+      const x = get(); if (!x) return;
+      x.pendingRoll = { outcome: 'allowed', sips: 0, chance: 100, urgency: 0, real: true };
+      x.timeline.push({ k: 'roll', ts: Date.now(), outcome: 'real_override' });
+      put(x);
+      try { window.BSControl && window.BSControl.event('real_override', { track: 'night', source: 'real', context: 'bed' }); } catch (e) {}
+      try { window.BSSymptoms && window.BSSymptoms.noteRealOverride(); } catch (e) {}
+      panel = null; lastRoll = null; renderNight();
+    });
     on('nnDoRoll', () => { lastRoll = doRoll(+o.querySelector('#nnRU').value); panel = lastRoll.outcome === 'stay' ? 'stay' : null; renderNight(); });
     on('nnPeeDone', () => { confirmPee(); panel = null; renderNight(); });
     on('nnSkipPee', () => { const x = get(); x.pendingRoll = null; put(x); panel = null; renderNight(); });

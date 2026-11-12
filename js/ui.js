@@ -496,8 +496,12 @@ function scheduleNextHydration() {
   if (typeof isBedwettingSilent === 'function' && isBedwettingSilent()) { hydrationEndAt = null; return; }
 
   const runtime = customProfileRuntime;
-  const minHydration = runtime?.hydrationMin ?? 6;
-  const maxHydration = runtime?.hydrationMax ?? 12;
+  let minHydration = runtime?.hydrationMin ?? 6;
+  let maxHydration = runtime?.hydrationMax ?? 12;
+  if (profileMode === 'conditioning' && window.BSOnboard && window.BSOnboard.sessionPlan) {
+    const plan = window.BSOnboard.sessionPlan();
+    if (plan && plan.hydration) { minHydration = plan.hydration.min; maxHydration = plan.hydration.max; }
+  }
   const minutes = randInt(minHydration, maxHydration);
   const ms = minutes * 60000;
 
@@ -625,14 +629,20 @@ function testSelectedGuide() {
 }
 
 function triggerHydrationEvent(force = false) {
+  if (window.BSSymptoms && window.BSSymptoms.paused && window.BSSymptoms.paused()) return;
   if (!force && window.hydrationEnabled === false) return;
   if (!force && typeof isBedwettingSilent === 'function' && isBedwettingSilent()) return;
   // 1. Define Intensity from config
   const cfg = getProfileConfig();
-  const [min, max] = cfg.hydrationSips;
+  let [min, max] = cfg.hydrationSips;
+  if (profileMode === 'conditioning' && window.BSOnboard && window.BSOnboard.sessionPlan) {
+    const plan = window.BSOnboard.sessionPlan();
+    if (plan && plan.hydration && plan.hydration.sips) { min = plan.hydration.sips[0]; max = plan.hydration.sips[1]; }
+  }
 
   // 2. Roll Content
   let count = randInt(min, max);
+  if (!(count > 0)) return;
   // v11: safety cap — sips count as ~15 ml, prompt ≤250 ml, ≤1 L/day, ≥2 h apart
   if (window.BSSafety) { const c = window.BSSafety.capSips(count, { src: 'hydration' }); if (!c.ok) { logToOutput(`<span style="color:#888">💧 Drink alarm skipped (safety cap: ${c.reason === 'spacing' ? 'max one every 2 h' : 'daily limit reached'}).</span>`); return; } count = Math.min(count, c.sips); }
   const unitType = "sips";
@@ -640,12 +650,12 @@ function triggerHydrationEvent(force = false) {
 
   const templates = [
     `<b>Hydration Order:</b> Take <b>${count} ${unitType}</b> of your <b>${drinkType}</b> immediately.`,
-    `<b>Drink Check:</b> Time for <b>${count} ${unitType}</b> of your <b>${drinkType}</b>. No excuses.`,
+    `<b>Drink check:</b> Time for <b>${count} ${unitType}</b> of your <b>${drinkType}</b>, if you're thirsty.`,
     `<b>Refill Request:</b> Pour yourself <b>${drinkType}</b> and take <b>${count} ${unitType}</b> now.`,
-    `<b>Forced Hydration:</b> You're looking thirsty. <b>${count} ${unitType}</b> of <b>${drinkType}</b>, please.`,
+    `<b>Sip time:</b> <b>${count} ${unitType}</b> of <b>${drinkType}</b> if you're thirsty.`,
     `<b>Bladder Maintenance:</b> Feed the cycle with <b>${count} ${unitType}</b> of <b>${drinkType}</b>.`,
     `<b>Top Up:</b> Ensure the flow continues. <b>${count} ${unitType}</b> of <b>${drinkType}</b>.`,
-    `<b>Liquid Intake:</b> <b>${count} ${unitType}</b> of <b>${drinkType}</b>. Keep the pressure rising.`
+    `<b>Liquid Intake:</b> <b>${count} ${unitType}</b> of <b>${drinkType}</b> if you want them.`
   ];
 
   const msg = pick(templates);
@@ -677,6 +687,14 @@ function startSession(isResume = false) {
   updateSessionTimerDisplay();
   if (window.hydrationEnabled === undefined) window.hydrationEnabled = true;
   $('output').textContent = isResume ? "Session Resumed." : "Session Started. Bio-Logger Active.";
+  if (!isResume && profileMode === 'conditioning' && window.BSOnboard && window.BSOnboard.sessionPlan) {
+    try {
+      const plan = window.BSOnboard.sessionPlan();
+      if (plan && plan.prompts && plan.prompts.length) {
+        logToOutput('<b>My Conditioning</b><br>' + plan.prompts.map(p => '• ' + p.text).join('<br>') + '<br><span style="color:#888">Sip reminders stay inside the drink cap. Skip one if you are not thirsty.</span>');
+      }
+    } catch (e) {}
+  }
 
   // Hide Start Session button while a session is running
   if ($('btnStartSession')) $('btnStartSession').style.display = 'none';
@@ -1596,6 +1614,10 @@ function selectProfileFromModal(profile) {
   if (typeof applySelectedProfile === 'function') {
     applySelectedProfile();
   }
+  if (profile === 'conditioning' && window.BSOnboard && window.BSOnboard.sessionPlan) {
+    const plan = window.BSOnboard.sessionPlan();
+    customProfileRuntime = { baseProfile: 'conditioning', mainMin: plan.timers.min, mainMax: plan.timers.max, hydrationMin: plan.hydration.min, hydrationMax: plan.hydration.max };
+  }
   
   // For babysitter, show diapering setup instead of closing the modal
   if (profile === 'babysitter') {
@@ -1980,6 +2002,22 @@ function showProfileSetupModal(profile) {
     setTimeout(() => showOmorashiSetupModal(), 100);
     modal.remove();
     return;
+  case 'conditioning': {
+    const plan = window.BSOnboard && window.BSOnboard.sessionPlan ? window.BSOnboard.sessionPlan() : null;
+    const lines = plan && plan.prompts && plan.prompts.length ? plan.prompts.map(p => `<li>${p.text}</li>`).join('') : '<li>Take the intake quiz in Settings → Conditioning. Until then, this session uses a light timer.</li>';
+    const tasks = window.BSOnboard && window.BSOnboard.todayPlan ? window.BSOnboard.todayPlan() : [];
+    const today = tasks.length ? tasks.map(t => `<li>${t.cue ? t.cue + ' — ' : ''}${t.text}</li>`).join('') : '';
+    content = `
+      <div style="width:500px; max-width:92vw; background:#151923; padding:30px; border-radius:15px; border:2px solid #55efc4; text-align:left;">
+        <h2 style="color:#55efc4; margin:0 0 10px 0;">🌿 My Conditioning</h2>
+        <p style="color:#cdd7e6; font-size:13px; margin:0 0 12px 0; line-height:1.6;">Timers and sip reminders follow the methods you opted into. Sips stay inside the drink cap. A real need still ends a prompt.</p>
+        ${today ? `<div style="color:#55efc4; font-weight:bold; margin-bottom:6px;">Today's practice</div><ul style="color:#cdd7e6; font-size:13px;">${today}</ul>` : ''}
+        <div style="color:#55efc4; font-weight:bold; margin-bottom:6px;">This session</div>
+        <ul style="color:#cdd7e6; font-size:13px;">${lines}</ul>
+        <button onclick="confirmProfileSetup('conditioning')" style="width:100%; padding:12px; background:#55efc4; color:#000; font-weight:bold; border:none; border-radius:8px; cursor:pointer;">▶ Begin Session</button>
+      </div>`;
+    break;
+  }
   }
   
   modal.innerHTML = content;
@@ -2036,6 +2074,16 @@ function confirmProfileSetup(profile) {
       setupData.difficulty = $('gauntletDifficulty').value || 'medium';
       setupData.intervalMin = parseInt($('gauntletIntervalMin').value) || 5;
       setupData.intervalMax = parseInt($('gauntletIntervalMax').value) || 20;
+      break;
+    case 'conditioning':
+      if (window.BSOnboard && window.BSOnboard.sessionPlan) {
+        const plan = window.BSOnboard.sessionPlan();
+        customProfileRuntime = { baseProfile: 'conditioning', mainMin: plan.timers.min, mainMax: plan.timers.max, hydrationMin: plan.hydration.min, hydrationMax: plan.hydration.max };
+        setupData.mainMin = plan.timers.min;
+        setupData.mainMax = plan.timers.max;
+        setupData.sipMin = plan.hydration.sips[0];
+        setupData.sipMax = plan.hydration.sips[1];
+      }
       break;
   }
   

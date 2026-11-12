@@ -72,7 +72,10 @@
       <div class="cal-legend">No drink or spasm prompts. Rolls, accidents and changes are collected into one summary.</div>
       ${(window.BSHub && window.BSHub.naturalPlayOn && window.BSHub.naturalPlayOn()) ? '<div class="cal-legend">Natural / office play is on: protection prompts are a restroom trip or a hold (≤20 min).</div>' : ''}
       <div class="actions"><button class="ok" id="nsGo">▶ Start</button><button data-x>Cancel</button></div>`);
-    const src = document.getElementById('suProf'); w.querySelector('#nsProf').innerHTML = src ? src.innerHTML : `<option value="match">Match my profile</option>`; w.querySelector('#nsProf').value = st.profileId;
+    const src = document.getElementById('suProf');
+    const copied = src && src.innerHTML && /conditioning/.test(src.innerHTML) ? src.innerHTML : '';
+    w.querySelector('#nsProf').innerHTML = copied || (S.profileOptions ? S.profileOptions(st.profileId) : `<option value="match">Match my profile</option><option value="conditioning">My Conditioning</option>`);
+    w.querySelector('#nsProf').value = st.profileId;
     w.querySelector('[data-x]').onclick = () => w.remove();
     w.querySelector('#nsGo').onclick = () => {
       const carried = {}; S.SPARE.forEach(k => carried[k] = +w.querySelector('#nsC_' + k).value || 0);
