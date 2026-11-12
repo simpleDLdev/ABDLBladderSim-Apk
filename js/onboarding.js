@@ -323,7 +323,14 @@
   function finishQuiz(draft) {
     draft = draft || {};
     if (!draft.adult || !draft.understand) return { ok: false, reason: 'boxes' };
-    const start = scoreNow(draft);
+    let start = scoreNow(draft);
+    if (draft.intakeScores && draft.intakeScores.day != null && draft.intakeScores.night != null) {
+      const d = draft.intakeScores.day, n = draft.intakeScores.night;
+      const b3 = x => x >= 75 ? 0 : x >= 50 ? 1 : x >= 25 ? 2 : 3;
+      draft.day = Object.assign({ urgency: b3(d), suddenness: b3(d), hold: b3(d), trips: b3(d), leaks30: b3(d) }, draft.day || {});
+      draft.night = Object.assign({ wetNights: Math.round((1 - n / 100) * 7), wake: b3(n), depth: 1 }, draft.night || {});
+      start = { day: d, night: n, dayKey: bandOf(d), nightKey: bandOf(n) };
+    }
     const dayDir = draft.dayDir === 'A' || draft.dayDir === 'B' ? draft.dayDir : 'off';
     const nightDir = draft.nightDir === 'A' || draft.nightDir === 'B' ? draft.nightDir : 'off';
     const dayLevel = dayDir === 'off' ? start.dayKey : (draft.dayLevel || start.dayKey);
@@ -339,7 +346,8 @@
       intensity: draft.intensity || 'steady',
       timeframe: draft.timeframe || 'open',
       methods: { day: methods.day || [], night: methods.night || [] },
-      gear: recommendGear(draft)
+      gear: recommendGear(draft),
+      intake: draft.intakeScores || null
     };
     const s = load();
     const habits = s.habits && s.habits.log ? s.habits : freshHabits();
@@ -649,13 +657,147 @@
     migrateV44();
     const s = load();
     const step = s.quizStep || 'intro';
-    const quizSteps = { intro: 1, day: 1, night: 1, gear: 1, goalDay: 1, goalNight: 1, want: 1, methods: 1, consent: 1, retake: 1 };
+    if (step === 'flow') return;
     if (step === 'edit') { renderEdit(m, s); return; }
     if (step === 'calib') { renderCalib(m, s); return; }
-    if (quizSteps[step] && !(s.completedAt && s.calibration && s.calibration.choice && step === 'intro')) { renderQuiz(m, s, step === 'retake' ? 'day' : step); return; }
+    if (step === 'result') { renderResult(m, s); return; }
+    if (step === 'consent') { renderConsent(m, s); return; }
+    if (step === 'intake' || step === 'retake') { renderIntakeHome(m, s); return; }
+    if (s.completedAt && s.calibration && s.calibration.choice) { renderSummary(m, s); return; }
     if (s.completedAt && (!s.calibration || !s.calibration.choice)) { renderCalib(m, s); return; }
-    if (s.profile) { renderSummary(m, s); return; }
-    renderQuiz(m, s, 'intro');
+    renderIntakeHome(m, s);
+  }
+  function renderIntakeHome(m, s) {
+    const resume = s.intakeResume && s.intakeResume.ans;
+    const n = window.BSIntake && window.BSIntake.questions ? window.BSIntake.questions().length : 0;
+    m.innerHTML = `${banner(s)}<div class="quiz-hub-list"><div class="quiz-hub-card" data-qcard="qzIntake">
+      <div class="qh-title">🌿 Conditioning intake</div>
+      <div class="cal-legend">One question at a time. First, where you are. Then the same scenes, the way you want them. About ${n} questions, with a progress bar. You can save and come back. One part at the end is optional.</div>
+      <div class="qh-last">${resume ? 'Saved partway through.' : (s.completedAt ? 'Taken. Retake to overwrite this profile.' : '<span class="muted">Not taken</span>')}</div>
+      <div class="qh-imp"><b>Impacts:</b> My Conditioning · day and night levels · methods · gear</div>
+      <div class="quiz-nav">
+        ${resume ? '<button type="button" id="obResume">▶ Resume</button>' : ''}
+        <button type="button" id="obStart" style="background:#55efc4;color:#000;font-weight:bold;">${s.completedAt || resume ? '↺ Start over' : '▶ Take'}</button>
+      </div></div></div>`;
+    const go = fresh => {
+      const saved = !fresh && s.intakeResume ? s.intakeResume : null;
+      startIntake(saved);
+    };
+    const r = m.querySelector('#obResume'); if (r) r.onclick = () => go(false);
+    m.querySelector('#obStart').onclick = () => go(true);
+  }
+  function startIntake(saved) {
+    if (!window.BSQuiz || !window.BSQuiz.runFlow || !window.BSIntake) return { ok: false, reason: 'quiz' };
+    const s = load();
+    s.quizStep = 'flow';
+    if (!saved) s.intakeResume = null;
+    save(s);
+    const qs = window.BSIntake.questions();
+    return window.BSQuiz.runFlow({
+      mountId: 'conditioningMount',
+      title: '🌿 Conditioning intake',
+      questions: qs,
+      startAt: saved ? window.BSIntake.resumeIndex(saved, qs) : 0,
+      answers: saved && saved.ans ? saved.ans : {},
+      skipped: saved && saved.skipped ? saved.skipped : {},
+      onSave: st => {
+        const cur = load();
+        cur.intakeResume = { i: st.i, ans: st.ans, skipped: st.skipped, at: Date.now() };
+        cur.quizStep = 'flow';
+        save(cur);
+      },
+      onPause: () => { const cur = load(); cur.quizStep = 'intake'; save(cur); render(); },
+      onCancel: () => { const cur = load(); cur.quizStep = cur.completedAt ? 'summary' : 'intake'; if (cur.quizStep === 'summary' && !(cur.calibration && cur.calibration.choice)) cur.quizStep = 'intake'; save(cur); render(); },
+      onFinish: ans => {
+        const cur = load();
+        cur.pendingIntake = ans;
+        cur.intakeResume = null;
+        cur.quizStep = 'result';
+        save(cur);
+        render();
+      }
+    });
+  }
+  function renderResult(m, s) {
+    const ans = s.pendingIntake;
+    if (!ans || !window.BSIntake) { s.quizStep = 'intake'; save(s); renderIntakeHome(m, load()); return; }
+    const sc = window.BSIntake.scoreIntake(ans);
+    const b3 = x => x >= 75 ? 0 : x >= 50 ? 1 : x >= 25 ? 2 : 3;
+    const gear = recommendGear({
+      gear: window.BSIntake.wornGear(ans),
+      day: { urgency: b3(sc.dayNow), suddenness: b3(sc.dayNow), hold: b3(sc.dayNow), trips: b3(sc.dayNow), leaks30: b3(sc.dayNow) },
+      night: { wetNights: Math.round((1 - (sc.nightNow || 0) / 100) * 7), wake: b3(sc.nightNow || 0), depth: 1 }
+    });
+    const rec = gear.recommended || {};
+    const line = (track, titleNow, titleWant, keyNow, keyWant) => {
+      const card = levelCard(keyWant, track);
+      return `<div class="quiz-card"><div class="calib-big">${track === 'day' ? 'Day' : 'Night'} · ${esc(titleNow)} → ${esc(titleWant)}</div>
+        <div class="cal-legend">${esc(card.text)}</div></div>`;
+    };
+    const methodLine = ids => (ids || []).map(id => { const x = methodById(id); return x ? x.title : id; }).join(', ') || 'None opted in';
+    m.innerHTML = `<h2 style="margin:0 0 6px;">Your result</h2>
+      <div class="quiz-progress"><i style="width:100%"></i></div>
+      ${line('day', sc.titles.dayNow, sc.titles.dayWant, sc.dayKey, sc.dayTargetKey)}
+      ${line('night', sc.titles.nightNow, sc.titles.nightWant, sc.nightKey, sc.nightTargetKey)}
+      <div class="quiz-card"><div class="calib-big">Gear this points to</div>
+        <div class="camp-goal">Day: ${esc(gearName(rec.day))} · Night: ${esc(gearName(rec.night))}</div>
+        <div class="cal-legend">Home ${esc(gearName(gear.worn.home))}, work ${esc(gearName(gear.worn.work))}, out ${esc(gearName(gear.worn.out))}, bed ${esc(gearName(gear.worn.night))}.</div></div>
+      <div class="quiz-card"><div class="calib-big">Practice</div>
+        <div class="camp-goal">Day (${esc(sc.dayDir)}): ${esc(methodLine(sc.methods.day))}</div>
+        <div class="camp-goal">Night (${esc(sc.nightDir)}): ${esc(methodLine(sc.methods.night))}</div></div>
+      <div class="quiz-nav"><button type="button" id="obBackHome">← Back</button><button type="button" id="obToConsent" style="background:#55efc4;color:#000;font-weight:bold;">Consent →</button></div>`;
+    m.querySelector('#obBackHome').onclick = () => { const n = load(); n.quizStep = 'intake'; save(n); render(); };
+    m.querySelector('#obToConsent').onclick = () => { const n = load(); n.quizStep = 'consent'; save(n); render(); };
+  }
+  function renderConsent(m, s) {
+    m.innerHTML = `<div class="quiz-card"><div class="calib-big">Consent</div>
+      <div class="cal-legend">Last step. Conditioning is meant to change real habits in the direction your answers landed on. A real-need button stays free. The body check can pause the mode. Reverse and Stop stay in these settings.</div>
+      <label class="urge-lbl"><input type="checkbox" id="obAdult"> I'm an adult</label>
+      <label class="urge-lbl"><input type="checkbox" id="obKnow"> I understand this may change my real control</label>
+      <label class="urge-lbl"><input type="checkbox" id="obRealD"> Count my real day results toward progress</label>
+      <label class="urge-lbl"><input type="checkbox" id="obRealN"> Count my real night results toward progress</label>
+      <label class="urge-lbl"><input type="checkbox" id="obFinish" checked> After a partial, remind me to finish on the toilet</label>
+      <div class="cal-legend">Fully emptying helps avoid retention and UTIs. This is a reminder, not a rule.</div>
+      <label class="urge-lbl">Partial releases per day <input id="obCap" type="number" min="0" max="12" value="4" style="width:56px"></label>
+      <div id="obMsg" class="cal-legend"></div>
+      <div class="quiz-nav"><button type="button" id="obBackRes">← Result</button><button type="button" id="obSave" style="background:#55efc4;color:#000;font-weight:bold;">Save my profile</button></div></div>`;
+    m.querySelector('#obBackRes').onclick = () => { const n = load(); n.quizStep = 'result'; save(n); render(); };
+    m.querySelector('#obSave').onclick = () => {
+      const r = applyIntake(s.pendingIntake, {
+        adult: m.querySelector('#obAdult').checked, understand: m.querySelector('#obKnow').checked,
+        realDay: m.querySelector('#obRealD').checked, realNight: m.querySelector('#obRealN').checked,
+        finishOnToilet: m.querySelector('#obFinish').checked, dailyCap: +m.querySelector('#obCap').value
+      });
+      const msg = m.querySelector('#obMsg');
+      if (!r.ok) { if (msg) msg.textContent = 'Both boxes are required.'; return; }
+      render();
+    };
+  }
+  function applyIntake(ans, consent) {
+    consent = consent || {};
+    if (!window.BSIntake) return { ok: false, reason: 'intake' };
+    const sc = window.BSIntake.scoreIntake(ans || {});
+    const worn = window.BSIntake.wornGear(ans || {});
+    const r = finishQuiz({
+      adult: !!consent.adult, understand: !!consent.understand,
+      realDay: !!consent.realDay, realNight: !!consent.realNight,
+      finishOnToilet: consent.finishOnToilet !== false,
+      dailyCap: consent.dailyCap == null ? 4 : consent.dailyCap,
+      intakeScores: { day: sc.dayNow, night: sc.nightNow, dayWant: sc.dayWant, nightWant: sc.nightWant },
+      dayDir: sc.dayDir, nightDir: sc.nightDir,
+      dayLevel: sc.dayTargetKey, nightLevel: sc.nightTargetKey,
+      goals: sc.goals, methods: sc.methods,
+      intensity: (ans && ans.intensity) || 'steady',
+      timeframe: (ans && ans.timeframe) || 'open',
+      gear: worn
+    });
+    if (!r.ok) return r;
+    const s = load();
+    s.pendingIntake = null;
+    s.intakeAnswers = ans;
+    s.quizStep = 'calib';
+    save(s);
+    return r;
   }
   function banner(s) {
     if (!(s.needsQuiz && s.migratedFromV44 && s.profile)) return '';
@@ -933,7 +1075,7 @@
         render(); return;
       }
       if (act === 'retake') {
-        s.quizStep = 'day';
+        s.quizStep = 'intake';
         s.draft = Object.assign({ day: {}, night: {}, gear: {}, goals: s.profile.goals || [], intensity: s.profile.intensity, timeframe: s.profile.timeframe }, prefillFromQuiz() || {});
         save(s); render(); return;
       }
@@ -956,6 +1098,7 @@
   try { migrateV44(); } catch (e) {}
   window.BSOnboard = {
     KEY, LIFE, GOALS, METHODS, load, save, scoreNow, scoreDay, scoreNight, bandOf, midOf, levelCard, defaultMethods,
+    startIntake, applyIntake,
     prefillFromQuiz, sleepHint, recommendGear, metricsFrom, finishQuiz, chooseCalib, capacityEstimate, updateProfile,
     migrateV44, playProfile, pickerOption, rollMods, sessionPlan, capSessionMl, todayPlan, logBehaviour,
     considerPromotion, nightAPoints, weeklyReview, onCheckIn, logDiary, diaryMetrics, progress, cuesFor, render
