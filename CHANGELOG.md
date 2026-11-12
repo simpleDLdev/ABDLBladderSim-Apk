@@ -1,5 +1,15 @@
 # Changelog
 
+## v46 — 2026-11-12
+
+Version name **46**, version code **46**.
+
+- The conditioning intake uses the same quiz screen as the other quizzes: one question, option cards, a progress bar, and a result card. It is no longer a separate form.
+- About 57 questions. The same scenes are asked twice — where you are now, then where you want that scene to land — across gear, place, and urge. The gap sets each track's level, target, and practice.
+- Wetting in thick gear counts less toward low control than the same ending in underwear. You can save and resume, and skip the optional feelings section.
+- The result card names the day and night result, the gear it points to, and the practice, then consent, then the diary-or-skip baseline. A v45 profile still loads. Retaking overwrites it.
+- The intake is also on the quiz hub.
+
 ## v45 — 2026-11-12
 
 Version name **45**, version code **45**.

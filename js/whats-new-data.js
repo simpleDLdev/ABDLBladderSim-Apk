@@ -3,6 +3,18 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v46',
+    date: '2026-11-12',
+    title: 'v46 — Conditioning intake is a real quiz',
+    bullets: [
+      'Settings → Conditioning uses the same one-question quiz as the rest of the app: option cards, a progress bar, and a result card.',
+      'The same scenes are asked twice — where you are now, then where you want them to land — across underwear through thick diapers, at home, work, out, and in bed.',
+      'You can save and come back, and skip the optional feelings part. Consent is still the last step, then the diary or your saved capacity.',
+      'A profile you already saved still loads. Retaking the quiz replaces it.',
+      'Version 46.'
+    ]
+  },
+  {
     hash: 'v45',
     date: '2026-11-12',
     title: 'v45 — Conditioning starts with a quiz',

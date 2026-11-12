@@ -120,7 +120,7 @@ ok(N.load().acceptedAt === 1700000000000 && N.realProgress('day') === true && N.
 ok(C.trackState('day').target === 28 && C.trackState('night').target === 88, 'v44 targets stay on the meters');
 
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "45"/.test(g) && /versionCode 45/.test(g), 'version 45');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 45 && +g.match(/versionCode (\d+)/)[1] >= 45, 'version at least 45');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v45 onboarding tests passed');
