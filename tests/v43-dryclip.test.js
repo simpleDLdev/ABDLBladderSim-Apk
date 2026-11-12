@@ -39,7 +39,7 @@ ok(!/at < ignoreUntil/.test(proto) && /POST_ARM_SUPPRESS_MS = 4_000L/.test(proto
 ok(/fun testWet/.test(plug) && /id="dcTestWet"/.test(js) && /function testWet/.test(js), 'Test wet is on the DryClip panel');
 ok(/clipboard\.writeText/.test(js) && /dcExport/.test(js), 'Export log still copies to the clipboard');
 ok(DC.KEY === 'bs_dryclip_v1', 'storage key unchanged');
-ok(read('android/app/build.gradle').includes('versionName "43"') && read('android/app/build.gradle').includes('versionCode 43'), 'version 43');
+ok(/versionName "(\d+)"/.test(read('android/app/build.gradle')) && /versionCode (\d+)/.test(read('android/app/build.gradle')) && +read('android/app/build.gradle').match(/versionCode (\d+)/)[1] >= 43, 'version at least 43');
 ok(read('js/whats-new-data.js').includes("hash: 'v43'"), "What's New v43");
 
 console.log(fail ? fail + ' FAILED' : 'ALL PASS');

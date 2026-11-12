@@ -316,7 +316,7 @@ function generateRandomGuideSteps(intensity) {
   const cfg = configs[intensity] || configs.moderate;
 
   const vocabulary = {
-    push:  ["PUSH", "PUSH OUT", "EMPTY", "GUSH", "SPURT", "DRAIN", "FORCE OUT", "RELEASE"],
+    push:  ["LET GO", "RELAX", "RELEASE", "LET IT FLOW", "EASE OUT", "SOFTEN", "GENTLE RELEASE"],
     relax: ["RELAX", "BREATHE", "EASE UP", "LET FLOW", "SOFTEN", "GENTLE FLOW", "SLOW STREAM"],
     stop:  ["HOLD", "CLENCH", "STOP", "SQUEEZE", "TIGHTEN", "CLAMP"]
   };
@@ -374,8 +374,8 @@ function generateBabysitterGauntlet() {
     cfg.maxTime = Math.max(cfg.minTime, cfg.maxTime - 2);
   }
 
-  const holdTexts = ["SQUEEZE TIGHT", "HOLD IT", "CROSS LEGS", "KEGEL HARD", "CLAMP DOWN",
-                     "DON'T LET GO", "PRESS HARD", "FLEX & HOLD", "LOCK DOWN", "TIGHTEN UP"];
+  const holdTexts = ["GENTLE SQUEEZE", "HOLD A LITTLE", "CROSS LEGS", "BREATHE", "SOFTEN",
+                     "EASE OFF IF IT GETS STRONG", "BREATHE OUT", "SQUEEZE AND RELEASE", "REST", "NOTICE"];
   const leakTexts = ["LOSING GRIP", "SPASM", "PRESSURE WAVE", "SPHINCTER FLUTTER", "URGE SPIKE"];
 
   // Leak risk based on continence — lower continence = more leak steps

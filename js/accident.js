@@ -4,8 +4,8 @@
    an active quick natural session, a running sim session, or the always-visible "Log natural accident" button.
    Everything is user-entered (urgency before/after, % released, saturation after). Grouped into Before / After.
    Saves a NATURAL calendar entry (tagged "during wait" + link to the roll when it happened in a wait),
-   marks the worn protection used / offers "May I change?", and — when "Count accidents during waits" is ON
-   (default) — counts as a failed hold for the Control meter and the campaign.
+   marks the worn protection used / offers "May I change?", and — only when real progress
+   is on for that track, or "Count real accidents during waits" is on — counts as a failed hold.
    =========================== */
 (function () {
   const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

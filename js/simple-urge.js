@@ -13,7 +13,7 @@
   const PKEY = 'bs_urge_profiles_v1', EKEY = 'bs_urge_events_v1', LKEY = 'bs_urge_level_odds_v1';
   const ALARM_ID = 1950; // outside babysitter range 1100-1899
   const OUT = ['go', 'wait', 'hard', 'dribble', 'gear'];
-  const OUT_LABEL = { go: 'Go now', wait: 'Wait', hard: 'Hold till hard', dribble: 'Wait for dribble', gear: 'Use gear' };
+  const OUT_LABEL = { go: 'Go now', wait: 'Wait', hard: 'Short hold', dribble: 'Wait for dribble', gear: 'Use gear', partial: 'Partial' };
   const LV = ['fully_continent', 'mostly_continent', 'somewhat_incontinent', 'mostly_incontinent', 'fully_incontinent'];
   const PROT = ['none', 'pad', 'pullups', 'diapers', 'thick_diapers'];
   const SPARE = PROT.slice(1);
@@ -147,7 +147,13 @@
     if (opts.final || (M && chain >= M.MAX_CHAIN)) w = M ? M.finalRoll(w, level) : w;
     // Custom events (user-defined) still mix in at their own weight
     const evs = (opts.events || customEvents()).filter(e => e.enabled !== false && e.weight > 0 && (!e.levels.length || e.levels.includes(p.levelKey)));
-    const keys = OUT.concat(evs.map(e => 'ev:' + e.id)); evs.forEach(e => { w['ev:' + e.id] = e.weight; });
+    const messyRoll = (opts.type === 2 || (opts.type == null && urgeType() === 2)) && messyOn();
+    let partialW = 0;
+    try {
+      if (window.BSPartial && window.BSPartial.rollWeight) partialW = window.BSPartial.rollWeight({ level: level, urgency: u, messy: messyRoll, track: window.BSControl && window.BSControl.trackFor ? window.BSControl.trackFor(Date.now()) : 'day' });
+    } catch (e) {}
+    if (partialW > 0) w.partial = partialW;
+    const keys = OUT.concat(partialW > 0 ? ['partial'] : []).concat(evs.map(e => 'ev:' + e.id)); evs.forEach(e => { w['ev:' + e.id] = e.weight; });
     const tot = keys.reduce((t, k) => t + Math.max(0, w[k] || 0), 0) || 1; let r = rng() * tot, pick = 'go';
     for (const k of keys) { r -= Math.max(0, w[k] || 0); if (r < 0) { pick = k; break; } }
     const ev = pick.startsWith('ev:') ? evs.find(e => 'ev:' + e.id === pick) : null;
@@ -187,7 +193,10 @@
         }
       }
     } catch (e) {}
-    if (p.levelKey === 'off') { res.outcome = 'go'; res.waitMin = 0; res.hidden = false; res.event = null; res.content = null; }
+    if (p.levelKey === 'off') { res.outcome = 'go'; res.waitMin = 0; res.hidden = false; res.event = null; res.content = null; res.partial = null; }
+    if (res.outcome === 'partial' && window.BSPartial) {
+      try { res.partial = window.BSPartial.plan({ urgency: u, track: window.BSControl && window.BSControl.trackFor ? window.BSControl.trackFor(Date.now()) : 'day' }); res.waitMin = 0; } catch (e) {}
+    }
     if (res.outcome === 'gear') {
       const lv = window.BSControl && window.BSControl.level(p.levelKey); let sp = lv ? lv.split : [20, 40, 40];
       // At high urgency, skew toward major (realism, not training)
@@ -232,6 +241,22 @@
     const ev = tbl.filter(e => e.guide && e.guide.length); const e = ev[Math.floor((rng || Math.random)() * ev.length)];
     return e ? { label: e.label, flow: e.flow, guide: e.guide, kind: u >= 7 ? 'full' : 'micro' } : null;
   }
+  function holdMode() {
+    try {
+      if (window.BSControl && window.BSControl.mode && window.BSControl.mode() === 'conditioning') {
+        const d = window.BSControl.direction(window.BSControl.trackFor(Date.now()));
+        if (d === 'regress') return 'A';
+        if (d === 'progress') return 'B';
+      }
+    } catch (e) {}
+    return 'game';
+  }
+  function holdLine() {
+    const m = holdMode();
+    if (m === 'A') return 'Let it happen early.';
+    if (m === 'B') return 'Urge surf, then go, or wait until the next time you planned.';
+    return 'Hold a little longer (stop if it gets strong).';
+  }
   function describe(res) {
     if (res && res.tummy) return "🌀 Tummy trouble: this #2 can't wait — skip any waits.";
     const t = describeRaw(res);
@@ -253,8 +278,9 @@
   function describe0(res) {
     switch (res.outcome) {
       case 'go': return 'Go now.';
-      case 'wait': return res.hidden ? '✋ Wait.' : `Wait ${res.waitMin} min, then roll again.`;
-      case 'hard': return 'Hold until it gets hard, then roll again.';
+      case 'wait': return res.hidden ? '✋ Wait.' : (holdMode() === 'B' ? `Surf the urge, then wait ${res.waitMin} min.` : `Wait ${res.waitMin} min, then roll again.`);
+      case 'hard': return holdLine();
+      case 'partial': return (res.partial && res.partial.text) || 'Let a little go, then decide.';
       case 'dribble': return 'A little leak. Follow the steps, then roll again.';
       case 'gear': return `Use your padding${res.severity ? ' (' + { dribble: 'just a dribble', small: 'small accident', major: 'major accident' }[res.severity] + ')' : ''}${res.gear ? ': ' + res.gear.label : ''}.`;
       case 'custom': return (res.event ? res.event.text : 'Custom event') + (res.event && res.event.timer === 'shown' ? ` (${res.waitMin} min)` : res.event && res.event.timer === 'hidden' ? ' ✋' : '');
@@ -294,7 +320,12 @@
   function ctlEvent(k) { try { window.BSControl && window.BSControl.event(k); } catch (e) {} }
   function record(res) {
     let i = null;
-    if (res.outcome === 'gear') { i = useGear(); ctlEvent('gear'); } else if (res.outcome === 'go') ctlEvent('go');
+    if (res.outcome === 'gear') { i = useGear(); ctlEvent('gear'); }
+    else if (res.outcome === 'go') ctlEvent('go');
+    else if (res.outcome === 'partial') {
+      try { window.BSPartial && window.BSPartial.noteUse(res.partial); } catch (e) {}
+      try { window.BSCalendar && window.BSCalendar.addEntry({ source: 'sim', mode: 'simple_urge', type: 'leak', severity: 'damp', memo: res.text, tags: ['partial'], partial: res.partial || undefined }); } catch (e) {}
+    }
     else if (res.outcome === 'natural') { /* choice only — potty or hold is logged when they pick */ }
     log(`🙋 Simple urge (${res.urgency == null ? 'urgency not set' : res.urgency + '/10'}, ${res.profileName}): ${res.text}${i ? ' ' + invText(i) : ''}`, COLOR[res.outcome]);
     try { window.BSNatSession && window.BSNatSession.note({ k: 'roll', outcome: res.outcome, text: res.text, roll: res.id, type: res.type || 1 }); } catch (e) {}
@@ -437,7 +468,7 @@
     const res = roll({ urgency: u, chain, rng, quick: !!popts.quick, final: chain >= maxC });
     record(res);
     const timed = res.waitMin > 0 && (res.outcome === 'wait' || res.outcome === 'custom');
-    const terminal = res.outcome === 'go' || res.outcome === 'gear';
+    const terminal = res.outcome === 'go' || res.outcome === 'gear' || res.outcome === 'partial';
     const waity = ['wait', 'hard', 'dribble'].includes(res.outcome) || (res.outcome === 'custom' && timed);
     const n = { last: res, accFor: waity ? res.id : null, chain: terminal ? 0 : Math.min(maxC, chain + 1), prevChain: chain, waitUntil: timed ? Date.now() + res.waitMin * 60000 : 0, waitStart: timed ? Date.now() : 0, fired: !timed, revealed: null, urgeSteps: (s.urgeSteps || []).concat([{ outcome: res.outcome, u, at: Date.now(), label: (res.content && res.content.label) || res.outcome }]) };
     if (terminal) n.urgeSteps = [];
@@ -596,6 +627,7 @@
       </div>
       ${qq && qq.active && s.profileId === 'cp_quickquiz' ? `<div class="urge-note" id="suQQ">🧩 Quiz session: ${esc(qq.result.summary)} <button type="button" id="suQQEnd">End</button></div>` : ''}
       ${window.BSControl ? window.BSControl.chip() : ''}
+      ${window.BSGear && window.BSGear.warnHtml ? window.BSGear.warnHtml() : ''}
       <label class="urge-lbl">Control <select id="suProf">${profileOptions(s.profileId)}</select></label>
       ${lvl ? `<details class="urge-more" id="suLvlInfo"><summary>About ${esc(window.BSControl.label(lvl, office))}</summary><div class="urge-note" id="suLvlDesc" data-office-raw="1">${esc(window.BSControl.describe(lvl.key, office))}</div><div class="urge-actions"><button type="button" id="suLvlAll">📋 All levels</button></div></details>` : ''}
       ${reset ? `<div class="urge-result" id="suDaily" style="border-color:#fdcb6e"><b>☀️ New day: what are you wearing / carrying?</b>${supplyForm(i, 'suD')}
@@ -641,7 +673,7 @@
         <label class="urge-lbl"><input type="checkbox" id="suAl" ${s.alarm ? 'checked' : ''}> One reminder when a wait ends (native)</label>
         <label class="urge-lbl"><input type="checkbox" id="suAsk" ${s.askUrgency ? 'checked' : ''}> Ask urgency every press (slider resets to unset)</label>
         <label class="urge-lbl"><input type="checkbox" id="suCal" ${s.useCalib ? 'checked' : ''}> Use calibration to shorten waits (opt-in)</label>
-        <label class="urge-lbl"><input type="checkbox" id="suCW" ${window.BSControl && window.BSControl.load().countWaitAccidents ? 'checked' : ''}> Count accidents during waits toward progress/regress</label>
+        <label class="urge-lbl"><input type="checkbox" id="suCW" ${window.BSControl && window.BSControl.load().countWaitAccidents ? 'checked' : ''}> Count real accidents during waits (off unless you opt in)</label>
         <label class="urge-lbl">💦 After a small accident <select id="suAfter">${[['', 'Campaign / level default'], ['level', 'Level + "you\'re not done"'], ['finish', 'Go finish on the potty'], ['stay', 'Stay in protection'], ['wait', 'Wait timer, then roll'], ['ask', 'Ask me each time'], ['dice', 'Let the dice pick']].map(([v, l]) => `<option value="${v}" ${(s.afterSmall || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label class="urge-lbl">Control daily cap ± <input id="suCap" type="number" min="4" max="12" value="${window.BSControl ? window.BSControl.load().cap : 8}" style="width:56px"></label>
         <div class="urge-note"><b>Supplies</b></div>${supplyForm(i, 'su')}

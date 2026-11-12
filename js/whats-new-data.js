@@ -3,6 +3,18 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v44',
+    date: '2026-11-11',
+    title: 'v44 — Day and night control, if you opt in',
+    bullets: [
+      '☀🌙 Day and night each keep their own meter and target. Your old meter is copied across. Real accidents count only if you turn that on.',
+      'Consent, a body check, and one tap to reverse a track or stop. Game mode stays until you start conditioning.',
+      'A partial ("let some go") can show up on I need to go. A potty pass is a request — it can be denied, granted, or a compromise. Emptying on the toilet after a partial is a setting, on by default.',
+      'Log drinks with one tap. A day you skip is left blank. Recommended gear, including pads, follows your check-ins.',
+      'Version 44.'
+    ]
+  },
+  {
     hash: 'v43',
     date: '2026-10-29',
     title: 'v43 — DryClip connects, and an armed wet alerts',
