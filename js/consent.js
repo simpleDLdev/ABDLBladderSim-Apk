@@ -130,6 +130,7 @@
     w.querySelectorAll('[data-a]').forEach(b => b.onclick = () => { answer(b.dataset.a); w.remove(); try { render(); } catch (e) {} });
   }
   function render() {
+    if (window.BSOnboard && window.BSOnboard.render) { window.BSOnboard.render(); return; }
     const m = document.getElementById('conditioningMount'); if (!m) return;
     const s = load();
     if (!s.acceptedAt) {

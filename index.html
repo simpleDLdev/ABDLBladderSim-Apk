@@ -313,6 +313,7 @@
         <option value="omorashi_hold">💧 Omorashi (Hold & Release)</option>
         <option value="babysitter">👩‍🍼 Babysitter (Realistic Omorashi)</option>
         <option value="gauntlet_only">🎯 Gauntlet Only (Exercise Holds)</option>
+        <option value="conditioning">My Conditioning</option>
       </select>
     </section>
 
@@ -602,7 +603,7 @@
       <details class="set-sec" id="setCalendar"><summary>📅 Calendar &amp; logging defaults</summary>
         <div id="calendarSettingsMount"></div>
       </details>
-      <details class="set-sec" id="setCondition"><summary>Conditioning <small>consent · tracks · body check</small></summary>
+      <details class="set-sec" id="setCondition"><summary>Conditioning <small>intake quiz · profile · today’s practice</small></summary>
         <div id="conditioningMount"></div>
         <div id="symptomMount"></div>
         <div id="partialSettingsMount"></div>
@@ -887,6 +888,14 @@
               Gauntlet Only<br><span style="font-size:0.75em; color:#cdd7e6;">Exercise Holds</span></button>
             <button onclick="toggleProfileDetails('gauntlet_only')"
               style="width:100%; padding:6px; background:rgba(0,206,201,0.08); border:none; border-top:1px solid rgba(0,206,201,0.2); color:#00cec9; cursor:pointer; font-size:0.72em;">▼
+              More Details</button>
+          </div>
+          <div style="background:#1b2030; border:2px solid #55efc4; border-radius:12px; overflow:hidden;">
+            <button onclick="selectProfileFromModal('conditioning')"
+              style="width:100%; padding:20px 20px 10px 20px; background:transparent; border:none; color:#55efc4; cursor:pointer; font-weight:bold; font-size:1em;">🌿
+              My Conditioning<br><span style="font-size:0.75em; color:#cdd7e6;">Your intake profile</span></button>
+            <button onclick="toggleProfileDetails('conditioning')"
+              style="width:100%; padding:6px; background:rgba(85,239,196,0.08); border:none; border-top:1px solid rgba(85,239,196,0.2); color:#55efc4; cursor:pointer; font-size:0.72em;">▼
               More Details</button>
           </div>
           <div style="background:#1b2030; border:2px solid #e17055; border-radius:12px; overflow:hidden;">
@@ -1676,6 +1685,7 @@
   <script src="js/drinks.js"></script>
   <script src="js/sleep-source.js"></script>
   <script src="js/checkins.js"></script>
+  <script src="js/onboarding.js"></script>
   <script src="js/urge-matrix.js"></script>
   <script src="js/campaign.js"></script>
   <script src="js/board.js"></script>

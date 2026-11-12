@@ -1,5 +1,18 @@
 # Changelog
 
+## v45 — 2026-11-12
+
+Version name **45**, version code **45**.
+
+- Conditioning starts from an intake quiz in Settings → Conditioning. The bare target number is gone. Consent is the last step of the quiz.
+- The quiz asks where you are (day and night, plus gear at home, work, out, and night), where you want to go as a named level, what you want out of it, and which practice to opt into. Quiz A questions are reused where they match.
+- After the quiz: a 2–3 day baseline diary, or skip and use a saved bladder-capacity estimate. Check-ins stay every 3 days. A level changes only after two check-ins in a row agree.
+- The summary card uses level names and a bar. Numbers sit under Advanced. Retake and Edit are on the card.
+- My Conditioning is a profile in the full session setup and in Natural Urge. Session sips and prompts follow the methods you picked, and sips stay inside the drink cap.
+- Today's practice uses the same cue times, short tasks that get harder only after a streak, an immediate log line, and a streak that survives one missed day.
+- A v44 consent is kept. The old target is shown as the nearest level, and the card asks you to take the quiz.
+- Relaxed release is passive: no holding back and no pushing. It is not overflow and not stretching. A deep-sleep wet with no wake still scores higher for Night A than waking to change.
+
 ## v44 — 2026-11-11
 
 Version name **44**, version code **44**.

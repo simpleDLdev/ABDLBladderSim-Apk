@@ -155,7 +155,14 @@
     s.nextAt = Date.now() + s.every * 864e5;
     save(s);
     try { if (window.BSGear) window.BSGear.refresh(); } catch (e) {}
+    try { if (window.BSOnboard && window.BSOnboard.onCheckIn) window.BSOnboard.onCheckIn(item); } catch (e) {}
     return item;
+  }
+  function schedule(every, from) {
+    const s = load();
+    s.every = every === 2 ? 2 : 3;
+    s.nextAt = (from || Date.now()) + s.every * 864e5;
+    return save(s);
   }
   function num(id, root) { const el = root.querySelector('#' + id); if (!el || el.value === '') return null; return +el.value; }
   function render() {
@@ -204,7 +211,7 @@
     };
   }
   window.BSCheckins = {
-    KEY, load, save, record, latestMetrics, scoresFromRaw, dayMeasured, nightMeasured, updateEstimate,
+    KEY, load, save, record, schedule, latestMetrics, scoresFromRaw, dayMeasured, nightMeasured, updateEstimate,
     confidenceDay, confidenceNight, trendSlope, statusBadge, paceWeekly, adjustAfterCheckIn, wmean, render, open
   };
   try { window.addEventListener('load', () => { try { render(); } catch (e) {} }); } catch (e) {}

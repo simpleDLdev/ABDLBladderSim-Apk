@@ -3,6 +3,18 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v45',
+    date: '2026-11-12',
+    title: 'v45 — Conditioning starts with a quiz',
+    bullets: [
+      'Settings → Conditioning is an intake quiz: where you are, where you want to go (named levels, not a bare number), what you want, and which practice to turn on. Consent is the last step.',
+      'Then a 2–3 day diary, or skip and use your capacity estimate. The summary card shows level names and a bar. Today’s practice is a short list at the same times.',
+      'My Conditioning shows up in the full session and in Natural Urge. Sips and prompts follow what you picked, and sips stay inside the drink cap.',
+      'If you already started in v44, your settings stay. The old target is shown as the nearest level, and you can take the quiz when you want.',
+      'Version 45.'
+    ]
+  },
+  {
     hash: 'v44',
     date: '2026-11-11',
     title: 'v44 — Day and night control, if you opt in',

@@ -265,6 +265,16 @@ function initializeRegularTimedProfileSession() {
     return;
   }
 
+  if (profileMode === 'conditioning' && window.BSOnboard && window.BSOnboard.sessionPlan) {
+    const plan = window.BSOnboard.sessionPlan();
+    const min = Math.max(1, plan.timers.min || 15);
+    const max = Math.max(min, plan.timers.max || min);
+    logToOutput(`<span style="color:#55efc4"><b>🌿 My Conditioning</b><br>Next prompt in ${min}–${max} min. Sip reminders follow your methods and stay inside the drink cap.</span>`);
+    scheduleMainEvent({ min: min, max: max });
+    scheduleNextHydration();
+    return;
+  }
+
   let firstMin = 15;
   let firstMax = 40;
   if (manualPressure > 70) {
