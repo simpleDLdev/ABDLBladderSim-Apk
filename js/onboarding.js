@@ -347,7 +347,13 @@
       timeframe: draft.timeframe || 'open',
       methods: { day: methods.day || [], night: methods.night || [] },
       gear: recommendGear(draft),
-      intake: draft.intakeScores || null
+      intake: draft.intakeScores || null,
+      dimensions: draft.dimensions || null,
+      pacing: draft.pacing || null,
+      urgency: draft.urgency || null,
+      sleep: draft.sleep || null,
+      scope: draft.scope || null,
+      flavour: draft.flavour || null
     };
     const s = load();
     const habits = s.habits && s.habits.log ? s.habits : freshHabits();
@@ -434,7 +440,13 @@
       try { if (window.BSControl) lk = window.BSControl.band(track); } catch (e) {}
       return { id: 'conditioning', ready: false, track: track, levelKey: lk, levelName: labelOf(lk), direction: 'off', methods: [], gear: null };
     }
-    const lk = p.levelKey[track] || p.levelKey.day;
+    let lk = p.levelKey[track] || p.levelKey.day;
+    try {
+      if (p.dimensions && window.BSIntake && window.BSIntake.urgeModel) {
+        const model = window.BSIntake.urgeModel(track);
+        if (model && model.levelKey) lk = model.levelKey;
+      }
+    } catch (e) {}
     return {
       id: 'conditioning', ready: !!(s.completedAt || s.migratedFromV44), needsQuiz: !!s.needsQuiz,
       track: track, levelKey: lk, levelName: labelOf(lk), direction: p.direction[track] || 'off',
@@ -467,11 +479,14 @@
     if (methods.indexOf('timed_void') >= 0) { min = 50; max = 80; }
     if (methods.indexOf('front_load') >= 0 && hour < 14) { min = Math.min(min, 25); max = Math.min(max, 50); sips = [1, 3]; }
     if (methods.indexOf('front_load') >= 0 && hour >= 16) { sips = [0, 1]; min = 120; max = 180; }
+    const bits = window.BSIntake && window.BSIntake.sessionBits ? window.BSIntake.sessionBits(p, hour) : null;
+    if (bits) { min = bits.min; max = bits.max; sips = bits.sips; }
     if (p && p.intensity === 'gentle') sips = [Math.min(sips[0], 1), Math.min(sips[1], 2)];
     const prompts = methods.map(id => {
       const m = methodById(id);
       return m ? { id: id, title: m.title, text: m.play } : null;
     }).filter(Boolean);
+    if (bits && bits.prompts) bits.prompts.forEach(text => prompts.push({ id: 'train', title: 'Practice', text: text }));
     return {
       profileId: 'conditioning',
       hydration: { min: min, max: max, sips: sips },
@@ -698,7 +713,7 @@
       title: '🌿 Conditioning intake',
       questions: qs,
       startAt: saved ? window.BSIntake.resumeIndex(saved, qs) : 0,
-      answers: saved && saved.ans ? saved.ans : {},
+      answers: Object.assign(window.BSIntake.prefill ? window.BSIntake.prefill() : {}, saved && saved.ans ? saved.ans : {}),
       skipped: saved && saved.skipped ? saved.skipped : {},
       onSave: st => {
         const cur = load();
@@ -724,24 +739,27 @@
     const sc = window.BSIntake.scoreIntake(ans);
     const b3 = x => x >= 75 ? 0 : x >= 50 ? 1 : x >= 25 ? 2 : 3;
     const gear = recommendGear({
-      gear: window.BSIntake.wornGear(ans),
-      day: { urgency: b3(sc.dayNow), suddenness: b3(sc.dayNow), hold: b3(sc.dayNow), trips: b3(sc.dayNow), leaks30: b3(sc.dayNow) },
+      gear: sc.worn || { home: 'G6', work: 'G6', out: 'G6', night: 'G1' },
+      day: { urgency: b3(sc.dayNow || 0), suddenness: b3(sc.dayNow || 0), hold: b3(sc.dayNow || 0), trips: b3(sc.dayNow || 0), leaks30: b3(sc.dayNow || 0) },
       night: { wetNights: Math.round((1 - (sc.nightNow || 0) / 100) * 7), wake: b3(sc.nightNow || 0), depth: 1 }
     });
     const rec = gear.recommended || {};
-    const line = (track, titleNow, titleWant, keyNow, keyWant) => {
-      const card = levelCard(keyWant, track);
+    const line = (track, titleNow, titleWant) => {
+      const card = levelCard(track === 'day' ? sc.dayTargetKey : sc.nightTargetKey, track);
       return `<div class="quiz-card"><div class="calib-big">${track === 'day' ? 'Day' : 'Night'} · ${esc(titleNow)} → ${esc(titleWant)}</div>
-        <div class="cal-legend">${esc(card.text)}</div></div>`;
+        <div class="cal-legend">${esc(card.text)}</div>
+        <div class="cal-legend">Pacing: ${esc((sc.pacing && sc.pacing[track]) || 'gradual')}</div></div>`;
     };
+    const dims = window.BSIntake.breakdown({ dimensions: sc.dimensions, pacing: sc.pacing, target: { day: sc.dayWant, night: sc.nightWant }, starting: { day: sc.dayNow, night: sc.nightNow } }, { agreeing: 0 }) || [];
+    const dimHtml = dims.slice(0, 8).map(d => `<div class="cal-legend">${d.track === 'day' ? 'Day' : 'Night'} · ${esc(d.name)}: ${esc(d.nowText)} → ${esc(d.wantText)}</div>`).join('');
     const methodLine = ids => (ids || []).map(id => { const x = methodById(id); return x ? x.title : id; }).join(', ') || 'None opted in';
     m.innerHTML = `<h2 style="margin:0 0 6px;">Your result</h2>
       <div class="quiz-progress"><i style="width:100%"></i></div>
-      ${line('day', sc.titles.dayNow, sc.titles.dayWant, sc.dayKey, sc.dayTargetKey)}
-      ${line('night', sc.titles.nightNow, sc.titles.nightWant, sc.nightKey, sc.nightTargetKey)}
+      ${line('day', sc.titles.dayNow, sc.titles.dayWant)}
+      ${line('night', sc.titles.nightNow, sc.titles.nightWant)}
+      <div class="quiz-card"><div class="calib-big">Where you are, and the goal</div>${dimHtml}</div>
       <div class="quiz-card"><div class="calib-big">Gear this points to</div>
-        <div class="camp-goal">Day: ${esc(gearName(rec.day))} · Night: ${esc(gearName(rec.night))}</div>
-        <div class="cal-legend">Home ${esc(gearName(gear.worn.home))}, work ${esc(gearName(gear.worn.work))}, out ${esc(gearName(gear.worn.out))}, bed ${esc(gearName(gear.worn.night))}.</div></div>
+        <div class="camp-goal">Day: ${esc(gearName(rec.day))} · Night: ${esc(gearName(rec.night))}</div></div>
       <div class="quiz-card"><div class="calib-big">Practice</div>
         <div class="camp-goal">Day (${esc(sc.dayDir)}): ${esc(methodLine(sc.methods.day))}</div>
         <div class="camp-goal">Night (${esc(sc.nightDir)}): ${esc(methodLine(sc.methods.night))}</div></div>
@@ -777,7 +795,6 @@
     consent = consent || {};
     if (!window.BSIntake) return { ok: false, reason: 'intake' };
     const sc = window.BSIntake.scoreIntake(ans || {});
-    const worn = window.BSIntake.wornGear(ans || {});
     const r = finishQuiz({
       adult: !!consent.adult, understand: !!consent.understand,
       realDay: !!consent.realDay, realNight: !!consent.realNight,
@@ -789,7 +806,9 @@
       goals: sc.goals, methods: sc.methods,
       intensity: (ans && ans.intensity) || 'steady',
       timeframe: (ans && ans.timeframe) || 'open',
-      gear: worn
+      gear: sc.worn || { home: 'G6', work: 'G6', out: 'G6', night: 'G6' },
+      dimensions: sc.dimensions, pacing: sc.pacing, urgency: sc.urgency, sleep: sc.sleep,
+      scope: sc.scope, flavour: sc.flavour
     });
     if (!r.ok) return r;
     const s = load();
@@ -927,8 +946,9 @@
     m.innerHTML = `<div class="urge-note" id="condSummary"><b>My Conditioning</b>
       ${s.needsQuiz ? banner(s) : ''}
       ${row('day')}${row('night')}
-      <div class="cal-legend">${esc(p.direction.day)} day · ${esc(p.direction.night)} night · ${esc(p.intensity)} · ${esc(p.timeframe)}</div>
+      <div class="cal-legend">${esc(p.direction.day)} day · ${esc(p.direction.night)} night · ${esc(p.intensity)} · ${esc(p.timeframe)}${p.pacing ? ' · day ' + esc(p.pacing.day) + ' · night ' + esc(p.pacing.night) : ''}</div>
       <div class="cal-legend">${gline}</div>
+      ${p.dimensions && window.BSIntake && window.BSIntake.breakdown ? `<div class="quiz-card"><div class="calib-big">Now → where the sim is → goal</div>${window.BSIntake.breakdown(p).map(d => `<div class="cal-legend">${d.track === 'day' ? 'Day' : 'Night'} · ${esc(d.name)}: ${esc(d.nowText)} → ${esc(d.effectiveText)} → ${esc(d.wantText)}</div>`).join('')}</div>` : ''}
       <button type="button" class="pill" data-act="adv">${s.showAdvanced ? 'Hide numbers' : 'Advanced'}</button>
       <div><b>Today's practice</b></div>
       ${tasks.length ? tasks.map(t => `<div class="cal-legend">${t.cue ? esc(t.cue) + ' ' : ''}${esc(t.cueLabel)} — ${esc(t.text)} <button type="button" data-act="log" data-method="${t.id}" data-track="${t.track}">Done</button></div>`).join('') : '<div class="cal-legend">No practice opted in.</div>'}

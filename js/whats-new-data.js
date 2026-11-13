@@ -3,6 +3,18 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v47',
+    date: '2026-11-13',
+    title: 'v47 — Conditioning quiz, one subject at a time',
+    bullets: [
+      'The intake no longer repeats the same wearing-and-situation scene. Each question asks something different: hold, warning, leaks, nights, sleep, urgency practice, and pacing.',
+      'Want questions are goals, and each one can stay as it is. The profile keeps a now and a goal for every one of those.',
+      'Instant, gradual, slow burn, or hybrid, for day and for night. Gradual and slow burn move when check-ins agree. The sim and the session follow that.',
+      'A profile you already saved still loads.',
+      'Version 47.'
+    ]
+  },
+  {
     hash: 'v46',
     date: '2026-11-12',
     title: 'v46 — Conditioning intake is a real quiz',

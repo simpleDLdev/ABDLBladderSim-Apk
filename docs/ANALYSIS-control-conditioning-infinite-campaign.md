@@ -1048,21 +1048,28 @@ New keys use the existing `bs_*_v1` naming. All are local-only (`localStorage`),
 
 ## 13. UI flows (screens)
 
-### 13.1 Onboarding (v45 intake — this is how conditioning starts)
+### 13.1 Onboarding (v47 quiz — this is how conditioning starts)
 
-Settings → Conditioning opens the intake quiz. The old screen with a bare "target 70" box is gone. Consent checkboxes are the last step of the quiz, not a separate form. There is no new start screen: after the quiz, **My Conditioning** is a profile in the full session setup and in the Natural Urge / natural-session picker.
+Settings → Conditioning opens the intake on the same one-question quiz screen as Quiz A / Quiz B (option cards, progress bar, result card). Consent is the step after the result. There is no separate form and no repeated "you are wearing X, what happens" scene list. At most two picture questions sit in an optional flavour section.
 
-1. **Where you are now**, asked separately for day and night. Day: urge frequency, suddenness, hold after the first urge, trips, leaks per 30 days. Night: wet nights per week, whether you wake when wet, sleep depth (typed, or filled from `sleep-source.js` when a night is imported). Gear by context: home, work, out, night. Overlapping questions reuse Quiz A (`js/quiz.js`) instead of a second copy. The answers become a 0–100 starting level per track, shown later as a ladder name.
-2. **Where you want to go.** Per track: Off, A (less control), or B (more control). Then a level card. Cards use the `control.js` ladder names (Big Kid … Infant) plus a plain-language line, for example "Toddler at night: wet most nights, rarely wakes." The numeric target is the middle of that band and is not typed.
-3. **What you want out of it.** Multi-select: bedwetting, urgency / not quite making it, wetting in thin gear or underwear, relaxed/passive wetting, more control / staying dry, deeper sleep. Plus intensity (gentle / steady / intense) and timeframe (open-ended, ~1 month, ~3 months, ~6 months).
-4. **Methods.** The catalogue in §6.6. Each row has a one-line explanation. Defaults follow the goals and the direction. Anything can be unchecked.
-5. **Consent.** Adult; understands this may change real control. Real day and real night progress are separate. Safety settings stay settings: body check, drink caps in `safety.js`, Reverse, Stop, and a free real-need button. "Finish on the toilet after a partial" stays a setting (default on) with one line about retention and UTIs.
-6. **Baseline.** "Start a 2–3 day baseline diary" (drinks in the drink log; voids with optional volume, urges, leaks, night wets on the practice card; a skipped day stays blank) or "Skip and use my current bladder capacity estimate" (from `calibration.js` when a trial exists, otherwise the quiz level). Check-ins every 3 days compare with that baseline and update the estimate. The displayed level moves one band only after two check-ins in a row agree.
-7. **Summary card.** Level names and a bar toward the goal. The 0–100 numbers sit behind Advanced. Retake and Edit are on the card. Today's practice lists the cue time and the current stage of each opted-in method.
+Each question asks something different. Day now covers hold after the first urge, warning, suddenness, trips, void amount (or the calibration estimate), leaks, dribbles, cough/laugh leaks, fullness, noticing wetness, putting off going, and whether thick gear makes wetting easier. Night now covers wet nights, getting up, waking when wet, when a wet happens, sleep depth (a LuckRing or JSON import can prefill), how hard you are to wake, sleep length, evening drinks, bedtime pee, and night gear.
 
-Someone who already accepted in v44 keeps that consent, those targets, and real-progress switches. The numeric target is mapped onto the nearest ladder card, and the card asks them to take the intake quiz. Their logs are not wiped.
+Want questions are goals, not a second copy of the same scene. Each one can be "keep this as it is". The profile stores a now value and a want value per dimension, plus an overall ladder level per track.
 
-`bs_conditioning_v1` holds the profile: starting level, target, direction, goals, intensity, timeframe, methods, recommended gear per the baseline (`BSGear.recommend`), calibration choice, diary rows, cues, streaks, and task stage.
+Goals, where it applies, and sim-only versus real habits are asked per track. Urgency training picks a style (first-urge release, urge surfing, partials, timed voids), how often prompts appear, and how strict passes are. Sleep conditioning picks depth, a bedtime cue, staying in bed, release before fully awake, DryClip alarm versus none, and the evening drink pattern.
+
+Pacing is per track:
+
+- **Instant** — the urge sim and the session sim use the goal now. Real results are still only recorded.
+- **Gradual** — about six agreeing check-ins to go from now to the goal. Calendar time alone does not move it.
+- **Slow burn** — about sixteen agreeing check-ins. Small steps over months.
+- **Hybrid** — the sim uses the goal now; real-habit practice stays on the gradual curve.
+
+The Natural Urge profile reads the effective values: hold window, warning, suddenness, notice chance, and go/wait/dribble/partial/gear weights. A full session's timers, sip reminders, and prompt text follow the urgency style and the sleep answers, still inside the drink cap. The profile card shows each dimension as now → where the sim is → goal, in words, plus the pacing.
+
+A v44 consent is kept and mapped onto the nearest ladder name. A v45 or v46 profile still loads. Retaking overwrites dimensions and levels and keeps the habit log.
+
+`bs_conditioning_v1` still holds starting level, target, direction, goals, intensity, timeframe, methods, gear, calibration, diary, cues, and streaks. v47 adds `dimensions`, `pacing`, `urgency`, `sleep`, and `scope` on that same profile.
 
 ### 13.2 Urge tab (main daily screen)
 - Top: two **track chips** (☀ Day 58 → 30 · 🌙 Night 40 → 15), each with a tiny trend arrow.

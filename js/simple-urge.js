@@ -106,6 +106,19 @@
       src.push('conditioning profile');
       if (info && info.direction) src.push('direction ' + info.direction);
       if (info && info.gear && info.gear.recommended) src.push('gear ' + (info.gear.recommended.day || ''));
+      try {
+        if (window.BSIntake && window.BSIntake.urgeModel) {
+          const model = window.BSIntake.urgeModel(info && info.track);
+          if (model && model.levelKey) {
+            lk = model.levelKey;
+            const paced = (window.BSControl && window.BSControl.level(lk)) || l;
+            name = 'My Conditioning · ' + (paced.label || lk);
+            if (model.hold) hold = model.hold.slice();
+            if (cond) cond.urge = model;
+            src.push(model.pacing || 'paced');
+          }
+        }
+      } catch (e) {}
     } else if (cp) {
       lk = cp.level || (window.BSControl ? window.BSControl.band() : 'okay'); name = cp.name; hold = cp.wait.slice(); odds = Object.assign({}, cp.odds); hidden = cp.hiddenWait;
       ff = ff || cp.traits.fastFill; qs = qs || cp.traits.quietSignals; src.push('custom profile');
@@ -159,6 +172,11 @@
       if (p && p.id === 'conditioning' && window.BSOnboard && window.BSOnboard.rollMods) {
         const mods = window.BSOnboard.rollMods();
         Object.keys(mods).forEach(k => { if (w[k] != null) w[k] *= mods[k]; });
+      }
+      if (window.BSIntake && window.BSIntake.urgeModel) {
+        const model = (p.conditioning && p.conditioning.urge) || window.BSIntake.urgeModel();
+        if (model && model.odds) Object.keys(model.odds).forEach(k => { if (w[k] != null) w[k] *= model.odds[k]; });
+        if (model && model.hold) p.hold = model.hold.slice();
       }
     } catch (e) {}
     // Custom events (user-defined) still mix in at their own weight
