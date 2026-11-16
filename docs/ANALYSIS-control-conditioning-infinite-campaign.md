@@ -1069,6 +1069,8 @@ The Natural Urge profile reads the effective values: hold window, warning, sudde
 
 A v44 consent is kept and mapped onto the nearest ladder name. A v45 or v46 profile still loads. Retaking overwrites dimensions and levels and keeps the habit log.
 
+v48 puts this quiz in Settings → **Calibration & Conditioning**, open by default, with a status line, a Start / Retake quiz button, bladder calibration, editable pacing, method and urgency/sleep controls, a check-in button, and quick starts for Natural Urge and a full session. The home screen shows a small “Set up conditioning → Calibration” card until a dimension profile exists. The body check is a button (also under Safety). Reminders default to gentle and do not block a session unless set to required.
+
 `bs_conditioning_v1` still holds starting level, target, direction, goals, intensity, timeframe, methods, gear, calibration, diary, cues, and streaks. v47 adds `dimensions`, `pacing`, `urgency`, `sleep`, and `scope` on that same profile.
 
 ### 13.2 Urge tab (main daily screen)

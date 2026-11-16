@@ -3,6 +3,17 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v48',
+    date: '2026-11-16',
+    title: 'v48 — Conditioning lives in Calibration',
+    bullets: [
+      'Open Settings → Calibration & Conditioning. That section starts open. Start conditioning quiz is the big button. Retake is the same button after you have a profile.',
+      'Pacing, practice, urgency, sleep, a check-in, and bladder calibration are in that same section. Two buttons start Natural Urge or a full session on My Conditioning.',
+      'The home screen has a short card until the quiz profile exists. Body check-in is a button, not a popup. Reminders stay gentle unless you set them to required.',
+      'Version 48.'
+    ]
+  },
+  {
     hash: 'v47',
     date: '2026-11-13',
     title: 'v47 — Conditioning quiz, one subject at a time',

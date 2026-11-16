@@ -104,7 +104,7 @@ ok(applied.ok && applied.profile.dimensions.day.warning && applied.profile.pacin
 ok(O.load().habits.log.length === 1, 'retaking keeps the habit log');
 
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "47"/.test(g) && /versionCode 47/.test(g), 'version 47');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 47 && +g.match(/versionCode (\d+)/)[1] >= 47, 'version at least 47');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v47 conditioning quiz tests passed');

@@ -19,8 +19,12 @@
   ];
   const J = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? d : v; } catch (e) { return d; } };
   const dk = ts => { const d = new Date(ts || Date.now()); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
-  function defaults() { return { paused: false, pausedAt: null, reason: null, care: null, watch: { hesitancyLotCount: 0, notEmptyCount: 0 }, skinHoldUntil: 0, overrideDay: '', overrideCount: 0, history: [] }; }
-  function load() { return Object.assign(defaults(), J(KEY, {})); }
+  function defaults() { return { paused: false, pausedAt: null, reason: null, care: null, reminder: 'gentle', lastCheckDay: '', watch: { hesitancyLotCount: 0, notEmptyCount: 0 }, skinHoldUntil: 0, overrideDay: '', overrideCount: 0, history: [] }; }
+  function load() {
+    const s = Object.assign(defaults(), J(KEY, {}));
+    if (s.reminder !== 'off' && s.reminder !== 'required') s.reminder = 'gentle';
+    return s;
+  }
   function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} return s; }
   function paused() { return !!load().paused; }
   /**
@@ -48,6 +52,7 @@
     const ev = evaluate(flags, s.watch);
     s.watch = ev.watch;
     if (ev.skin) s.skinHoldUntil = Date.now() + 2 * 864e5;
+    s.lastCheckDay = dk();
     if (ev.pause) {
       s.paused = true; s.pausedAt = Date.now(); s.reason = ev.reason; s.care = ev.care;
       s.history.push({ ts: s.pausedAt, flags: flags.slice(), action: 'pause' });
@@ -88,22 +93,58 @@
       <div class="actions"><button type="button" class="ok" id="symResume">I've been checked / feeling fine</button></div></div>`;
     el.querySelector('#symResume').onclick = () => resume();
   }
-  function render() {
-    const m = document.getElementById('symptomMount'); if (!m) return;
+  function reminder() { return load().reminder; }
+  function setReminder(mode) {
     const s = load();
-    const nudge = s.overrideCount >= 4 && s.overrideDay === dk();
-    m.innerHTML = `<div class="urge-note"><b>Body check</b>
-      ${s.paused ? '<div>Paused. ' + (s.care || '') + '</div>' : ''}
-      ${nudge ? '<div id="symNudge">Anything feel off?</div>' : ''}
-      <div id="symFlags">${FLAGS.map(f => `<label class="urge-lbl"><input type="checkbox" data-flag="${f.id}"> ${f.label}</label>`).join('')}</div>
-      <button type="button" id="symSave" class="pill">Save check</button>
-      ${s.paused ? '<button type="button" id="symRes" class="pill">Resume</button>' : ''}</div>`;
-    m.querySelector('#symSave').onclick = () => {
-      const flags = [...m.querySelectorAll('[data-flag]:checked')].map(i => i.dataset.flag);
-      applyFlags(flags); render();
-    };
-    const r = m.querySelector('#symRes'); if (r) r.onclick = () => { resume(); render(); };
+    s.reminder = mode === 'off' || mode === 'required' ? mode : 'gentle';
+    return save(s);
   }
-  window.BSSymptoms = { KEY, FLAGS, load, save, paused, evaluate, applyFlags, pauseFor, resume, noteRealOverride, openPause, render };
+  function checkedToday(now) { return load().lastCheckDay === dk(now); }
+  function blocksSession(now) { return reminder() === 'required' && !checkedToday(now) && !paused(); }
+  function openCheck(done) {
+    if (typeof document === 'undefined' || !document.body) { if (done) done(); return; }
+    let el = document.getElementById('symptomCheck');
+    if (!el) { el = document.createElement('div'); el.id = 'symptomCheck'; el.className = 'cal-sheet-wrap'; document.body.appendChild(el); }
+    const s = load();
+    el.innerHTML = `<div class="cal-sheet" role="dialog"><h3>Body check-in</h3>
+      <div class="cal-legend">Tick anything that is true. Leaving them all off is a fine check. This does not start by itself.</div>
+      ${s.paused ? '<div>Paused. ' + (s.care || '') + '</div>' : ''}
+      <div id="symFlags">${FLAGS.map(f => `<label class="urge-lbl"><input type="checkbox" data-flag="${f.id}"> ${f.label}</label>`).join('')}</div>
+      <div class="actions"><button type="button" class="ok" id="symSave">Save check</button><button type="button" id="symClose">Close</button>${s.paused ? '<button type="button" id="symRes">Resume</button>' : ''}</div></div>`;
+    el.querySelector('#symClose').onclick = () => el.remove();
+    const res = el.querySelector('#symRes'); if (res) res.onclick = () => { resume(); el.remove(); paintButtons(); };
+    el.querySelector('#symSave').onclick = () => {
+      const flags = [...el.querySelectorAll('[data-flag]:checked')].map(i => i.dataset.flag);
+      applyFlags(flags);
+      el.remove();
+      paintButtons();
+      if (done) done();
+    };
+  }
+  function buttonHtml(prefix) {
+    const s = load();
+    const note = s.reminder === 'required' ? 'Required before a session until you check in today.' : (s.reminder === 'off' ? 'Reminders are off.' : 'Gentle reminder only. A session is not blocked.');
+    return `<div class="urge-note" id="${prefix}Box"><b>Body check</b>
+      <div class="cal-legend">${note}${s.lastCheckDay ? ' Last check ' + s.lastCheckDay + '.' : ''}${s.paused ? ' Paused. ' + (s.care || '') : ''}</div>
+      <button type="button" id="${prefix}Go" class="pill">Body check-in</button>
+      <label class="urge-lbl">Reminders <select id="${prefix}Rem">
+        <option value="off" ${s.reminder === 'off' ? 'selected' : ''}>Off</option>
+        <option value="gentle" ${s.reminder === 'gentle' ? 'selected' : ''}>Gentle reminder</option>
+        <option value="required" ${s.reminder === 'required' ? 'selected' : ''}>Required before sessions</option>
+      </select></label></div>`;
+  }
+  function paintButtons() {
+    ['symptomMount', 'safetyBodyCheck'].forEach(id => {
+      const m = document.getElementById(id); if (!m) return;
+      const prefix = id === 'safetyBodyCheck' ? 'safeBody' : 'symBtn';
+      m.innerHTML = buttonHtml(prefix);
+      const go = m.querySelector('#' + prefix + 'Go');
+      if (go) go.onclick = () => openCheck();
+      const sel = m.querySelector('#' + prefix + 'Rem');
+      if (sel) sel.onchange = () => { setReminder(sel.value); paintButtons(); try { if (window.BSOnboard && window.BSOnboard.render) window.BSOnboard.render(); } catch (e) {} };
+    });
+  }
+  function render() { paintButtons(); }
+  window.BSSymptoms = { KEY, FLAGS, load, save, paused, evaluate, applyFlags, pauseFor, resume, noteRealOverride, openPause, openCheck, render, reminder, setReminder, checkedToday, blocksSession };
   try { window.addEventListener('load', () => { try { render(); if (load().paused) openPause(); } catch (e) {} }); } catch (e) {}
 })();

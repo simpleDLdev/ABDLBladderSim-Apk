@@ -1,5 +1,14 @@
 # Changelog
 
+## v48 — 2026-11-16
+
+Version name **48**, version code **48**.
+
+- Calibration & Conditioning is the one place for the quiz. It opens in Settings, with a status line and a Start or Retake quiz button that opens the 56-question quiz.
+- The same section has bladder calibration, pacing you can change without retaking, practice and urgency/sleep controls, a check-in button, and buttons that start Natural Urge or a full session on My Conditioning.
+- The home screen points at Calibration until a conditioning profile from the quiz exists. An older profile still gets that hint.
+- Body check-in is a button in that section and under Safety. Reminders default to gentle and do not block a session. Required is a setting.
+
 ## v47 — 2026-11-13
 
 Version name **47**, version code **47**.

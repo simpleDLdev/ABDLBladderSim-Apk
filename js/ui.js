@@ -681,6 +681,13 @@ function triggerHydrationEvent(force = false) {
 }
 function startSession(isResume = false) {
   if (sessionRunning && !isResume) return;
+  if (!isResume && !startSession._skipBody && window.BSSymptoms && window.BSSymptoms.blocksSession && window.BSSymptoms.blocksSession()) {
+    window.BSSymptoms.openCheck(function () {
+      startSession._skipBody = true;
+      try { startSession(false); } finally { startSession._skipBody = false; }
+    });
+    return;
+  }
 
   sessionRunning = true;
   if (!sessionElapsedStartedAt) sessionElapsedStartedAt = Date.now();

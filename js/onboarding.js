@@ -667,9 +667,190 @@
       return `<button type="button" data-act="level" data-track="${track}" data-level="${k}" class="pill" style="display:block;width:100%;text-align:left;margin:4px 0;${cur === k ? 'outline:2px solid #55efc4' : ''}"><b>${esc(c.name)}</b><br><span class="cal-legend">${esc(c.text)}</span></button>`;
     }).join('');
   }
+  function quizButtonLabel(s) {
+    s = s || load();
+    if (s.completedAt) return 'Retake quiz';
+    return 'Start conditioning quiz';
+  }
+  function statusText(s) {
+    s = s || load();
+    if (!s.completedAt || !s.profile || !s.profile.levelKey) return 'No conditioning profile yet.';
+    const p = s.profile;
+    return ['day', 'night'].map(track => {
+      let now = '', goal = '', eff = '';
+      try { now = levelCard(p.levelKey[track], track).name; goal = levelCard((p.targetKey && p.targetKey[track]) || p.levelKey[track], track).name; } catch (e) {}
+      try {
+        if (window.BSIntake && p.dimensions && window.BSIntake.trackEffective) {
+          const e = window.BSIntake.trackEffective(p, track);
+          if (e && e.levelKey) eff = levelCard(e.levelKey, track).name;
+        }
+      } catch (err) {}
+      const pace = p.pacing && p.pacing[track] ? ' (' + p.pacing[track] + ')' : '';
+      return (track === 'day' ? 'Day' : 'Night') + ': ' + (now || '—') + ' → ' + (eff || now || '—') + ' → ' + (goal || '—') + pace;
+    }).join(' · ');
+  }
+  function paceOf(s, track) {
+    const p = s.profile && s.profile.pacing && s.profile.pacing[track];
+    if (p) return p;
+    return (s.hubPrefs && s.hubPrefs.pacing && s.hubPrefs.pacing[track]) || 'gradual';
+  }
+  function setPacing(track, mode) {
+    const allowed = { instant: 1, gradual: 1, slow: 1, hybrid: 1 };
+    if (!allowed[mode]) mode = 'gradual';
+    const s = load();
+    const name = track === 'night' ? 'night' : 'day';
+    if (s.profile) {
+      s.profile.pacing = s.profile.pacing || { day: 'gradual', night: 'gradual' };
+      s.profile.pacing[name] = mode;
+    } else {
+      s.hubPrefs = s.hubPrefs || {};
+      s.hubPrefs.pacing = Object.assign({ day: 'gradual', night: 'gradual' }, s.hubPrefs.pacing);
+      s.hubPrefs.pacing[name] = mode;
+    }
+    save(s);
+    return mode;
+  }
+  function setField(group, key, val) {
+    const s = load();
+    const target = s.profile || (s.hubPrefs = s.hubPrefs || {});
+    target[group] = Object.assign({}, target[group] || {}, { [key]: val });
+    if (!s.profile) s.hubPrefs = target;
+    save(s);
+  }
+  function toggleMethod(track, id, on) {
+    const s = load();
+    if (!s.profile) return;
+    const name = track === 'night' ? 'night' : 'day';
+    s.profile.methods = s.profile.methods || { day: [], night: [] };
+    const list = (s.profile.methods[name] || []).slice();
+    const i = list.indexOf(id);
+    if (on && i < 0) list.push(id);
+    if (!on && i >= 0) list.splice(i, 1);
+    s.profile.methods[name] = list;
+    save(s);
+  }
+  const PACE_OPTS = [['instant', 'Instant'], ['gradual', 'Gradual'], ['slow', 'Slow burn'], ['hybrid', 'Hybrid']];
+  function hubTopHtml(s) {
+    s = s || load();
+    const resume = s.intakeResume && s.intakeResume.ans;
+    return `<div class="urge-note" id="condStatus"><b>Conditioning</b><div class="cal-legend" id="condStatusLine">${esc(statusText(s))}</div></div>
+      <button type="button" id="condQuizStart" class="pill" style="width:100%;min-height:52px;font-weight:bold;background:#55efc4;color:#000;">${esc(quizButtonLabel(s))}</button>
+      ${resume ? '<button type="button" id="condQuizResume" class="pill" style="width:100%">Resume quiz</button>' : ''}
+      <div class="cal-legend">The quiz is ${window.BSIntake && window.BSIntake.questions ? window.BSIntake.questions().length : 56} questions. It opens here. Bladder calibration is next.</div>`;
+  }
+  function hubRestHtml(s) {
+    s = s || load();
+    const p = s.profile || {};
+    const prefs = s.hubPrefs || {};
+    const urg = p.urgency || prefs.urgency || {};
+    const slp = p.sleep || prefs.sleep || {};
+    const paceSel = (track) => `<label class="urge-lbl">${track === 'day' ? 'Day' : 'Night'} pacing <select data-pace="${track}">${PACE_OPTS.map(o => `<option value="${o[0]}" ${paceOf(s, track) === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></label>`;
+    const methods = (window.BSOnboard && window.BSOnboard.METHODS) || METHODS;
+    const methodBoxes = ['day', 'night'].map(track => {
+      const on = (p.methods && p.methods[track]) || [];
+      const rows = methods.filter(m => m.tracks.indexOf(track) >= 0).map(m => `<label class="urge-lbl"><input type="checkbox" data-method="${m.id}" data-track="${track}" ${on.indexOf(m.id) >= 0 ? 'checked' : ''}> ${esc(m.title)}</label>`).join('');
+      return `<div><b>${track === 'day' ? 'Day' : 'Night'} practice</b>${p.methods ? rows : '<div class="cal-legend">Finish the quiz, then these stay editable.</div>'}</div>`;
+    }).join('');
+    let every = 3, due = true;
+    try { const c = window.BSCheckins && window.BSCheckins.load && window.BSCheckins.load(); if (c) { every = c.every; due = !c.nextAt || Date.now() >= c.nextAt; } } catch (e) {}
+    return `<div class="urge-note"><b>Pacing</b><div class="cal-legend">Change this without retaking the quiz. Instant uses the goal in the sim now. Gradual and slow burn move only when a check-in agrees. Hybrid sims at the goal and keeps real practice gradual.</div>${paceSel('day')}${paceSel('night')}</div>
+      <div class="urge-note"><b>Urgency and sleep</b>
+        <label class="urge-lbl">Urgency style <select id="hubUStyle"><option value="first_urge" ${urg.style === 'first_urge' ? 'selected' : ''}>First-urge release</option><option value="surf" ${!urg.style || urg.style === 'surf' ? 'selected' : ''}>Urge surfing</option><option value="partial" ${urg.style === 'partial' ? 'selected' : ''}>Not quite / partial</option><option value="timed" ${urg.style === 'timed' ? 'selected' : ''}>Timed voids</option></select></label>
+        <label class="urge-lbl">Urge prompts <select id="hubUOften"><option value="rare" ${urg.prompts === 'rare' ? 'selected' : ''}>Rarely</option><option value="some" ${!urg.prompts || urg.prompts === 'some' ? 'selected' : ''}>A few times</option><option value="often" ${urg.prompts === 'often' ? 'selected' : ''}>Through the day</option></select></label>
+        <label class="urge-lbl">Passes <select id="hubUPass"><option value="generous" ${urg.passes === 'generous' ? 'selected' : ''}>Generous</option><option value="balanced" ${!urg.passes || urg.passes === 'balanced' ? 'selected' : ''}>Balanced</option><option value="rare" ${urg.passes === 'rare' ? 'selected' : ''}>Strict</option></select></label>
+        <label class="urge-lbl">Evening drinks <select id="hubSDrink"><option value="early" ${slp.drinks === 'early' ? 'selected' : ''}>Earlier in the day</option><option value="even" ${!slp.drinks || slp.drinks === 'even' ? 'selected' : ''}>Spread out</option><option value="late" ${slp.drinks === 'late' ? 'selected' : ''}>Late drinks are fine</option></select></label>
+        <label class="urge-lbl">Stay in bed on waking <select id="hubSStay"><option value="yes" ${slp.stay === 'yes' ? 'selected' : ''}>Yes, unless it is a real need</option><option value="some" ${slp.stay === 'some' ? 'selected' : ''}>Sometimes</option><option value="no" ${!slp.stay || slp.stay === 'no' ? 'selected' : ''}>Getting up is fine</option></select></label>
+        <label class="urge-lbl">Night alarm <select id="hubSAlarm"><option value="on" ${slp.alarm === 'on' ? 'selected' : ''}>DryClip alarm</option><option value="off" ${slp.alarm === 'off' ? 'selected' : ''}>No alarm</option><option value="keep" ${!slp.alarm || slp.alarm === 'keep' ? 'selected' : ''}>Keep as it is</option></select></label>
+      </div>
+      <div class="urge-note">${methodBoxes}</div>
+      <div class="urge-note"><b>Check-in</b> <span class="cal-legend">${due ? 'Due' : 'Scheduled'} · every ${every} days</span>
+        <label class="urge-lbl">Every <select id="hubEvery"><option value="3" ${every === 3 ? 'selected' : ''}>3 days</option><option value="2" ${every === 2 ? 'selected' : ''}>2 days</option></select></label>
+        <button type="button" id="hubCheckNow" class="pill">Do check-in now</button>
+      </div>
+      <div class="urge-note"><b>Play with this profile</b>
+        <button type="button" id="hubUrge" class="pill" style="width:100%">Start Natural Urge with My Conditioning</button>
+        <button type="button" id="hubSession" class="pill" style="width:100%">Start full session with My Conditioning</button>
+        ${p.direction ? '<div class="quiz-nav"><button type="button" id="hubRevD">Reverse day</button><button type="button" id="hubRevN">Reverse night</button><button type="button" id="hubStop">Stop conditioning</button></div>' : ''}
+      </div>`;
+  }
+  function bindHub() {
+    const top = document.getElementById('condHubTop');
+    const rest = document.getElementById('condHubRest');
+    const root = document.getElementById('setCalib') || document;
+    const q = root.querySelector && root.querySelector('#condQuizStart');
+    if (q) q.onclick = () => { const box = document.getElementById('setCalib'); if (box) box.open = true; startIntake(null); const m = document.getElementById('conditioningMount'); if (m && m.scrollIntoView) m.scrollIntoView({ block: 'start' }); };
+    const resume = root.querySelector && root.querySelector('#condQuizResume');
+    if (resume) resume.onclick = () => { const s = load(); startIntake(s.intakeResume); };
+    if (rest) {
+      rest.querySelectorAll('[data-pace]').forEach(sel => { sel.onchange = () => { setPacing(sel.getAttribute('data-pace'), sel.value); render(); }; });
+      rest.querySelectorAll('[data-method]').forEach(box => { box.onchange = () => toggleMethod(box.getAttribute('data-track'), box.getAttribute('data-method'), box.checked); });
+      const bindSel = (id, group, key) => { const el = rest.querySelector('#' + id); if (el) el.onchange = () => setField(group, key, el.value); };
+      bindSel('hubUStyle', 'urgency', 'style');
+      bindSel('hubUOften', 'urgency', 'prompts');
+      bindSel('hubUPass', 'urgency', 'passes');
+      bindSel('hubSDrink', 'sleep', 'drinks');
+      bindSel('hubSStay', 'sleep', 'stay');
+      bindSel('hubSAlarm', 'sleep', 'alarm');
+      const every = rest.querySelector('#hubEvery');
+      if (every) every.onchange = () => { try { if (window.BSCheckins && window.BSCheckins.schedule) window.BSCheckins.schedule(every.value === '2' ? 2 : 3); } catch (e) {} };
+      const now = rest.querySelector('#hubCheckNow');
+      if (now) now.onclick = () => { try { if (window.BSCheckins && window.BSCheckins.open) window.BSCheckins.open(); } catch (e) {} };
+      const urge = rest.querySelector('#hubUrge');
+      if (urge) urge.onclick = quickUrge;
+      const sess = rest.querySelector('#hubSession');
+      if (sess) sess.onclick = quickSession;
+      const rev = (id, track) => { const b = rest.querySelector(id); if (b) b.onclick = () => { try { window.BSConsent && window.BSConsent.reverse(track); } catch (e) {} render(); }; };
+      rev('#hubRevD', 'day'); rev('#hubRevN', 'night');
+      const stop = rest.querySelector('#hubStop');
+      if (stop) stop.onclick = () => { try { window.BSConsent && window.BSConsent.stop(); } catch (e) {} render(); };
+    }
+    if (top || rest) { /* bound */ }
+  }
+  function renderHub() {
+    const top = document.getElementById('condHubTop');
+    const rest = document.getElementById('condHubRest');
+    if (!top && !rest) return;
+    const s = load();
+    if (top) top.innerHTML = hubTopHtml(s);
+    if (rest) rest.innerHTML = hubRestHtml(s);
+    bindHub();
+  }
+  function homeHintHtml(s) {
+    s = s || load();
+    if (s.profile && s.profile.dimensions) return '';
+    const title = s.completedAt ? 'Retake the conditioning quiz' : 'Set up conditioning';
+    return `<div class="quiz-hub-card" id="condSetupCard"><b>${title}</b><div class="cal-legend">The quiz and calibration are in Settings → Calibration &amp; Conditioning.</div><button type="button" id="condSetupGo" class="pill">Open Calibration</button></div>`;
+  }
+  function renderHomeHint() {
+    const host = document.getElementById('condSetupHint'); if (!host) return;
+    host.innerHTML = homeHintHtml();
+    const go = host.querySelector('#condSetupGo');
+    if (go) go.onclick = () => {
+      try { if (typeof switchTab === 'function') switchTab('settings'); } catch (e) {}
+      const box = document.getElementById('setCalib'); if (box) { box.open = true; if (box.scrollIntoView) box.scrollIntoView({ block: 'start' }); }
+    };
+  }
+  function quickUrge() {
+    try { if (window.BSSimpleUrge && window.BSSimpleUrge.saveSettings) window.BSSimpleUrge.saveSettings({ profileId: 'conditioning' }); } catch (e) {}
+    try { if (typeof switchTab === 'function') switchTab('urge'); } catch (e) {}
+    try { if (window.BSSimpleUrge && window.BSSimpleUrge.render) window.BSSimpleUrge.render(); } catch (e) {}
+    try { if (window.BSNatSession && window.BSNatSession.openStart) window.BSNatSession.openStart(); } catch (e) {}
+  }
+  function quickSession() {
+    try { if (typeof switchTab === 'function') switchTab('session'); } catch (e) {}
+    const sel = document.getElementById('profileSelect');
+    if (sel) {
+      let opt = sel.querySelector('option[value="conditioning"]');
+      if (!opt) { opt = document.createElement('option'); opt.value = 'conditioning'; opt.textContent = 'My Conditioning'; sel.appendChild(opt); }
+      sel.value = 'conditioning';
+    }
+    try { if (typeof selectProfileFromModal === 'function') selectProfileFromModal('conditioning'); } catch (e) {}
+  }
   function render() {
-    const m = document.getElementById('conditioningMount'); if (!m) return;
     migrateV44();
+    renderHub();
+    renderHomeHint();
+    const m = document.getElementById('conditioningMount'); if (!m) return;
     const s = load();
     const step = s.quizStep || 'intro';
     if (step === 'flow') return;
@@ -677,10 +858,8 @@
     if (step === 'calib') { renderCalib(m, s); return; }
     if (step === 'result') { renderResult(m, s); return; }
     if (step === 'consent') { renderConsent(m, s); return; }
-    if (step === 'intake' || step === 'retake') { renderIntakeHome(m, s); return; }
-    if (s.completedAt && s.calibration && s.calibration.choice) { renderSummary(m, s); return; }
-    if (s.completedAt && (!s.calibration || !s.calibration.choice)) { renderCalib(m, s); return; }
-    renderIntakeHome(m, s);
+    if (s.completedAt && (!s.calibration || !s.calibration.choice) && step !== 'summary') { renderCalib(m, s); return; }
+    m.innerHTML = '';
   }
   function renderIntakeHome(m, s) {
     const resume = s.intakeResume && s.intakeResume.ans;
@@ -1118,7 +1297,7 @@
   try { migrateV44(); } catch (e) {}
   window.BSOnboard = {
     KEY, LIFE, GOALS, METHODS, load, save, scoreNow, scoreDay, scoreNight, bandOf, midOf, levelCard, defaultMethods,
-    startIntake, applyIntake,
+    startIntake, applyIntake, quizButtonLabel, statusText, hubTopHtml, hubRestHtml, homeHintHtml, setPacing, quickUrge, quickSession, renderHub,
     prefillFromQuiz, sleepHint, recommendGear, metricsFrom, finishQuiz, chooseCalib, capacityEstimate, updateProfile,
     migrateV44, playProfile, pickerOption, rollMods, sessionPlan, capSessionMl, todayPlan, logBehaviour,
     considerPromotion, nightAPoints, weeklyReview, onCheckIn, logDiary, diaryMetrics, progress, cuesFor, render
