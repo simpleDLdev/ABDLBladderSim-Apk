@@ -61,6 +61,11 @@
     const u = inp.urgency == null ? null : +inp.urgency;
     if (u != null && u >= 9) { granted += 3; denied *= 0.2; }
     if (u != null && u >= 8) denied += 0; // waits are not offered at 8+; denied falls through to gear
+    try {
+      const mode = window.BSIntake && window.BSIntake.passMode && window.BSIntake.passMode();
+      if (mode === 'generous') { granted += 1.2; denied *= 0.6; }
+      else if (mode === 'rare') { denied += 1; granted *= 0.6; compromise += 0.4; }
+    } catch (e) {}
     const outcome = pick({ denied: denied, granted: granted, compromise: compromise }, rng);
     const finish = !(window.BSPartial && window.BSPartial.load && window.BSPartial.load().finishOnToilet === false);
     const gearLabel = (inp.gear && window.BSGear) ? window.BSGear.byId(inp.gear).label : 'protection';

@@ -1,5 +1,24 @@
 # Changelog
 
+## v48 — 2026-11-16
+
+Version name **48**, version code **48**.
+
+- Calibration & Conditioning is the one place for the quiz. It opens in Settings, with a status line and a Start or Retake quiz button that opens the 56-question quiz.
+- The same section has bladder calibration, pacing you can change without retaking, practice and urgency/sleep controls, a check-in button, and buttons that start Natural Urge or a full session on My Conditioning.
+- The home screen points at Calibration until a conditioning profile from the quiz exists. An older profile still gets that hint.
+- Body check-in is a button in that section and under Safety. Reminders default to gentle and do not block a session. Required is a setting.
+
+## v47 — 2026-11-13
+
+Version name **47**, version code **47**.
+
+- The conditioning quiz no longer repeats the same "you are wearing X, what happens" scene. Each question asks a different thing, in the style of Quiz A and Quiz B.
+- Day and night each have a now and a want for hold, warning, suddenness, leaks, nights, sleep, and gear. "Keep this as it is" is on the want questions. The profile stores every dimension, not one number.
+- Urgency training and sleep conditioning are their own sections. Pacing is instant, gradual, slow burn, or hybrid, separately for day and night.
+- Natural Urge and a full session use the paced values: hold, warning, odds, sip timing, and the night routine. Gradual and slow burn move only when check-ins agree.
+- A v45 or v46 profile still loads. Retaking overwrites the quiz result and keeps the habit log.
+
 ## v46 — 2026-11-12
 
 Version name **46**, version code **46**.

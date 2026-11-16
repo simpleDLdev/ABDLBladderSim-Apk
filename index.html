@@ -72,6 +72,7 @@
         <span style="font-size:1.8em;">🌙</span><span><b id="nnEveningTitle">Going to bed? Start Natural Night</b><br><span class="nn-pick-sub">Real-life, totally silent — no alarms, no sim wetting.</span></span>
       </button>
       <!-- v15 Play hub: four primary cards -->
+      <div id="condSetupHint"></div>
       <div id="playHub" class="play-hub">
         <button type="button" id="btnStartSession" class="play-card pc-full" onclick="showSessionSetupModal()"><span class="pc-ic">▶</span><span><b>Full Session</b><br><small>Timed profile session — pick a profile &amp; go</small></span></button>
         <button type="button" id="hubQuick" class="play-card pc-quick" onclick="BSHub.openQuick()"><span class="pc-ic">⚡</span><span><b>Quick</b><br><small>Natural Urge, short play, or quiz → play</small></span></button>
@@ -597,20 +598,21 @@
         <button id="btnEnableNotifications" class="pill" onclick="requestNotificationPermission()"
           style="display:none; border-color:#7cc4ff; color:#7cc4ff; width:100%; margin-top:8px;">🔔 Enable Tab Notifications</button>
       </details>
-      <details class="set-sec" id="setCalib"><summary>🎯 Calibration <small>leak timing · bladder-age story</small></summary>
+      <details class="set-sec" id="setCalib" open><summary>🎯 Calibration &amp; Conditioning <small>quiz · bladder · pacing · check-in</small></summary>
+        <div id="condHubTop"></div>
         <div id="calibrationMount"></div>
-      </details>
-      <details class="set-sec" id="setCalendar"><summary>📅 Calendar &amp; logging defaults</summary>
-        <div id="calendarSettingsMount"></div>
-      </details>
-      <details class="set-sec" id="setCondition"><summary>Conditioning <small>intake quiz · profile · today’s practice</small></summary>
+        <div id="condHubRest"></div>
         <div id="conditioningMount"></div>
         <div id="symptomMount"></div>
         <div id="partialSettingsMount"></div>
         <div id="sleepMount"></div>
       </details>
+      <details class="set-sec" id="setCalendar"><summary>📅 Calendar &amp; logging defaults</summary>
+        <div id="calendarSettingsMount"></div>
+      </details>
       <details class="set-sec" id="setSafety"><summary>🛟 Safety &amp; drinks</summary>
         <div id="safetyMount"></div>
+        <div id="safetyBodyCheck"></div>
       </details>
       <details class="set-sec" id="setData"><summary>💾 Data, about &amp; what's new</summary>
 
