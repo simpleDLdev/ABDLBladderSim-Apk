@@ -329,7 +329,7 @@ const PROFILE_DETAILS = {
   conditioning: {
     color: '#55efc4',
     title: '🌿 My Conditioning',
-    loop: 'Uses the profile from the conditioning intake quiz. Timers, sip reminders, and prompts follow the methods you opted into. Sip reminders stay inside the drink cap, and they are skips if you are not thirsty. A real-need button stays free. The level on the card changes only after check-ins agree.',
+    loop: 'Uses the profile from the conditioning intake quiz. Timers and prompts follow the methods you opted into. Sip reminders are the regular session ones, and you can skip one if you are not thirsty. A real-need button stays free. The level on the card changes only after check-ins agree.',
     rows: [
       ['Comes from', 'Settings → Conditioning intake quiz'],
       ['Day and night', 'Each track has its own direction and level'],

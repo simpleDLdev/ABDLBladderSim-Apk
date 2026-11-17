@@ -10,7 +10,11 @@
    =========================== */
 (function () {
   const KEY = 'bs_safety_drinks_v1';
+  const PREF = 'bs_safety_prefs_v1';
   const MAX_ML = 250, DAY_ML = 1000, GAP_MIN = 120, SIP_ML = 15, LARGE_ML = 100, SIP_GAP_MIN = 10, USER_NUDGE_MIN = 15;
+  function prefs() { try { return Object.assign({ sipCap: false }, JSON.parse(localStorage.getItem(PREF) || 'null')); } catch (e) { return { sipCap: false }; } }
+  function sipCapOn() { return !!prefs().sipCap; }
+  function setSipCap(on) { const p = prefs(); p.sipCap = !!on; try { localStorage.setItem(PREF, JSON.stringify(p)); } catch (e) {} return p.sipCap; }
   const dk = ts => { const d = new Date(ts); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
   function load(now) {
     let s; try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
@@ -58,15 +62,29 @@
     if (opts.commit !== false) { s.total += out; s.lastSip = now; s.log.push({ ts: now, ml: out, src: opts.src || '', kind: 'sip' }); save(s); }
     return { ok: true, ml: out, sips: Math.max(1, Math.floor(out / SIP_ML)), reason: out < want ? 'capped' : '', left: left - out, nextAt: now + gap * 60000 };
   }
-  /** Sips: ~15 ml each, counted in the 1 L day, not held to the 2 h large-prompt gap. → { ok, sips, reason, nextAt } */
+  /**
+   * Sips. Default: always allowed, logged for stats, not part of the 1 L glass budget.
+   * The optional sip cap (off unless the user turns it on) restores the daily total and the short gap.
+   */
   function capSips(n, opts) {
     opts = opts || {};
     const now = opts.now || Date.now();
-    const s = load(now);
     const count = Math.max(1, Math.round(+n || 1));
+    const ml = count * SIP_ML;
+    if (!sipCapOn()) {
+      if (opts.commit !== false) {
+        const s = load(now);
+        s.sipMl = (s.sipMl || 0) + ml;
+        s.lastSip = now;
+        s.log.push({ ts: now, ml: ml, src: opts.src || 'sip', kind: 'sip' });
+        save(s);
+      }
+      return { ok: true, sips: count, ml: ml, reason: '', left: null, nextAt: now };
+    }
+    const s = load(now);
     const left = Math.max(0, DAY_ML - s.total);
     if (left < SIP_ML) return { ok: false, sips: 0, ml: 0, reason: 'daily', left: left, nextAt: 0 };
-    const want = Math.floor(Math.min(count * SIP_ML, left) / SIP_ML) * SIP_ML;
+    const want = Math.floor(Math.min(ml, left) / SIP_ML) * SIP_ML;
     const r = commitSmall(want, opts, s, now, left);
     if (!r.ok) return { ok: false, sips: 0, ml: 0, reason: r.reason, left: r.left, nextAt: r.nextAt || 0 };
     return { ok: true, sips: Math.max(1, Math.floor(r.ml / SIP_ML)), ml: r.ml, reason: r.reason, left: r.left, nextAt: r.nextAt };
@@ -94,5 +112,16 @@
     const suggestMl = [30, 45, 60, 80, 100, 120, 150][i];
     return { rankIdx: i, gapMin, suggestMl: Math.min(MAX_ML, suggestMl), maxMl: MAX_ML, dayMl: DAY_ML };
   }
-  window.BSSafety = { capDrink, capSips, capText, noteUserDrink, status, reset, rankHydration, MAX_ML, DAY_ML, GAP_MIN, SIP_ML, LARGE_ML, SIP_GAP_MIN };
+  function renderCapSetting() {
+    try {
+      const m = document.getElementById('safetyMount'); if (!m) return;
+      const on = sipCapOn();
+      m.innerHTML = `<label class="urge-lbl"><input type="checkbox" id="sipCapToggle" ${on ? 'checked' : ''}> Cap sip reminders at 1 L/day</label>
+        <div class="cal-legend">Off by default. Reminders keep coming. Skip one if you are not thirsty. A large glass prompt still stays at 250 ml, 2 hours apart, and 1 L a day.</div>`;
+      const box = m.querySelector('#sipCapToggle');
+      if (box) box.onchange = () => setSipCap(box.checked);
+    } catch (e) {}
+  }
+  try { window.addEventListener('load', renderCapSetting); } catch (e) {}
+  window.BSSafety = { capDrink, capSips, capText, noteUserDrink, status, reset, rankHydration, sipCapOn, setSipCap, renderCapSetting, MAX_ML, DAY_ML, GAP_MIN, SIP_ML, LARGE_ML, SIP_GAP_MIN };
 })();

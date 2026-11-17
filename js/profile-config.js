@@ -263,6 +263,7 @@ const PROFILE_CONFIG = {
     mainMin: 30, mainMax: 70,
     microMin: 5, microMax: 15,
     hydrationSips: [1, 2],
+    /* Same 6–12 min loop as every other profile. 1–2 sips a prompt is a few an hour. */
     scheduler: 'standard',
     alarmText: ['💧 <b>Practice</b>', 'Follow today’s method. Sip only if you are thirsty.'],
     microCompleteMsg: '💧 Logged.',
@@ -309,4 +310,18 @@ function getProfileConfig(mode) {
     });
   }
   return base;
+}
+
+/** Shared sip loop. Every profile, including conditioning, uses these two functions and alarm 1003. */
+function hydrationCadence(mode) {
+  const base = PROFILE_CONFIG[mode] || PROFILE_CONFIG.early;
+  const sips = base.hydrationSips || [2, 5];
+  return {
+    schedule: 'scheduleNextHydration',
+    prompt: 'triggerHydrationEvent',
+    notifyId: 1003,
+    minMin: base.hydrationMin || 6,
+    maxMin: base.hydrationMax || 12,
+    sips: sips
+  };
 }

@@ -3,6 +3,17 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v51',
+    date: '2026-11-17',
+    title: 'v51 — Sip reminders keep coming',
+    bullets: [
+      'Conditioning uses the same sip reminders as a regular session. Skip one if you are not thirsty.',
+      'Those reminders are not stopped by a 1 L day. A cap exists under Safety and is off unless you turn it on.',
+      'A large glass prompt still stays at 250 ml. Conditioning does not ask for one.',
+      'Version 51.'
+    ]
+  },
+  {
     hash: 'v50',
     date: '2026-11-17',
     title: 'v50 — Conditioning drinks are sips',
