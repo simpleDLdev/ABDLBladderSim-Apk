@@ -3,6 +3,17 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v50',
+    date: '2026-11-17',
+    title: 'v50 — Conditioning drinks are sips',
+    bullets: [
+      'A conditioning session no longer asks for one 250 ml glass. Hydration is a few sips on the same timer as a regular session, and the phone notifies you when the app is in the background.',
+      'Sips still count toward the 1 L day. The 2 hour gap applies to a large drink prompt, not to a sip. Logging your own drink never blocks a sip for 2 hours.',
+      'The session clock shows the next sip. If the daily cap is reached, it says so.',
+      'Version 50.'
+    ]
+  },
+  {
     hash: 'v49',
     date: '2026-11-17',
     title: 'v49 — Several conditioning profiles',

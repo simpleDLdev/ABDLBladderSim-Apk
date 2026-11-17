@@ -2,6 +2,8 @@
 
 This note matches the code in v49. It is a map of the feature, not a promise of later roadmap items.
 
+v50 changes drink prompts. Sips are no longer held to the 2 hour gap, and a conditioning session does not ask for one 250 ml glass. See `docs/CONDITIONING-v50.md`.
+
 ## End to end
 
 1. **Quiz.** Settings, the Profiles tab, or the picker at the top of Full Session and Natural Urge can start the intake. `BSQuiz.runFlow` shows one question at a time (the same screen as Quiz A / Quiz B). The questions live in `js/intake.js`. There are 56 of them. Two are optional pictures. The rest each ask a different thing.
@@ -19,7 +21,7 @@ This note matches the code in v49. It is a map of the feature, not a promise of 
 
 5. **Effective values.** `BSIntake.urgeModel(track)` is what play uses. It returns a 0–100 control number, a ladder key, a hold window in minutes, a warning estimate, a suddenness amount, a "didn't notice" amount, and multipliers for go / wait / hard / dribble / gear / partial. Natural Urge (`js/simple-urge.js`) uses that hold and those multipliers when the selected urge profile is `conditioning`. The level on the roll is the effective level, not the raw starting level.
 
-6. **Full session.** If the session profile is `conditioning`, `BSOnboard.sessionPlan` sets sip timing and prompt text from the urgency style and the sleep answers. Sips still go through `BSSafety.capDrink` (at most 250 ml a prompt, 1 L a day, 2 hours apart). The plan also pulls one conditioning event when consent is on.
+6. **Full session.** If the session profile is `conditioning`, `BSOnboard.sessionPlan` sets sip timing and prompt text from the urgency style and the sleep answers. As of v50 those reminders are sips on that window (see `docs/CONDITIONING-v50.md`), not one 250 ml glass, and the 2 hour gap applies only to a large prompt. The plan also pulls one conditioning event when consent is on.
 
 7. **Check-ins and promotion.** A check-in is `BSCheckins.record`. It moves a track estimate by at most 10 points. The displayed ladder step for the older "two check-ins agree" rule still lives in `BSOnboard.considerPromotion`. Pacing uses the agreeing count above, which is separate from that one-step promotion.
 

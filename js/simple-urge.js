@@ -666,6 +666,23 @@
       <div class="su-spares">${SPARE.map(k => `<label class="urge-lbl" style="display:inline-block;width:48%">Spare ${esc(protLabel(k).toLowerCase())} <input id="${pre}S_${k}" data-spare="${k}" type="number" min="0" max="20" value="${i.spares[k] || 0}" style="width:56px"></label>`).join('')}</div>`;
   }
   function readSupply(m, pre) { const n = inv(); n.wearing = m.querySelector('#' + pre + 'Wear').value; SPARE.forEach(k => { n.spares[k] = Math.max(0, +m.querySelector('#' + pre + 'S_' + k).value || 0); }); n.day = today(); n.wetCount = 0; return n; }
+  function sipStatusHtml() {
+    if (settings().profileId !== 'conditioning') return '';
+    let note = '', at = 0;
+    try {
+      if (window.conditioningSipStatus) {
+        const st = window.conditioningSipStatus();
+        note = st && st.note || '';
+        at = st && st.nextAt || 0;
+      }
+    } catch (e) {}
+    if (note) return `<div class="urge-note" id="suSip">💧 ${esc(note)}</div>`;
+    if (at > Date.now()) {
+      const min = Math.max(1, Math.round((at - Date.now()) / 60000));
+      return `<div class="urge-note" id="suSip">💧 Next sip in about ${min} min. A few sips, if you are thirsty.</div>`;
+    }
+    return `<div class="urge-note" id="suSip">💧 Sips follow your conditioning window. A few at a time, if you are thirsty.</div>`;
+  }
   function render() {
     const m = document.getElementById('simpleUrgeMount'); if (!m) return;
     try { if (window.BSHub && window.BSHub.applyThemeDom) window.BSHub.applyThemeDom(window.BSHub.themeId()); } catch (e) {}
@@ -693,6 +710,7 @@
       ${window.BSControl ? window.BSControl.chip() : ''}
       ${window.BSGear && window.BSGear.warnHtml ? window.BSGear.warnHtml() : ''}
       <label class="urge-lbl">Control <select id="suProf">${profileOptions(s.profileId)}</select></label>
+      ${sipStatusHtml()}
       ${lvl ? `<details class="urge-more" id="suLvlInfo"><summary>About ${esc(window.BSControl.label(lvl, office))}</summary><div class="urge-note" id="suLvlDesc" data-office-raw="1">${esc(window.BSControl.describe(lvl.key, office))}</div><div class="urge-actions"><button type="button" id="suLvlAll">📋 All levels</button></div></details>` : ''}
       ${reset ? `<div class="urge-result" id="suDaily" style="border-color:#fdcb6e"><b>☀️ New day: what are you wearing / carrying?</b>${supplyForm(i, 'suD')}
         <div class="urge-actions"><button type="button" id="suDailySave">Save for today</button><button type="button" id="suDailyKeep">Keep as is</button></div></div>` : ''}
@@ -745,11 +763,12 @@
         
       </details>`;
     const q = id => m.querySelector('#' + id), on = (id, f) => { const el = q(id); if (el) el.onclick = f; };
+    try { if (s.profileId === 'conditioning' && window.syncConditioningSips) window.syncConditioningSips(); } catch (e) {}
     { const more = q('suMore'); if (more) { if (moreWasOpen) more.open = true; if (extras) more.appendChild(extras); } }
     on('suQQEnd', () => window.BSHub && window.BSHub.qqEnd());
     const urg = () => q('suU').dataset.set ? +q('suU').value : null;
     q('suU').oninput = q('suU').onchange = e => { e.target.dataset.set = '1'; q('suUV').textContent = e.target.value + '/10'; saveSettings({ lastUrgency: +e.target.value, lastUrgencyTs: Date.now() }); }; // v18: persist on every move so re-renders keep it
-    q('suProf').onchange = e => { saveSettings({ profileId: e.target.value }); render(); };
+    q('suProf').onchange = e => { saveSettings({ profileId: e.target.value }); render(); try { if (window.syncConditioningSips) window.syncConditioningSips(); } catch (err) {} };
     on('suT1', () => { saveSettings({ type: 1 }); render(); });
     on('suT2', () => { if (messyOn()) { saveSettings({ type: 2 }); render(); } });
     on('suGo', () => press(urg()));

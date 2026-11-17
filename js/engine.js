@@ -716,6 +716,8 @@ function scheduleNextMicro() {
 
 /* ---------- Apply & Reveal ---------- */
 function createDrinkPrompt(label, ml) {
+  // Conditioning hydration is sips on the session timer, never a single glass.
+  if (typeof profileMode !== 'undefined' && profileMode === 'conditioning') return;
   // If arguments are missing (called empty), generate them now
   if (!label) {
     const r = Math.random();
