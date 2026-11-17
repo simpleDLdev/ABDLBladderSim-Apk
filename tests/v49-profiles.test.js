@@ -75,7 +75,7 @@ ok(html.indexOf('id="condPickSession"') >= 0 && html.indexOf('id="condPickUrge"'
 ok(html.indexOf('value="conditioning"') >= 0, 'event builder has a Conditioning profile');
 
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "49"/.test(g) && /versionCode 49/.test(g), 'version 49');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 49 && +g.match(/versionCode (\d+)/)[1] >= 49, 'version at least 49');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v49 profile tests passed');

@@ -488,9 +488,41 @@ function applySelectedProfile(preserveCustomRuntime = false) {
   initGuideSelector(); 
 }
 /* ---------- Independent Hydration Loop ---------- */
+let hydrationSkipNote = '';
+let hydrationGapMin = 10;
+
+function urgeConditioningSips() {
+  if (typeof sessionRunning !== 'undefined' && sessionRunning) return false;
+  try {
+    const s = window.BSSimpleUrge && window.BSSimpleUrge.settings && window.BSSimpleUrge.settings();
+    return !!(s && s.profileId === 'conditioning');
+  } catch (e) { return false; }
+}
+
+function conditioningHydrationOn() {
+  return (typeof sessionRunning !== 'undefined' && sessionRunning && profileMode === 'conditioning') || urgeConditioningSips();
+}
+
+function conditioningSipStatus() {
+  return { nextAt: hydrationEndAt || 0, note: hydrationSkipNote || '' };
+}
+
+function syncConditioningSips() {
+  if (typeof sessionRunning !== 'undefined' && sessionRunning) return;
+  if (urgeConditioningSips()) {
+    if (!hydrationTimer) scheduleNextHydration();
+  } else {
+    clearTimeout(hydrationTimer);
+    hydrationTimer = null;
+    hydrationEndAt = null;
+    hydrationSkipNote = '';
+  }
+}
+
 function scheduleNextHydration() {
   clearTimeout(hydrationTimer);
-  if (!sessionRunning) return;
+  const urge = urgeConditioningSips();
+  if (!sessionRunning && !urge) { hydrationEndAt = null; return; }
   if (window.hydrationEnabled === false) return;
   // Bedwetting mode: no hydration reminders at all.
   if (typeof isBedwettingSilent === 'function' && isBedwettingSilent()) { hydrationEndAt = null; return; }
@@ -498,21 +530,33 @@ function scheduleNextHydration() {
   const runtime = customProfileRuntime;
   let minHydration = runtime?.hydrationMin ?? 6;
   let maxHydration = runtime?.hydrationMax ?? 12;
-  if (profileMode === 'conditioning' && window.BSOnboard && window.BSOnboard.sessionPlan) {
+  if (conditioningHydrationOn() && window.BSOnboard && window.BSOnboard.sessionPlan) {
     const plan = window.BSOnboard.sessionPlan();
     if (plan && plan.hydration) { minHydration = plan.hydration.min; maxHydration = plan.hydration.max; }
   }
-  const minutes = randInt(minHydration, maxHydration);
-  const ms = minutes * 60000;
+  hydrationGapMin = Math.max(10, +minHydration || 10);
+  let delayMs = Math.max(hydrationGapMin, randInt(minHydration, maxHydration)) * 60000;
+  if (window.BSSafety && window.BSSafety.capSips) {
+    const preview = window.BSSafety.capSips(1, { commit: false, minGapMin: hydrationGapMin });
+    if (!preview.ok && preview.reason === 'daily') {
+      if (!hydrationSkipNote) logToOutput('<span style="color:#888">💧 Sips paused: daily 1 L reached. No more sip reminders until tomorrow.</span>');
+      hydrationSkipNote = 'Sips paused: daily 1 L reached.';
+      hydrationTimer = null;
+      hydrationEndAt = null;
+      return;
+    }
+    hydrationSkipNote = '';
+    if (!preview.ok && preview.nextAt) delayMs = Math.max(delayMs, preview.nextAt - Date.now());
+  }
 
   // SAVE THE TIME so the UI can see it
-  hydrationEndAt = Date.now() + ms;
+  hydrationEndAt = Date.now() + delayMs;
 
   hydrationTimer = setTimeout(() => {
-    if (!sessionRunning) return;
+    if (!sessionRunning && !urgeConditioningSips()) return;
     triggerHydrationEvent();
     scheduleNextHydration();
-  }, ms);
+  }, delayMs);
 }
 
 function confirmStatus() {
@@ -643,8 +687,22 @@ function triggerHydrationEvent(force = false) {
   // 2. Roll Content
   let count = randInt(min, max);
   if (!(count > 0)) return;
-  // v11: safety cap — sips count as ~15 ml, prompt ≤250 ml, ≤1 L/day, ≥2 h apart
-  if (window.BSSafety) { const c = window.BSSafety.capSips(count, { src: 'hydration' }); if (!c.ok) { logToOutput(`<span style="color:#888">💧 Drink alarm skipped (safety cap: ${c.reason === 'spacing' ? 'max one every 2 h' : 'daily limit reached'}).</span>`); return; } count = Math.min(count, c.sips); }
+  // Sips count toward the 1 L day. The 2 h gap is only for a large glass.
+  if (window.BSSafety) {
+    const c = window.BSSafety.capSips(count, { src: 'hydration', minGapMin: hydrationGapMin || 10 });
+    if (!c.ok) {
+      if (c.reason === 'daily') {
+        hydrationSkipNote = 'Sips paused: daily 1 L reached.';
+        hydrationEndAt = null;
+        logToOutput('<span style="color:#888">💧 Sips paused: daily 1 L reached. No more sip reminders until tomorrow.</span>');
+      } else {
+        logToOutput(`<span style="color:#888">💧 Sip moved later (${c.reason === 'after_log' ? 'you just logged a drink' : 'a sip was recent'}).</span>`);
+      }
+      return;
+    }
+    hydrationSkipNote = '';
+    count = Math.min(count, c.sips);
+  }
   const unitType = "sips";
   const drinkType = pick(["Water", "Coffee/Soda"]);
 
@@ -698,7 +756,8 @@ function startSession(isResume = false) {
     try {
       const plan = window.BSOnboard.sessionPlan();
       if (plan && plan.prompts && plan.prompts.length) {
-        logToOutput('<b>My Conditioning</b><br>' + plan.prompts.map(p => '• ' + p.text).join('<br>') + '<br><span style="color:#888">Sip reminders stay inside the drink cap. Skip one if you are not thirsty.</span>');
+        const hy = plan.hydration || {};
+        logToOutput('<b>My Conditioning</b><br>' + plan.prompts.map(p => '• ' + p.text).join('<br>') + '<br><span style="color:#888">Sips every ' + (hy.min || '?') + '–' + (hy.max || '?') + ' min. Skip one if you are not thirsty. The next sip time stays on the session clock.</span>');
       }
     } catch (e) {}
   }
@@ -906,11 +965,14 @@ function stopAll() {
   clearTimeout(preChimeTimer);
   clearTimeout(microTimer);
   clearTimeout(hydrationTimer);
+  hydrationTimer = null;
+  hydrationEndAt = null;
   clearTimeout(omorashiStressTestTimer);
   clearAllBabysitterTimers();
 
   clearInterval(tickInterval);
   stopChime();
+  try { syncConditioningSips(); } catch (e) {}
   meetingActive = false;
   if (typeof nativeNotifyCancelAll === 'function') nativeNotifyCancelAll();
   omorashiSessionActive = false;
@@ -2338,6 +2400,7 @@ function checkChangeNecessity(currentSat) {
 }
 function logDrink(ml) {
   toast(`Logged ${ml}ml`);
+  try { if (window.BSSafety && window.BSSafety.noteUserDrink) window.BSSafety.noteUserDrink(ml, { src: 'user' }); } catch (e) {}
   logToOutput(`<span style="color:#7cc4ff">💧 Drink Logged: ${ml}ml. Update pressure slider if needed.</span>`);
 }
 
@@ -2454,8 +2517,10 @@ function setCountdownLabel() {
   }
 
   // --- C. Hydration Timer ---
-  if (hydrationEndAt && hydrationEndAt > now) {
-    text.push(`<span style="color:#7cc4ff">💧 ${formatRemainingFrom(now, hydrationEndAt)}</span>`);
+  if (hydrationSkipNote) {
+    text.push(`<span style="color:#7cc4ff">💧 ${hydrationSkipNote}</span>`);
+  } else if (hydrationEndAt && hydrationEndAt > now) {
+    text.push(`<span style="color:#7cc4ff">💧 Next sip ${formatRemainingFrom(now, hydrationEndAt)}</span>`);
   }
 
   if (profileMode === 'babysitter' && sessionRunning) {

@@ -37,6 +37,7 @@
     rec.ml = rec.items.reduce((a, it) => a + (+it.ml || 0), 0);
     if (ml > 0) s.last = { id: id || null, label: label || (ml + ' ml'), ml: ml, ts: when };
     save(s);
+    try { if (ml > 0 && window.BSSafety && window.BSSafety.noteUserDrink) window.BSSafety.noteUserDrink(ml, { src: 'user', now: when }); } catch (e) {}
     try { window.dispatchEvent(new CustomEvent('bs:drinks', { detail: { day: day, ml: rec.ml } })); } catch (e) {}
     return rec;
   }

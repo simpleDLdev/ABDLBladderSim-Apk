@@ -108,7 +108,9 @@
     try { const mt = window.BSMessyTimer && window.BSMessyTimer.pendingAlarm(); if (mt && !window.isBedwettingSilent()) out.set(mt.id, { at: Math.floor(mt.at), kind: mt.kind, title: mt.title, body: mt.body, channel: chan }); } catch (e) {}
     try { const me = window.BSMessyTimer && window.BSMessyTimer.pendingEarly && window.BSMessyTimer.pendingEarly(); if (me && !window.isBedwettingSilent()) out.set(me.id, { at: Math.floor(me.at), kind: me.kind, title: me.title, body: me.body, channel: chan }); } catch (e) {}
     try {
-      if (!sessionRunning || window.isBedwettingSilent()) return out;
+      if (window.isBedwettingSilent()) return out;
+      const sipOnly = !sessionRunning && typeof urgeConditioningSips === 'function' && urgeConditioningSips();
+      if (!sessionRunning && !sipOnly) return out;
       const now = Date.now();
       // While "Pause Alarm (30m)" is active, suppress anything that would fire during the pause.
       const pauseUntil = (meetingActive && window._meetingPauseUntil) ? window._meetingPauseUntil : 0;
@@ -120,9 +122,15 @@
       };
       const cfg = typeof getProfileConfig === 'function' ? getProfileConfig() : {};
       const chaos = cfg && cfg.scheduler === 'chaos';
+      const conditioningSip = sipOnly || (typeof profileMode !== 'undefined' && profileMode === 'conditioning');
+      const sipBody = conditioningSip ? 'Sip reminder — a few sips if you are thirsty.' : 'Hydration reminder — time to drink.';
+      if (sipOnly) {
+        if (window.hydrationEnabled !== false) add(ID.hydration, hydrationEndAt, 'reminder', sipBody);
+        return out;
+      }
       if (!chaos) add(ID.main, mainEndAt, 'alarm', 'Alarm! Main event.' + graceText());
       add(ID.micro, microEndAt, 'reminder', 'Bladder spasm — open the app.');
-      if (window.hydrationEnabled !== false) add(ID.hydration, hydrationEndAt, 'reminder', 'Hydration reminder — time to drink.');
+      if (window.hydrationEnabled !== false) add(ID.hydration, hydrationEndAt, 'reminder', sipBody);
       if (typeof babysitterScheduledEvents !== 'undefined' && Array.isArray(babysitterScheduledEvents)) {
         // stable id per babysitter event (its timer id), so one firing doesn't shift/re-arm the others
         babysitterScheduledEvents.slice().sort((a, b) => a.runAt - b.runAt).slice(0, 20).forEach((e, i) =>
