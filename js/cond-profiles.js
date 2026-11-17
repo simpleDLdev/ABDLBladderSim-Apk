@@ -322,7 +322,7 @@
         <button type="button" data-cact="export-all">Export all</button>
       </div>
       <div class="condPaceBlock">${pace('day')}${pace('night')}</div>
-      <div class="cal-legend">New runs the quiz and saves another profile. Retake overwrites the one selected. Export includes the quiz answers, now and want, pacing, check-ins, and a text summary you can paste.</div>
+      <div class="cal-legend">New keeps your other profiles. Retake overwrites this one. Export is JSON plus a text summary.</div>
     </div>`;
   }
   function esc(t) { return String(t == null ? '' : t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }

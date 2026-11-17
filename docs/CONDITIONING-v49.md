@@ -115,7 +115,7 @@ Import accepts one profile or a library. It checks `kind` and that now/want, sta
 
 - **Full Session** and **Urge:** the picker is the first block (`#condPickSession`, `#condPickUrge`). New, Retake, Edit pacing, Duplicate, Rename, Delete (second tap confirms), Export, Import, Export all.
 - **Profiles tab:** the same manager (`#condProfileManager`).
-- **Settings → Calibration & Conditioning:** bladder calibration, and a link to the Profiles manager. The quiz and pacing editors are not a second copy.
+- **Settings → Calibration & Conditioning:** bladder calibration, and a link to the Profiles manager. The quiz and pacing editors are not a second copy. The section starts closed. How to move or hide collapses is in `docs/UI-REVIEW-v49.md`.
 
 ## Known gaps
 

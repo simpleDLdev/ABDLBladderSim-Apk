@@ -484,8 +484,9 @@
 
     <section id="tab-settings" class="tab-page panel stack" data-tab="settings">
       <h2 style="margin:0;">Settings</h2>
-      <p class="section-desc">Tap a section to open it.</p>
-      <details class="set-sec" id="setPlay" open><summary>🎮 Play &amp; content <small>Messy · Office · wording · prompts</small></summary>
+      <p class="section-desc">Tap a section. Use ↑ ↓ to move it, pin to keep it first, or hide it. Reset layout is at the bottom of this page.</p>
+      <div id="layoutTabOrder"></div>
+      <details class="set-sec" id="setPlay"><summary>🎮 Play &amp; content <small>Messy · Office · wording · prompts</small></summary>
       <div id="optionsContent">
         <!-- Push-to-Leak Toggle -->
         <div
@@ -601,7 +602,7 @@
         <button id="btnEnableNotifications" class="pill" onclick="requestNotificationPermission()"
           style="display:none; border-color:#7cc4ff; color:#7cc4ff; width:100%; margin-top:8px;">🔔 Enable Tab Notifications</button>
       </details>
-      <details class="set-sec" id="setCalib" open><summary>🎯 Calibration &amp; Conditioning <small>quiz · bladder · pacing · check-in</small></summary>
+      <details class="set-sec" id="setCalib"><summary>🎯 Calibration &amp; Conditioning <small>bladder lab · link to profiles</small></summary>
         <div id="condHubTop"></div>
         <div id="calibrationMount"></div>
         <div id="condHubRest"></div>
@@ -619,7 +620,7 @@
       </details>
       <details class="set-sec" id="setData"><summary>💾 Data, about &amp; what's new</summary>
 
-        <details id="aboutBladder" open style="margin:8px 0;background:#151923;border:1px solid #2b3348;border-radius:10px;padding:8px 12px;">
+        <details id="aboutBladder" style="margin:8px 0;background:#151923;border:1px solid #2b3348;border-radius:10px;padding:8px 12px;">
           <summary style="cursor:pointer;color:#81ecec;font-weight:bold;">ℹ️ About &amp; notes</summary>
           <div class="cal-legend" style="line-height:1.5;margin-top:6px;">
             This is a fiction / ABDL continence-sim for grown-ups. It is not medical advice and does not train a real body.<br>
@@ -1748,6 +1749,7 @@
   <script src="js/clip-bridge.js"></script>
   <script src="js/potty-report.js"></script>
   <script src="js/office-mode.js"></script>
+  <script src="js/layout.js"></script>
   <script src="js/tabs.js"></script>
 </body>
 
