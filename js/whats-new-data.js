@@ -3,6 +3,17 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v53',
+    date: '2026-11-17',
+    title: 'v53 — Sips during a conditioning session',
+    bullets: [
+      'A conditioning session asks for 1–2 sips about every 6–12 minutes, including after you resume.',
+      'If the estimated tank is low, the next void waits and a sip comes first. The session shows the estimate.',
+      'Stopping a guide early checks the tank and can open a sip prompt.',
+      'Version 53.'
+    ]
+  },
+  {
     hash: 'v52',
     date: '2026-11-17',
     title: 'v52 — Quieter screens, same conditioning',

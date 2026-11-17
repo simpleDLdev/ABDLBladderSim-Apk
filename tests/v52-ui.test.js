@@ -66,7 +66,7 @@ ok(aIds.indexOf('c_hold') < 0 && aIds.indexOf('c_relax') >= 0, 'untraining does 
 ok(bIds.indexOf('c_hold') >= 0 && bIds.indexOf('c_surf') >= 0, 'more-control gets the shaping drills that were opted in');
 
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "52"/.test(g) && /versionCode 52/.test(g), 'version 52');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 52 && +g.match(/versionCode (\d+)/)[1] >= 52, 'version at least 52');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v52 ui tests passed');

@@ -361,6 +361,12 @@ function urgeAcceleration(opts) {
   return { change: delay < remaining, delaySec: delay, threshold: threshold, direction: dir, kind: 'pull' };
 }
 
+/** Conditioning prompts are 1–2 sips every 6–12 min. Lowest control still uses that frequent loop. */
+function conditioningSipPlan(levelKey) {
+  const level = hydrationForLevel(levelKey || 'none');
+  return { minMin: 6, maxMin: 12, sips: [1, 2], from: level.profileId, levelSips: level.sips };
+}
+
 /** Shared sip loop. Every profile, including conditioning, uses these two functions and alarm 1003. */
 function hydrationCadence(mode) {
   const base = PROFILE_CONFIG[mode] || PROFILE_CONFIG.early;

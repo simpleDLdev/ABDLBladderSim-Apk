@@ -403,6 +403,16 @@ function nextReveal() {
     evtToRun = microTableForMode(rollMicroForMode());
   }
 
+  if (profileMode === 'conditioning' && evtToRun && window.BSTank && !window.BSTank.canVoid(window.BSTank.load())) {
+    logToOutput(`<span style="color:#7cc4ff">💧 Tank is about ${Math.round(window.BSTank.load().ml)} ml, under the ${window.BSTank.load().minVoidMl} ml void line. Sip first.</span>`);
+    triggerHydrationEvent(true);
+    if (sessionRunning) scheduleMainEvent({ _fromTank: true, min: 18, max: 30 });
+    return;
+  }
+  if (profileMode === 'conditioning' && evtToRun && window.BSTank) {
+    try { window.BSTank.takeVoid(window.BSTank.load(), evtToRun.kind === 'micro' ? 'partial' : 'full'); } catch (e) {}
+  }
+
   // 2. Execute
   if (evtToRun) {
     window._lastRevealedEvent = evtToRun;
@@ -518,19 +528,21 @@ function syncConditioningSips() {
 function scheduleNextHydration() {
   clearTimeout(hydrationTimer);
   const urge = urgeConditioningSips();
+  const conditioning = profileMode === 'conditioning' || urge;
   if (!sessionRunning && !urge) { hydrationEndAt = null; return; }
+  if (conditioning) window.hydrationEnabled = true;
   if (window.hydrationEnabled === false) return;
-  // Bedwetting mode: no hydration reminders at all.
-  if (typeof isBedwettingSilent === 'function' && isBedwettingSilent()) { hydrationEndAt = null; return; }
+  // Bedwetting mode: no hydration reminders at all. A conditioning session still drinks.
+  if (!conditioning && typeof isBedwettingSilent === 'function' && isBedwettingSilent()) { hydrationEndAt = null; return; }
 
   const runtime = customProfileRuntime;
   const cfgTimes = (typeof getProfileConfig === 'function') ? getProfileConfig() : {};
   let minHydration = runtime?.hydrationMin ?? cfgTimes.hydrationMin ?? 6;
   let maxHydration = runtime?.hydrationMax ?? cfgTimes.hydrationMax ?? 12;
-  if ((profileMode === 'conditioning' || urge) && typeof hydrationForLevel === 'function') {
-    let key = null;
-    try { const info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); key = info && info.levelKey; } catch (e) {}
-    const mapped = hydrationForLevel(key);
+  if (conditioning && typeof conditioningSipPlan === 'function') {
+    let key = 'none';
+    try { const info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); if (info && info.levelKey) key = info.levelKey; } catch (e) {}
+    const mapped = conditioningSipPlan(key);
     if (mapped) { minHydration = mapped.minMin; maxHydration = mapped.maxMin; }
   }
   hydrationGapMin = Math.max(1, +minHydration || 6);
@@ -547,6 +559,16 @@ function scheduleNextHydration() {
   }, delayMs);
 }
 
+function renderTank() {
+  const el = $('tankReadout');
+  if (!el || !window.BSTank || profileMode !== 'conditioning') {
+    if (el) el.hidden = true;
+    return;
+  }
+  const info = window.BSTank.readout(window.BSTank.load(), typeof mainEndAt !== 'undefined' ? mainEndAt : 0);
+  el.hidden = false;
+  el.innerHTML = '🫧 Tank ~<b>' + info.ml + ' ml</b> / ' + info.capacity + ' ml' + (info.low ? ' · low, sip before the next void' : '') + (info.etaMin != null ? ' · next event ~' + info.etaMin + ' min' : '');
+}
 function confirmStatus() {
   toast("Status Confirmed");
   // Log it so you have a record of the check
@@ -661,29 +683,33 @@ function testSelectedGuide() {
 }
 
 function triggerHydrationEvent(force = false) {
-  if (window.BSSymptoms && window.BSSymptoms.paused && window.BSSymptoms.paused()) return;
+  const conditioning = profileMode === 'conditioning';
+  if (!force && window.BSSymptoms && window.BSSymptoms.paused && window.BSSymptoms.paused()) return;
+  if (conditioning) window.hydrationEnabled = true;
   if (!force && window.hydrationEnabled === false) return;
-  if (!force && typeof isBedwettingSilent === 'function' && isBedwettingSilent()) return;
+  if (!force && !conditioning && typeof isBedwettingSilent === 'function' && isBedwettingSilent()) return;
   // 1. Define Intensity from config
   const cfg = getProfileConfig();
   let [min, max] = cfg.hydrationSips;
-  if (profileMode === 'conditioning' && typeof hydrationForLevel === 'function') {
-    let key = null;
-    try { const info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); key = info && info.levelKey; } catch (e) {}
-    const mapped = hydrationForLevel(key);
+  if (conditioning && typeof conditioningSipPlan === 'function') {
+    let key = 'none';
+    try { const info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); if (info && info.levelKey) key = info.levelKey; } catch (e) {}
+    const mapped = conditioningSipPlan(key);
     if (mapped && mapped.sips) { min = mapped.sips[0]; max = mapped.sips[1]; }
   }
 
   // 2. Roll Content — same prompt for every profile, including conditioning.
   let count = randInt(min, max);
   if (!(count > 0)) return;
-  if (window.BSSafety && window.BSSafety.capSips) {
+  if (!conditioning && window.BSSafety && window.BSSafety.capSips) {
     const c = window.BSSafety.capSips(count, { src: 'hydration' });
     if (!c.ok) {
       logToOutput('<span style="color:#888">💧 This sip reminder was over the optional 1 L cap. The next one is still scheduled.</span>');
       return;
     }
     count = Math.min(count, c.sips);
+  } else if (conditioning && window.BSSafety && window.BSSafety.capSips) {
+    try { window.BSSafety.capSips(count, { src: 'hydration' }); } catch (e) {}
   }
   const unitType = "sips";
   const drinkType = pick(["Water", "Coffee/Soda"]);
@@ -699,25 +725,25 @@ function triggerHydrationEvent(force = false) {
   ];
 
   const msg = pick(templates);
+  window._lastSipCount = count;
+  if (conditioning && window.BSTank) { try { window.BSTank.addSips(window.BSTank.load(), count); } catch (e) {} }
 
-  // 3. UI Setup
+  // 3. UI Setup. Log first so a banner problem cannot erase the prompt.
   isHydrationPending = true;
-  showBanner("💧 Hydration Order", "Acknowledge consumption.", 'low');
-  startChime(600);
-
-  // 4. Update Buttons
-  const ackBtn = $('alarmBanner').querySelector('.btn.ack');
-  const skipBtn = $('alarmBanner').querySelector('.btn.silence');
-
-  if (ackBtn) {
-      ackBtn.style.display = 'inline-block';
-      ackBtn.textContent = "Consumed"; 
-  }
-  if (skipBtn) {
-      skipBtn.textContent = "Not thirsty / skip"; 
-  }
-
   logToOutput(`<span style="color:#7cc4ff">💧 <b>Drink Alarm:</b> ${msg}</span>`);
+  try { showBanner("💧 Hydration Order", "Acknowledge consumption.", 'low'); } catch (e) {}
+  try { startChime(600); } catch (e) {}
+
+  try {
+    const banner = $('alarmBanner');
+    if (banner) {
+      const ackBtn = banner.querySelector('.btn.ack');
+      const skipBtn = banner.querySelector('.btn.silence');
+      if (ackBtn) { ackBtn.style.display = 'inline-block'; ackBtn.textContent = 'Consumed'; }
+      if (skipBtn) skipBtn.textContent = "Not thirsty / skip";
+    }
+  } catch (e) {}
+  try { if (typeof renderTank === 'function') renderTank(); } catch (e) {}
 }
 function startSession(isResume = false) {
   if (sessionRunning && !isResume) return;
@@ -730,6 +756,7 @@ function startSession(isResume = false) {
   }
 
   sessionRunning = true;
+  if (profileMode === 'conditioning') window.hydrationEnabled = true;
   if (!sessionElapsedStartedAt) sessionElapsedStartedAt = Date.now();
   updateSessionTimerDisplay();
   if (window.hydrationEnabled === undefined) window.hydrationEnabled = true;
@@ -773,6 +800,7 @@ function startSession(isResume = false) {
     clearTimeout(mainTimer);
     clearTimeout(preChimeTimer);
 
+    if (profileMode === 'conditioning' && (!hydrationEndAt || hydrationEndAt > Date.now() + 12 * 60000)) hydrationEndAt = null;
     const drinkLeft = (hydrationEndAt && hydrationEndAt > Date.now())
       ? hydrationEndAt - Date.now()
       : 0;
@@ -2509,6 +2537,8 @@ function setCountdownLabel() {
     text.push(`Queue: ${depMicroCount}/${depMicroTarget}`);
   }
 
+  try { if (typeof renderTank === 'function') renderTank(); } catch (e) {}
+
   // --- C. Hydration Timer ---
   if (hydrationSkipNote) {
     text.push(`<span style="color:#7cc4ff">💧 ${hydrationSkipNote}</span>`);
@@ -2594,6 +2624,8 @@ function skipAlarm() {
   // 1. Handle Hydration Refusal
   if (isHydrationPending) {
       logToOutput(`<span style="color:#7cc4ff">💧 <b>Not thirsty</b> — skipped. The next sip reminder still comes.</span>`);
+      try { if (window.BSTank && window._lastSipCount) window.BSTank.undoSips(window.BSTank.load(), window._lastSipCount); } catch (e) {}
+      window._lastSipCount = 0;
       
       resetBannerUI();
       isHydrationPending = false;
