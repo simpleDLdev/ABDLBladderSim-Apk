@@ -18,17 +18,18 @@ const T = ctx.BSTank;
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; };
 
 const plan = ctx.conditioningSipPlan('none');
-ok(plan.minMin === 6 && plan.maxMin === 12 && plan.sips.join() === '1,2', 'Infant conditioning sips are 1–2 every 6–12 min');
+ok(plan.count === 4 && plan.gapMin === 30 && plan.sips.join() === '4,4', 'Infant conditioning is a batch of 4, then 30 min quiet');
 ok(plan.from === 'dependent', 'lowest control still points at the dependent profile');
 
 const run = T.simulate({
-  minutes: 127,
+  minutes: 120,
   capacity: 300,
   startMl: 20,
   minVoidMl: 60,
   rng: () => 0.4
 });
-ok(run.sips >= 8, 'a 2h07 session prompts at least 8 sips (' + run.sips + ')');
+ok(run.sips === 4 && run.log.sips.every(s => s.n === 4), 'a 2h session is 4 prompts of 4 sips (' + run.sips + ')');
+ok(run.log.sips.every((s, i) => i === 0 || s.t - run.log.sips[i - 1].t >= 30), 'no two sip prompts fall inside 30 min');
 ok(run.voidsBelowMin === 0, 'no void fires under the tank minimum');
 ok(run.log.voids.every(v => v.before >= 60), 'every void started at or above 60 ml');
 ok(run.log.blocked.every(b => b.ml < 60), 'held voids were the ones under the minimum');

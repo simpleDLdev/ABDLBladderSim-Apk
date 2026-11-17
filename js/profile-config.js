@@ -361,10 +361,18 @@ function urgeAcceleration(opts) {
   return { change: delay < remaining, delaySec: delay, threshold: threshold, direction: dir, kind: 'pull' };
 }
 
-/** Conditioning prompts are 1–2 sips every 6–12 min. Lowest control still uses that frequent loop. */
-function conditioningSipPlan(levelKey) {
+/** One batch, then a quiet gap. Lowest control is 4 sips / 30 min. A saved profile can change both. */
+function conditioningSipPlan(levelKey, profile) {
   const level = hydrationForLevel(levelKey || 'none');
-  return { minMin: 6, maxMin: 12, sips: [1, 2], from: level.profileId, levelSips: level.sips };
+  const scaled = { none: 4, little: 4, shaky: 3, okay: 3, good: 2, full: 2 };
+  profile = profile || {};
+  let count = profile.sipBatch != null && profile.sipBatch !== '' ? Math.round(+profile.sipBatch) : (scaled[levelKey] || 4);
+  if (!(count >= 1)) count = 4;
+  count = Math.max(1, Math.min(12, count));
+  let gap = profile.sipGapMin != null && profile.sipGapMin !== '' ? Math.round(+profile.sipGapMin) : 30;
+  if (!(gap >= 5)) gap = 30;
+  gap = Math.max(5, Math.min(180, gap));
+  return { minMin: gap, maxMin: gap, gapMin: gap, count: count, sips: [count, count], from: level.profileId, levelSips: level.sips };
 }
 
 /** Shared sip loop. Every profile, including conditioning, uses these two functions and alarm 1003. */

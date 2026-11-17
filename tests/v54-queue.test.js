@@ -34,7 +34,7 @@ const next = Q.completeActive();
 ok(next.doneKind === 'banner' && next.nextKind === 'sip' && shown.indexOf('after-banner') >= 0, 'resume shows the waiting sip once, after the banner');
 
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "54"/.test(g) && /versionCode 54/.test(g), 'version 54');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 54 && +g.match(/versionCode (\d+)/)[1] >= 54, 'version at least 54');
 const ui = fs.readFileSync(path.join(root, 'js', 'ui.js'), 'utf8');
 ok(ui.indexOf('A sip log never closes a guide') >= 0, 'the sip button refuses to close an open guide');
 

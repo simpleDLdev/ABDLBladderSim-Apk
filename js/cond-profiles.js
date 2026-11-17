@@ -311,6 +311,8 @@
       </select></label>`;
     };
     const win = (s.profile && s.profile.changeWindow) || { min: 10, max: 30 };
+    const sipN = (s.profile && s.profile.sipBatch) || 4;
+    const sipG = (s.profile && s.profile.sipGapMin) || 30;
     return `<div class="cond-manager urge-note">
       <b>Conditioning profiles</b>
       <label class="urge-lbl">Profile <select class="condProfileSelect">${options || '<option value="">No profile yet</option>'}</select></label>
@@ -326,6 +328,10 @@
         <button type="button" data-cact="export-all">Export all</button>
       </div>
       <div class="condPaceBlock">${pace('day')}${pace('night')}</div>
+      <label class="urge-lbl">Sip batch
+        <input type="number" id="sipBatch" min="1" max="12" value="${sipN}"> sips, then quiet
+        <input type="number" id="sipGap" min="5" max="180" value="${sipG}"> min
+      </label>
       <label class="urge-lbl">Change check after a wet
         <input type="number" id="chgWinMin" min="5" max="60" value="${win.min}">–
         <input type="number" id="chgWinMax" min="5" max="120" value="${win.max}"> min
@@ -423,6 +429,15 @@
     const wMin = m.querySelector('#chgWinMin'), wMax = m.querySelector('#chgWinMax');
     if (wMin) wMin.onchange = saveWin;
     if (wMax) wMax.onchange = saveWin;
+    const saveSip = () => {
+      const n = m.querySelector('#sipBatch'), g = m.querySelector('#sipGap');
+      if (!n || !g || !O.setSipPace) return;
+      const w = O.setSipPace(n.value, g.value);
+      n.value = w.count; g.value = w.gap;
+    };
+    const sN = m.querySelector('#sipBatch'), sG = m.querySelector('#sipGap');
+    if (sN) sN.onchange = saveSip;
+    if (sG) sG.onchange = saveSip;
   }
   function subPickerHtml(selectId) {
     const s = O.load();
