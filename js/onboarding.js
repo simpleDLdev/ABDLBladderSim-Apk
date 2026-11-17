@@ -294,9 +294,19 @@
     s.habits.log = Array.isArray(s.habits.log) ? s.habits.log : [];
     s.diary = Array.isArray(s.diary) ? s.diary : [];
     if (s.habits.shield.day == null) s.habits.shield.day = 1;
+    try {
+      if (window.BSCondProfiles && window.BSCondProfiles.ensure) {
+        window.BSCondProfiles.ensure(s);
+        if (s._libraryMigrated) { delete s._libraryMigrated; save(s); }
+      }
+    } catch (e) {}
     return s;
   }
-  function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} return s; }
+  function save(s) {
+    try { if (window.BSCondProfiles && window.BSCondProfiles.writeBack) window.BSCondProfiles.writeBack(s); } catch (e) {}
+    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {}
+    return s;
+  }
   function migrateV44() {
     const s = load();
     if (s.completedAt || s.migratedFromV44) return s;
@@ -487,6 +497,12 @@
       return m ? { id: id, title: m.title, text: m.play } : null;
     }).filter(Boolean);
     if (bits && bits.prompts) bits.prompts.forEach(text => prompts.push({ id: 'train', title: 'Practice', text: text }));
+    try {
+      if (window.BSCondEvents && window.BSCondEvents.pick) {
+        const ev = window.BSCondEvents.pick({ track: hour >= 21 || hour < 6 ? 'night' : 'day', log: true });
+        if (ev) prompts.unshift({ id: ev.id, title: ev.label, text: ev.text });
+      }
+    } catch (e) {}
     return {
       profileId: 'conditioning',
       hydration: { min: min, max: max, sips: sips },
@@ -709,6 +725,18 @@
     }
     save(s);
     return mode;
+  }
+  function setChangeWindow(min, max) {
+    let lo = Math.round(+min);
+    let hi = Math.round(+max);
+    if (!(lo >= 5)) lo = 10;
+    if (!(hi >= lo)) hi = Math.max(lo, 30);
+    lo = Math.max(5, Math.min(60, lo));
+    hi = Math.max(lo, Math.min(120, hi));
+    const s = load();
+    if (s.profile) s.profile.changeWindow = { min: lo, max: hi };
+    save(s);
+    return { min: lo, max: hi };
   }
   function setField(group, key, val) {
     const s = load();
@@ -1297,7 +1325,7 @@
   try { migrateV44(); } catch (e) {}
   window.BSOnboard = {
     KEY, LIFE, GOALS, METHODS, load, save, scoreNow, scoreDay, scoreNight, bandOf, midOf, levelCard, defaultMethods,
-    startIntake, applyIntake, quizButtonLabel, statusText, hubTopHtml, hubRestHtml, homeHintHtml, setPacing, quickUrge, quickSession, renderHub,
+    startIntake, applyIntake, quizButtonLabel, statusText, hubTopHtml, hubRestHtml, homeHintHtml, setPacing, setChangeWindow, quickUrge, quickSession, renderHub,
     prefillFromQuiz, sleepHint, recommendGear, metricsFrom, finishQuiz, chooseCalib, capacityEstimate, updateProfile,
     migrateV44, playProfile, pickerOption, rollMods, sessionPlan, capSessionMl, todayPlan, logBehaviour,
     considerPromotion, nightAPoints, weeklyReview, onCheckIn, logDiary, diaryMetrics, progress, cuesFor, render

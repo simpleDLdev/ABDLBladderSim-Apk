@@ -209,7 +209,7 @@
     const cont = (M && !ev && ['gear', 'dribble', 'hard'].includes(outcome)) ? M.content(level, outcome, u, rng) : null;
     const voice = V ? V.getVoice() : 'caregiver';
     const voiceLine = V ? V.line(outcome === 'custom' ? 'gear' : outcome, voice, rng) : '';
-    const res = { id: 'r' + Date.now().toString(36) + Math.floor(rng() * 1e4), outcome, waitMin, hidden, urgency: u, weights: w, range: p.hold, gear: null, content: cont, voice: voiceLine, voiceKey: voice,
+    const res = { id: 'r' + Date.now().toString(36) + Math.floor(rng() * 1e4), outcome, waitMin, hidden, urgency: u, weights: w, range: p.hold, gear: null, content: cont, voice: voiceLine, voiceKey: voice, conditioningEvent: null,
       levelKey: p.levelKey, profileName: p.name, access: POTTY_ACCESS[level] != null ? POTTY_ACCESS[level] : 1, lowControl: (POTTY_ACCESS[level] || 1) < 0.5, chain,
       event: ev ? { id: ev.id, text: ev.text, guide: ev.guide, timer: ev.timer } : null };
     // v32 class eventSteps (e.g. Leaky/Dribbler micro leak before go)
@@ -225,6 +225,11 @@
           res.outcome = 'dribble'; res.stepText = 'Log a small dribble first, then press again for potty permission.';
           res.gated = 'dribble';
         }
+      }
+    } catch (e) {}
+    try {
+      if (p && p.id === 'conditioning' && window.BSCondEvents && window.BSCondEvents.pick) {
+        res.conditioningEvent = window.BSCondEvents.pick({ rng: rng, track: p.conditioning && p.conditioning.track, log: true });
       }
     } catch (e) {}
     if (p.levelKey === 'off') { res.outcome = 'go'; res.waitMin = 0; res.hidden = false; res.event = null; res.content = null; res.partial = null; }
@@ -410,7 +415,31 @@
     if (sev !== 'full' && mode === 'level') steps.push(kind === 'finish' ? "You're not done yet — finish on the potty, don't stop halfway." : kind === 'wait' ? "You're not done — when the timer ends, ask again (roll)." : "You're not done — you'll roll again when the timer ends.");
     let change = null;
     if (check) {
-      if (sat == null) { change = 'ask'; steps.push(`Check your saturation: at ${th} or more you may change (use 🎲 May I change?); below that, stay in it.`); }
+      let gearPlan = null;
+      if (sat != null && window.BSGear && window.BSGear.planChange) {
+        let gearId = 'G6';
+        try { gearId = window.BSGear.fromProt(inv().wearing, false) || 'G6'; } catch (e) {}
+        let dir = 'off', win = {};
+        try {
+          const prof = window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load();
+          const p = prof && prof.profile;
+          if (p && p.direction) dir = (p.direction.day && p.direction.day !== 'off') ? p.direction.day : (p.direction.night || 'off');
+          if (p && p.changeWindow) win = p.changeWindow;
+        } catch (e) {}
+        gearPlan = window.BSGear.planChange({
+          sat: sat, gearId: gearId,
+          size: sev === 'full' ? 'major' : (sev === 'dribble' ? 'dribble' : 'small'),
+          direction: dir, windowMin: win.min, windowMax: win.max
+        });
+      }
+      if (gearPlan && gearPlan.when === 'now') { change = 'yes'; steps.push(`Saturation ${sat}: this protection is close to done. Change now.`); }
+      else if (gearPlan && gearPlan.when === 'later') {
+        change = 'later';
+        steps.push(`Saturation ${sat}% still has room. A body check-in in about ${gearPlan.delayMin} min — still fine, change now, or remind later.`);
+        try { window.BSGear.scheduleCheck(gearPlan); } catch (e) {}
+      }
+      else if (gearPlan && gearPlan.when === 'none') { change = 'no'; steps.push('Small enough to skip a change check.'); }
+      else if (sat == null) { change = 'ask'; steps.push(`Check your saturation: at ${th} or more you may change (use 🎲 May I change?); below that, stay in it.`); }
       else if (sat >= th) { change = 'yes'; steps.push(`Saturation ${sat} ≥ change rule ${th}: change now.`); }
       else { change = 'no'; steps.push(`Saturation ${sat} is under the change rule (${th}): stay in it for now.`); }
     }

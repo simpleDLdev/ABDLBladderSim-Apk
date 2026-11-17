@@ -18,7 +18,7 @@ const O = ctx.BSOnboard, Y = ctx.BSSymptoms;
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; };
 
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-ok(/id="setCalib" open/.test(html) && /Calibration &amp; Conditioning/.test(html), 'calibration section is open and labelled Calibration & Conditioning');
+ok(/id="setCalib"/.test(html) && /Calibration &amp; Conditioning/.test(html), 'calibration section is labelled Calibration & Conditioning');
 ok(html.indexOf('id="setCondition"') < 0, 'the separate conditioning section is gone');
 ok(html.indexOf('condHubTop') >= 0 && html.indexOf('calibrationMount') > html.indexOf('condHubTop') && html.indexOf('condHubRest') > html.indexOf('calibrationMount'), 'hub, bladder calibration, then the rest of the controls');
 ok(html.indexOf('id="condSetupHint"') >= 0 && html.indexOf('safetyBodyCheck') >= 0, 'home hint and safety body-check mount exist');
@@ -56,7 +56,7 @@ Y.setReminder('off');
 ok(Y.blocksSession() === false, 'off never blocks');
 
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "48"/.test(g) && /versionCode 48/.test(g), 'version 48');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 48, 'version at least 48');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v48 hub tests passed');

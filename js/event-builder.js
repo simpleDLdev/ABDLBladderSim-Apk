@@ -188,6 +188,9 @@ function getEventCatalogForProfile(profile) {
 
   const entries = catalogMap[profile] || [];
   entries.forEach(([name, table, kind]) => collectTableEvents(profile, name, table, kind, events));
+  if (profile === 'conditioning' && window.BSCondEvents && window.BSCondEvents.catalog) {
+    window.BSCondEvents.catalog().forEach(ev => events.push(ev));
+  }
 
   // Append user-injected events for this profile
   const extra = appendedEventsByProfile?.[profile] || [];

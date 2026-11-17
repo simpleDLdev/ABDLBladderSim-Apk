@@ -3,6 +3,17 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v49',
+    date: '2026-11-17',
+    title: 'v49 — Several conditioning profiles',
+    bullets: [
+      'Session and Urge have a conditioning profile picker at the top. New runs the quiz and keeps the previous one. Duplicate, rename, delete, export, and import are on that picker and on Profiles.',
+      'Export gives JSON and a text summary you can paste. Import adds a profile.',
+      'Conditioning has its own events (surprise urge, relax drill, sleep-through, urge surfing, and others). They show in the event builder under Conditioning. A real need still means stop.',
+      'Version 49.'
+    ]
+  },
+  {
     hash: 'v48',
     date: '2026-11-16',
     title: 'v48 — Conditioning lives in Calibration',
