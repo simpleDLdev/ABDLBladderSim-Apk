@@ -18,8 +18,11 @@
       text: 'Relax drill: soften and let it happen. No holding back and no pushing. This is not overflow and not stretching.' + REAL,
       guide: [{ text: 'BREATHE OUT', time: 4, type: 'relax' }, { text: 'LET THE MUSCLE DROP', time: 5, type: 'relax' }] },
     { id: 'c_partial', dir: 'A', track: 'day', label: 'Partial moment', kind: 'partial',
-      text: 'A partial moment: let a little go into your gear. Finish on the toilet only if that reminder is on.' + REAL,
-      guide: [{ text: 'LET A LITTLE GO', time: 5, type: 'relax' }, { text: 'THEN STOP', time: 3, type: 'stop' }] },
+      text: 'A partial moment: let a little go into your gear, then stay relaxed. Finish on the toilet only if you want to. A small reward you chose can follow.' + REAL,
+      guide: [{ text: 'LET A LITTLE GO', time: 5, type: 'relax' }, { text: 'STAY RELAXED', time: 3, type: 'relax' }] },
+    { id: 'c_cue', dir: 'both', track: 'day', label: 'Same cue', kind: 'routine',
+      text: 'Same cue, same small step, then the reward you picked. The cue is the reminder. The step stays easy enough to repeat.' + REAL,
+      guide: [{ text: 'NOTICE THE CUE', time: 3, type: 'stop' }, { text: 'DO THE SMALL STEP', time: 4, type: 'relax' }] },
     { id: 'c_pass', dir: 'A', track: 'day', label: 'Pass request', kind: 'pass',
       text: 'Pass request: this one can be a no, or a compromise. It is not a guaranteed toilet trip.' + REAL,
       guide: [{ text: 'ASK', time: 3, type: 'stop' }, { text: 'TAKE THE ANSWER', time: 4, type: 'stop' }] },
@@ -29,8 +32,8 @@
     { id: 'c_wind', dir: 'A', track: 'night', methods: ['deeper_sleep'], label: 'Deeper-sleep wind-down', kind: 'night',
       text: 'Wind-down: same bedtime, dark room, no late screen. Sip earlier only if you are thirsty.' + REAL,
       guide: [{ text: 'LIGHTS DOWN', time: 4, type: 'stop' }, { text: 'SAME CUE', time: 4, type: 'stop' }] },
-    { id: 'c_hold', dir: 'B', track: 'day', label: 'Hold a bit longer', kind: 'hold',
-      text: 'Hold a bit longer: a short wait, then go. Stop if it gets strong. Not a maximum clench.' + REAL,
+    { id: 'c_hold', dir: 'B', track: 'day', optIn: ['hold_longer'], label: 'Hold a bit longer', kind: 'hold',
+      text: 'Hold a bit longer: a short shaping wait, then go. Stop if it gets strong. Not a maximum clench. Untraining skips this unless you opted in.' + REAL,
       guide: [{ text: 'GENTLE WAIT', time: 5, type: 'stop' }, { text: 'THEN GO', time: 3, type: 'relax' }] },
     { id: 'c_surf', dir: 'B', track: 'day', methods: ['urge_surf'], label: 'Urge surfing', kind: 'drill',
       text: 'Urge surfing: notice the wave, let the peak ease, then go. Stop if it gets strong.' + REAL,
@@ -84,7 +87,10 @@
     return EVENTS.filter(ev => {
       const dir = track ? (profile.direction && profile.direction[track]) : null;
       const dirs = track ? [dir] : [profile.direction && profile.direction.day, profile.direction && profile.direction.night];
-      if (dirs.indexOf(ev.dir) < 0) return false;
+      if (ev.dir !== 'both' && dirs.indexOf(ev.dir) < 0) {
+        if (!(ev.optIn && hasMethod(profile, ev.optIn))) return false;
+      }
+      if (ev.dir === 'both' && track && ev.track !== 'both' && ev.track !== track) return false;
       if (track && ev.track !== 'both' && ev.track !== track) return false;
       if (!track && ev.track === 'night' && (profile.direction && profile.direction.night) !== ev.dir) return false;
       if (!track && ev.track === 'day' && (profile.direction && profile.direction.day) !== ev.dir) return false;

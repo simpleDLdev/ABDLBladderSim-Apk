@@ -658,7 +658,7 @@
     return `<option value="match" ${sel === 'match' ? 'selected' : ''}>🎯 Match my profile${ctl ? ' (' + (window.BSControl.label(ctl, officeOn())) + ')' : ''}</option>` +
       L().slice().reverse().map(l => `<option value="${l.key}" ${sel === l.key ? 'selected' : ''}>${esc(window.BSControl.label(l, officeOn()))}</option>`).join('') +
       `<option value="off" ${sel === 'off' ? 'selected' : ''}>${esc(window.BSControl ? window.BSControl.label('off', officeOn()) : 'Sitting out')}</option>` +
-      (window.BSOnboard && window.BSOnboard.pickerOption ? window.BSOnboard.pickerOption(sel) : `<option value="conditioning" ${sel === 'conditioning' ? 'selected' : ''}>My Conditioning</option>`) +
+      (window.BSOnboard && window.BSOnboard.pickerOption ? window.BSOnboard.pickerOption(sel) : `<option value="conditioning" ${sel === 'conditioning' ? 'selected' : ''}>Conditioning ▸</option>`) +
       customProfiles().map(p => `<option value="${esc(p.id)}" ${sel === p.id ? 'selected' : ''}>⭐ ${esc(p.name)}</option>`).join('');
   }
   function supplyForm(i, pre) {
@@ -710,6 +710,7 @@
       ${window.BSControl ? window.BSControl.chip() : ''}
       ${window.BSGear && window.BSGear.warnHtml ? window.BSGear.warnHtml() : ''}
       <label class="urge-lbl">Control <select id="suProf">${profileOptions(s.profileId)}</select></label>
+      ${s.profileId === 'conditioning' && window.BSCondProfiles && window.BSCondProfiles.subPickerHtml ? window.BSCondProfiles.subPickerHtml('suCondPick') : ''}
       ${sipStatusHtml()}
       ${lvl ? `<details class="urge-more" id="suLvlInfo"><summary>About ${esc(window.BSControl.label(lvl, office))}</summary><div class="urge-note" id="suLvlDesc" data-office-raw="1">${esc(window.BSControl.describe(lvl.key, office))}</div><div class="urge-actions"><button type="button" id="suLvlAll">📋 All levels</button></div></details>` : ''}
       ${reset ? `<div class="urge-result" id="suDaily" style="border-color:#fdcb6e"><b>☀️ New day: what are you wearing / carrying?</b>${supplyForm(i, 'suD')}
@@ -769,6 +770,10 @@
     const urg = () => q('suU').dataset.set ? +q('suU').value : null;
     q('suU').oninput = q('suU').onchange = e => { e.target.dataset.set = '1'; q('suUV').textContent = e.target.value + '/10'; saveSettings({ lastUrgency: +e.target.value, lastUrgencyTs: Date.now() }); }; // v18: persist on every move so re-renders keep it
     q('suProf').onchange = e => { saveSettings({ profileId: e.target.value }); render(); try { if (window.syncConditioningSips) window.syncConditioningSips(); } catch (err) {} };
+    const sub = q('suCondPick');
+    if (sub) sub.onchange = () => { try { if (sub.value && window.BSCondProfiles) window.BSCondProfiles.setActive(sub.value); } catch (e) {} };
+    const manage = m.querySelector('[data-cond-manage]');
+    if (manage) manage.onclick = () => { try { if (typeof switchTab === 'function') switchTab('profiles'); } catch (e) {} };
     on('suT1', () => { saveSettings({ type: 1 }); render(); });
     on('suT2', () => { if (messyOn()) { saveSettings({ type: 2 }); render(); } });
     on('suGo', () => press(urg()));

@@ -73,7 +73,6 @@
       </button>
       <!-- v15 Play hub: four primary cards -->
       <div id="condSetupHint"></div>
-      <div id="condPickSession"></div>
       <div id="playHub" class="play-hub">
         <button type="button" id="btnStartSession" class="play-card pc-full" onclick="showSessionSetupModal()"><span class="pc-ic">▶</span><span><b>Full Session</b><br><small>Timed profile session — pick a profile &amp; go</small></span></button>
         <button type="button" id="hubQuick" class="play-card pc-quick" onclick="BSHub.openQuick()"><span class="pc-ic">⚡</span><span><b>Quick</b><br><small>Natural Urge, short play, or quiz → play</small></span></button>
@@ -167,7 +166,7 @@
         <p class="section-desc">Track your real physical state. Pressure = how badly you need to go. Saturation = how
           wet your protection is. Update these when prompted or anytime.</p>
         <div id="bioLoggerSection" class="stack"
-          style="background:#0f1115; padding:12px; border-radius:8px; border:1px solid #2b3348; display:none;">
+          style="background:#0f1115; padding:12px; border-radius:8px; border:1px solid #2b3348;">
           <div style="display:flex; align-items:center; gap:8px;">
             <label style="flex:1;">Urgency: <span id="pressureVal" style="color:#fab1a0">0/10</span></label>
             <button onclick="showUrgencyRefTable()"
@@ -188,8 +187,9 @@
           <input id="saturationSlider" type="range" min="0" max="100" step="5" value="0"
             oninput="updateSaturationUI(this.value)">
 
+          <div id="bioLoggerAdvanced" style="display:none;">
           <div id="babysitterStreakPanel"
-            style="display:none; background:#1b2030; padding:10px; border-radius:8px; margin-top:10px; border:1px solid #a29bfe;">
+            style="background:#1b2030; padding:10px; border-radius:8px; margin-top:10px; border:1px solid #a29bfe;">
             <div style="color:#a29bfe; font-weight:bold; margin-bottom:8px;">👩‍🍼 Babysitter Progress</div>
             <div><span style="color:#9b59b6;">🛡️ Protection:</span> <span id="protectionLevelVal"
                 style="color:#fff; font-weight:bold;">pad</span></div>
@@ -241,6 +241,7 @@
                 Progression</button>
             </div>
             </details>
+          </div>
           </div>
 
           <!-- Day Tracker Panel -->
@@ -306,6 +307,10 @@
         </details>
       </div>
       <!-- Hidden profile select for modal interaction -->
+      <div id="sessionCondSlot" style="display:none;margin:8px 0;">
+        <label class="urge-lbl">Conditioning profile <select id="sessionCondPick"></select></label>
+        <button type="button" class="pill" onclick="switchTab('profiles')">Manage → Profiles</button>
+      </div>
       <select id="profileSelect" onchange="applySelectedProfile()" style="display:none;">
         <option value="dependent">Constant Incontinence (Always Leaking)</option>
         <option value="npt">Not Potty Trained</option>
@@ -315,7 +320,7 @@
         <option value="omorashi_hold">💧 Omorashi (Hold & Release)</option>
         <option value="babysitter">👩‍🍼 Babysitter (Realistic Omorashi)</option>
         <option value="gauntlet_only">🎯 Gauntlet Only (Exercise Holds)</option>
-        <option value="conditioning">My Conditioning</option>
+        <option value="conditioning">Conditioning ▸</option>
       </select>
     </section>
 
@@ -345,7 +350,6 @@
     </section>
 
     <section id="tab-urge" class="tab-page panel" data-tab="urge">
-      <div id="condPickUrge"></div>
       <div id="drinkLogMount"></div>
       <div id="passMount"></div>
       <div id="checkinMount"></div>
@@ -360,9 +364,22 @@
 
     <section id="tab-profiles" class="tab-page panel stack" data-tab="profiles">
       <h2 style="margin:0;">Profiles &amp; Gear</h2>
-      <p class="section-desc">Conditioning profiles first, then quizzes, gear and campaign.</p>
-      <div id="condProfileManager"></div>
-      <div id="myProfileMount" class="quiz-hub"></div>
+      <p class="section-desc">Hold ≡ on a section header and drag to reorder. The ⋮ menu pins or hides it.</p>
+      <details id="profConditioning"><summary>Conditioning profiles</summary>
+        <div id="condProfileManager"></div>
+      </details>
+      <details id="profQuizzes"><summary>Quizzes</summary>
+        <div id="condQuizHost"></div>
+        <div id="myProfileMount" class="quiz-hub"></div>
+        <div id="condHubRest"></div>
+      </details>
+      <details id="profCalibration"><summary>Calibration</summary>
+        <div id="calibrationMount"></div>
+        <div id="conditioningMount"></div>
+        <div id="symptomMount"></div>
+        <div id="partialSettingsMount"></div>
+        <div id="sleepMount"></div>
+      </details>
       <div class="hr"></div>
       <div class="buttons">
         <button onclick="showSessionSetupModal()" style="width:100%; background:#a29bfe; color:#000; font-weight:bold;">▶ Choose Profile &amp; Start</button>
@@ -484,7 +501,7 @@
 
     <section id="tab-settings" class="tab-page panel stack" data-tab="settings">
       <h2 style="margin:0;">Settings</h2>
-      <p class="section-desc">Tap a section. Use ↑ ↓ to move it, pin to keep it first, or hide it. Reset layout is at the bottom of this page.</p>
+      <p class="section-desc">Hold ≡ on a section and drag it. Pin and hide are in the ⋮ menu. Reset layout is at the bottom of this page.</p>
       <div id="layoutTabOrder"></div>
       <details class="set-sec" id="setPlay"><summary>🎮 Play &amp; content <small>Messy · Office · wording · prompts</small></summary>
       <div id="optionsContent">
@@ -602,14 +619,8 @@
         <button id="btnEnableNotifications" class="pill" onclick="requestNotificationPermission()"
           style="display:none; border-color:#7cc4ff; color:#7cc4ff; width:100%; margin-top:8px;">🔔 Enable Tab Notifications</button>
       </details>
-      <details class="set-sec" id="setCalib"><summary>🎯 Calibration &amp; Conditioning <small>bladder lab · link to profiles</small></summary>
+      <details class="set-sec" id="setCalib"><summary>🎯 Calibration &amp; Conditioning</summary>
         <div id="condHubTop"></div>
-        <div id="calibrationMount"></div>
-        <div id="condHubRest"></div>
-        <div id="conditioningMount"></div>
-        <div id="symptomMount"></div>
-        <div id="partialSettingsMount"></div>
-        <div id="sleepMount"></div>
       </details>
       <details class="set-sec" id="setCalendar"><summary>📅 Calendar &amp; logging defaults</summary>
         <div id="calendarSettingsMount"></div>
@@ -897,9 +908,14 @@
               More Details</button>
           </div>
           <div style="background:#1b2030; border:2px solid #55efc4; border-radius:12px; overflow:hidden;">
-            <button onclick="selectProfileFromModal('conditioning')"
+            <button onclick="showSessionCondList()"
               style="width:100%; padding:20px 20px 10px 20px; background:transparent; border:none; color:#55efc4; cursor:pointer; font-weight:bold; font-size:1em;">🌿
-              My Conditioning<br><span style="font-size:0.75em; color:#cdd7e6;">Your intake profile</span></button>
+              Conditioning ▸<br><span style="font-size:0.75em; color:#cdd7e6;">Pick a saved conditioning profile</span></button>
+            <div id="sessionSetupCond" style="display:none;padding:8px 12px 12px;">
+              <label class="urge-lbl">Saved profile <select id="sessionSetupCondPick"></select></label>
+              <button type="button" class="pill" onclick="startChosenConditioning()" style="width:100%;margin-top:6px;">Use this profile</button>
+              <button type="button" class="pill" onclick="switchTab('profiles')" style="width:100%;margin-top:6px;">Manage → Profiles</button>
+            </div>
             <button onclick="toggleProfileDetails('conditioning')"
               style="width:100%; padding:6px; background:rgba(85,239,196,0.08); border:none; border-top:1px solid rgba(85,239,196,0.2); color:#55efc4; cursor:pointer; font-size:0.72em;">▼
               More Details</button>

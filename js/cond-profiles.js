@@ -424,18 +424,22 @@
     if (wMin) wMin.onchange = saveWin;
     if (wMax) wMax.onchange = saveWin;
   }
+  function subPickerHtml(selectId) {
+    const s = O.load();
+    const options = (s.profiles || []).map(p => `<option value="${p.id}" ${p.id === s.activeId ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+    return `<label class="urge-lbl">Conditioning profile <select id="${selectId}" class="condSubPick">${options || '<option value="">No profile yet</option>'}</select></label><button type="button" class="pill" data-cond-manage="1">Manage → Profiles</button>`;
+  }
+  function fillSub(selectId) {
+    const el = document.getElementById(selectId); if (!el) return;
+    const s = O.load();
+    el.innerHTML = (s.profiles || []).map(p => `<option value="${p.id}" ${p.id === s.activeId ? 'selected' : ''}>${esc(p.name)}</option>`).join('') || '<option value="">No profile yet</option>';
+    el.onchange = () => { if (el.value) setActive(el.value); };
+  }
   function renderAll() {
-    ['condPickSession', 'condPickUrge', 'condProfileManager'].forEach(renderInto);
-    const top = document.getElementById('condHubTop');
-    const rest = document.getElementById('condHubRest');
-    if (top) top.innerHTML = `<div class="urge-note"><b>Conditioning profiles</b><div class="cal-legend">Pick, create, and export them at the top of Session, Urge, and Profiles. This section keeps bladder calibration.</div><button type="button" id="condGoProfiles" class="pill">Open conditioning profiles</button></div>`;
-    if (rest) rest.innerHTML = '';
-    const go = document.getElementById('condGoProfiles');
-    if (go) go.onclick = () => {
-      try { if (typeof switchTab === 'function') switchTab('profiles'); } catch (e) {}
-      const el = document.getElementById('condProfileManager');
-      if (el && el.scrollIntoView) el.scrollIntoView({ block: 'start' });
-    };
+    renderInto('condProfileManager');
+    ['sessionCondPick', 'sessionSetupCondPick'].forEach(fillSub);
+    const slot = document.getElementById('sessionCondSlot');
+    if (slot && typeof profileMode !== 'undefined') slot.style.display = profileMode === 'conditioning' ? 'block' : 'none';
   }
   const origRender = O.render;
   O.render = function () {
@@ -444,7 +448,7 @@
   };
   window.BSCondProfiles = {
     list, active, setActive, beginNew, retake, duplicate, rename, remove,
-    exportProfile, exportAll, summaryText, importJson, managerHtml, renderAll, pack,
+    exportProfile, exportAll, summaryText, importJson, managerHtml, subPickerHtml, fillSub, renderAll, pack,
     ensure: ensureLibrary, writeBack
   };
   try { window.addEventListener('load', () => { try { renderAll(); } catch (e) {} }); } catch (e) {}

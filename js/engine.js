@@ -57,8 +57,46 @@ function updatePressureUI(val) {
   if (descSpan) descSpan.textContent = getUrgencyDesc(lv, profileMode);
 
   // Feedback Loop: If pressure is high, we might need to expedite the next event
-  if (sessionRunning && manualPressure > 75) {
+  if (sessionRunning && profileMode === 'conditioning' && typeof applyConditioningUrge === 'function') {
+    applyConditioningUrge(getUrgencyLevel(manualPressure));
+  } else if (sessionRunning && manualPressure > 75) {
     checkUrgencyOverride();
+  }
+}
+
+function applyConditioningUrge(urgency) {
+  if (typeof urgeAcceleration !== 'function' || typeof getMainTimerRemaining !== 'function') return;
+  let info = null;
+  try { info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); } catch (e) {}
+  const profile = (window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile) || {};
+  const remaining = getMainTimerRemaining();
+  const plan = urgeAcceleration({
+    urgency: urgency,
+    remainingSec: remaining,
+    direction: info && info.direction,
+    targetKey: info && info.targetKey,
+    methods: info && info.methods,
+    threshold: profile.urgeThreshold
+  });
+  if (!plan.change) return;
+  if (window._urgePullLevel === urgency && plan.kind === 'pull') return;
+  window._urgePullLevel = urgency;
+  clearTimeout(mainTimer);
+  clearTimeout(preChimeTimer);
+  const ms = Math.max(0, plan.delaySec) * 1000;
+  mainEndAt = Date.now() + ms;
+  if (ms <= 0) {
+    if (typeof alarmMain === 'function') alarmMain();
+  } else {
+    if (ms > 15000 && typeof startChime === 'function') preChimeTimer = setTimeout(startChime, ms - 15000);
+    mainTimer = setTimeout(alarmMain, ms);
+  }
+  if (typeof setCountdownLabel === 'function') setCountdownLabel();
+  const mins = Math.max(0, Math.round(plan.delaySec / 60));
+  if (typeof logToOutput === 'function') {
+    logToOutput(plan.kind === 'hold'
+      ? `<span style="color:#74b9ff">⏱ Urgency ${urgency}/10 — hold drill, next event in about ${mins} min.</span>`
+      : `<span style="color:#fab1a0">⏱ Urgency ${urgency}/10 — next event pulled forward, about ${mins} min.</span>`);
   }
 }
 

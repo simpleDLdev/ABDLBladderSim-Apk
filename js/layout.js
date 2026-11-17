@@ -35,6 +35,12 @@
     ids.forEach(id => { if (!known.has(id) && !hidden.has(id)) rest.push(id); });
     return pinned.concat(rest);
   }
+  function reorderList(ids, id, toIndex) {
+    const list = ids.filter(x => x !== id);
+    const at = Math.max(0, Math.min(list.length, toIndex | 0));
+    list.splice(at, 0, id);
+    return list;
+  }
   function move(ids, id, dir) {
     const list = ids.slice();
     const i = list.indexOf(id);
@@ -95,13 +101,43 @@
   }
   function injectBar(d) {
     const sum = d.querySelector('summary');
-    if (!sum || sum.querySelector('.lay-bar')) return;
-    const bar = document.createElement('span');
-    bar.className = 'lay-bar';
-    bar.innerHTML = '<button type="button" data-lay="up" aria-label="Move up">↑</button><button type="button" data-lay="down" aria-label="Move down">↓</button><button type="button" data-lay="pin" aria-label="Pin">Pin</button><button type="button" data-lay="hide" aria-label="Hide">Hide</button>';
-    bar.addEventListener('click', ev => ev.stopPropagation());
-    sum.appendChild(bar);
+    if (!sum || sum.querySelector('.lay-grip')) return;
+    const grip = document.createElement('span');
+    grip.className = 'lay-grip';
+    grip.textContent = '≡';
+    grip.setAttribute('role', 'button');
+    grip.setAttribute('aria-label', 'Drag to reorder');
+    const menu = document.createElement('span');
+    menu.className = 'lay-menu';
+    menu.innerHTML = '<button type="button" class="lay-more" aria-label="Section menu">⋮</button><span class="lay-pop" hidden><button type="button" data-lay="pin">Pin</button><button type="button" data-lay="hide">Hide</button></span>';
+    sum.insertBefore(grip, sum.firstChild);
+    sum.appendChild(menu);
+    const more = menu.querySelector('.lay-more');
+    const pop = menu.querySelector('.lay-pop');
+    more.addEventListener('click', ev => { ev.preventDefault(); ev.stopPropagation(); pop.hidden = !pop.hidden; });
+    menu.addEventListener('click', ev => ev.stopPropagation());
+    grip.addEventListener('pointerdown', ev => startDrag(ev, d));
   }
+  let drag = null;
+  function startDrag(ev, details) {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (ev.pointerId != null && ev.target.setPointerCapture) { try { ev.target.setPointerCapture(ev.pointerId); } catch (e) {} }
+    drag = { id: details.id, group: groupKey(details.parentElement), y: ev.clientY, el: details };
+  }
+  function onPointerMove(ev) {
+    if (!drag) return;
+    const under = document.elementFromPoint && document.elementFromPoint(ev.clientX, ev.clientY);
+    const hit = under && under.closest && under.closest('details');
+    if (!hit || hit.id === drag.id || groupKey(hit.parentElement) !== drag.group) return;
+    const parent = hit.parentElement;
+    const ids = [...parent.children].filter(n => n.tagName === 'DETAILS' && !n.classList.contains('lay-hidden')).map(n => n.id);
+    const to = ids.indexOf(hit.id);
+    if (to < 0) return;
+    place(drag.group, drag.id, ev.clientY < drag.y ? to : to + 1);
+    drag.y = ev.clientY;
+  }
+  function onPointerUp() { drag = null; }
   function apply(doc) {
     doc = doc || document;
     if (!doc.querySelectorAll) return load();
@@ -167,6 +203,17 @@
     apply(document);
     return s;
   }
+  function place(groupKeyName, id, index) {
+    const s = load();
+    const g = groupOf(s, groupKeyName);
+    const base = (original && original.groups[groupKeyName]) || g.order;
+    if (!g.order.length) g.order = base.slice();
+    const vis = visibleOrder(g.order.length ? g.order : base, g);
+    g.order = reorderList(vis, id, index);
+    save(s);
+    apply(document);
+    return g.order;
+  }
   function moveTab(name, dir) {
     const s = load();
     const cur = (s.tabs && s.tabs.length ? s.tabs : TABS).slice();
@@ -199,7 +246,7 @@
     const tabBtn = t.closest('[data-lay-tab]');
     if (tabBtn) { ev.preventDefault(); moveTab(tabBtn.getAttribute('data-tab'), tabBtn.getAttribute('data-lay-tab')); return; }
     if (t.id === 'layoutReset' || (t.closest && t.closest('#layoutReset'))) { ev.preventDefault(); reset(); return; }
-    const btn = t.closest('.lay-bar [data-lay]');
+    const btn = t.closest('.lay-pop [data-lay]');
     if (!btn) return;
     ev.preventDefault();
     ev.stopPropagation();
@@ -213,14 +260,17 @@
     setOpen(groupKey(d.parentElement), d.id, d.open);
   }
   window.BSLayout = {
-    KEY, TABS, blank, load, save, visibleOrder, move, hideId, showId, togglePin, moveTab, setOpen, reset, apply, act
+    KEY, TABS, blank, load, save, visibleOrder, move, reorderList, place, hideId, showId, togglePin, moveTab, setOpen, reset, apply, act
   };
-  const css = '.lay-bar{display:inline-flex;gap:4px;margin-left:8px;vertical-align:middle}.lay-bar button,.lay-hidden-list button,.lay-tab-row button,#layoutReset{min-height:36px;min-width:36px;padding:4px 8px;border-radius:8px;border:1px solid #2b3348;background:#0f1115;color:#e7edf5}.lay-hidden{display:none !important}.lay-tab-row{display:flex;gap:6px;align-items:center;margin:4px 0}.lay-hidden-list{margin:8px 0}';
+  const css = '.lay-grip{display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:36px;margin-right:6px;border-radius:8px;border:1px solid #2b3348;background:#0f1115;color:#e7edf5;touch-action:none;cursor:grab}.lay-menu{float:right}.lay-more,.lay-pop button,.lay-hidden-list button,.lay-tab-row button,#layoutReset{min-height:36px;min-width:36px;padding:4px 8px;border-radius:8px;border:1px solid #2b3348;background:#0f1115;color:#e7edf5}.lay-pop{display:flex;gap:4px;margin-left:6px}.lay-pop[hidden]{display:none}.lay-hidden{display:none !important}.lay-tab-row{display:flex;gap:6px;align-items:center;margin:4px 0}.lay-hidden-list{margin:8px 0}';
   try {
     const st = document.createElement('style');
     st.textContent = css;
     document.head.appendChild(st);
     document.addEventListener('click', onClick);
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+    document.addEventListener('pointercancel', onPointerUp);
     document.addEventListener('toggle', onToggle, true);
     window.addEventListener('load', () => { try { apply(document); } catch (e) {} });
   } catch (e) {}

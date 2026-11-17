@@ -99,15 +99,15 @@ const capped = O.capSessionMl(400);
 ok(capped.ml <= 250 && capped.ml > 0, 'a session drink is cut by the safety cap ' + capped.ml);
 
 const opts = SU.profileOptions('conditioning');
-ok(opts.indexOf('value="conditioning"') >= 0 && opts.indexOf('My Conditioning') >= 0, 'Natural Urge picker lists My Conditioning');
+ok(opts.indexOf('value="conditioning"') >= 0 && opts.indexOf('Conditioning') >= 0, 'Natural Urge picker lists Conditioning');
 const picked = SU.profile('conditioning');
 ok(picked.id === 'conditioning' && /My Conditioning/.test(picked.name) && picked.levelKey === O.playProfile().levelKey && picked.conditioning && picked.conditioning.direction, 'the picker resolves the conditioning level, direction, and gear');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const cfg = fs.readFileSync(path.join(root, 'js', 'profile-config.js'), 'utf8');
 const ns = fs.readFileSync(path.join(root, 'js', 'natural-session.js'), 'utf8');
-ok(html.indexOf("selectProfileFromModal('conditioning')") >= 0 && html.indexOf('My Conditioning') >= 0, 'full session setup offers My Conditioning');
+ok(html.indexOf('showSessionCondList') >= 0 && html.indexOf('Conditioning') >= 0, 'full session setup offers Conditioning');
 ok(cfg.indexOf('conditioning:') >= 0 && /My Conditioning/.test(cfg), 'session profile config has My Conditioning');
-ok(ns.indexOf('profileOptions') >= 0 && ns.indexOf('My Conditioning') >= 0, 'natural session copies the conditioning option');
+ok(ns.indexOf('profileOptions') >= 0 && ns.indexOf('conditioning') >= 0, 'natural session copies the conditioning option');
 
 delete store.bs_conditioning_v1;
 store.bs_consent_v1 = JSON.stringify({ v: 2, acceptedAt: 1700000000000, adult: true, textVersion: '2026-11-r3', tracks: { day: 'A', night: 'B' }, realProgress: { day: true, night: false }, rechecks: [], bandAt: {} });

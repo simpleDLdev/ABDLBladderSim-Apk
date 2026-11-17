@@ -70,7 +70,7 @@ ok(E.catalog().length === E.EVENTS.length && E.catalog().every(e => e.source ===
 
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const mgr = P.managerHtml();
-ok(html.indexOf('id="condPickSession"') >= 0 && html.indexOf('id="condPickUrge"') >= 0 && html.indexOf('id="condProfileManager"') >= 0, 'session, urge, and profiles have a picker mount');
+ok(html.indexOf('id="condProfileManager"') >= 0 && html.indexOf('id="condPickSession"') < 0 && html.indexOf('id="condPickUrge"') < 0, 'the manager is only on Profiles');
 ['New', 'Retake', 'Edit pacing', 'Duplicate', 'Rename', 'Delete', 'Export', 'Import', 'Export all'].forEach(label => ok(mgr.indexOf(label) >= 0, 'picker includes ' + label));
 ok(html.indexOf('value="conditioning"') >= 0, 'event builder has a Conditioning profile');
 

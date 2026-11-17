@@ -465,7 +465,7 @@
     };
   }
   function pickerOption(sel) {
-    return `<option value="conditioning"${sel === 'conditioning' ? ' selected' : ''}>My Conditioning</option>`;
+    return `<option value="conditioning"${sel === 'conditioning' ? ' selected' : ''}>Conditioning ▸</option>`;
   }
   function rollMods(track) {
     const info = playProfile();
@@ -804,7 +804,7 @@
   function bindHub() {
     const top = document.getElementById('condHubTop');
     const rest = document.getElementById('condHubRest');
-    const root = document.getElementById('setCalib') || document;
+    const root = document;
     const q = root.querySelector && root.querySelector('#condQuizStart');
     if (q) q.onclick = () => { const box = document.getElementById('setCalib'); if (box) box.open = true; startIntake(null); const m = document.getElementById('conditioningMount'); if (m && m.scrollIntoView) m.scrollIntoView({ block: 'start' }); };
     const resume = root.querySelector && root.querySelector('#condQuizResume');
@@ -837,10 +837,13 @@
   function renderHub() {
     const top = document.getElementById('condHubTop');
     const rest = document.getElementById('condHubRest');
-    if (!top && !rest) return;
+    const quiz = document.getElementById('condQuizHost');
     const s = load();
-    if (top) top.innerHTML = hubTopHtml(s);
+    if (top) top.innerHTML = '<div class="cal-legend">Conditioning profiles, quizzes, and calibration are on the Profiles tab.</div><button type="button" class="pill" id="calibGoProfiles">Open Profiles</button>';
+    if (quiz) quiz.innerHTML = hubTopHtml(s);
     if (rest) rest.innerHTML = hubRestHtml(s);
+    const go = document.getElementById('calibGoProfiles');
+    if (go) go.onclick = () => { try { if (typeof switchTab === 'function') switchTab('profiles'); } catch (e) {} };
     bindHub();
   }
   function homeHintHtml(s) {
