@@ -3,6 +3,16 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v55',
+    date: '2026-11-17',
+    title: 'v55 — Sip batches, then quiet',
+    bullets: [
+      'A conditioning drink prompt is 4 sips, then 30 minutes of quiet. You can change both on the conditioning profile.',
+      'A low tank will not stack a second drink alarm inside that quiet time.',
+      'Version 55.'
+    ]
+  },
+  {
     hash: 'v53',
     date: '2026-11-17',
     title: 'v53 — Sips during a conditioning session',

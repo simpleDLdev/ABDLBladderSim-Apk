@@ -738,6 +738,18 @@
     save(s);
     return { min: lo, max: hi };
   }
+  function setSipPace(count, gap) {
+    let n = Math.round(+count);
+    let g = Math.round(+gap);
+    if (!(n >= 1)) n = 4;
+    n = Math.max(1, Math.min(12, n));
+    if (!(g >= 5)) g = 30;
+    g = Math.max(5, Math.min(180, g));
+    const s = load();
+    if (s.profile) { s.profile.sipBatch = n; s.profile.sipGapMin = g; }
+    save(s);
+    return { count: n, gap: g };
+  }
   function setField(group, key, val) {
     const s = load();
     const target = s.profile || (s.hubPrefs = s.hubPrefs || {});
@@ -1328,7 +1340,7 @@
   try { migrateV44(); } catch (e) {}
   window.BSOnboard = {
     KEY, LIFE, GOALS, METHODS, load, save, scoreNow, scoreDay, scoreNight, bandOf, midOf, levelCard, defaultMethods,
-    startIntake, applyIntake, quizButtonLabel, statusText, hubTopHtml, hubRestHtml, homeHintHtml, setPacing, setChangeWindow, quickUrge, quickSession, renderHub,
+    startIntake, applyIntake, quizButtonLabel, statusText, hubTopHtml, hubRestHtml, homeHintHtml, setPacing, setChangeWindow, setSipPace, quickUrge, quickSession, renderHub,
     prefillFromQuiz, sleepHint, recommendGear, metricsFrom, finishQuiz, chooseCalib, capacityEstimate, updateProfile,
     migrateV44, playProfile, pickerOption, rollMods, sessionPlan, capSessionMl, todayPlan, logBehaviour,
     considerPromotion, nightAPoints, weeklyReview, onCheckIn, logDiary, diaryMetrics, progress, cuesFor, render

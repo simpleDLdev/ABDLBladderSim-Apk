@@ -404,7 +404,6 @@ function nextReveal() {
   }
 
   if (profileMode === 'conditioning' && evtToRun && window.BSTank && !window.BSTank.canVoid(window.BSTank.load())) {
-    logToOutput(`<span style="color:#7cc4ff">💧 Tank is about ${Math.round(window.BSTank.load().ml)} ml, under the ${window.BSTank.load().minVoidMl} ml void line. Sip first.</span>`);
     triggerHydrationEvent(true);
     if (sessionRunning) scheduleMainEvent({ _fromTank: true, min: 18, max: 30 });
     return;
@@ -540,9 +539,10 @@ function scheduleNextHydration() {
   let minHydration = runtime?.hydrationMin ?? cfgTimes.hydrationMin ?? 6;
   let maxHydration = runtime?.hydrationMax ?? cfgTimes.hydrationMax ?? 12;
   if (conditioning && typeof conditioningSipPlan === 'function') {
-    let key = 'none';
+    let key = 'none', prof = null;
     try { const info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); if (info && info.levelKey) key = info.levelKey; } catch (e) {}
-    const mapped = conditioningSipPlan(key);
+    try { prof = window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile; } catch (e) {}
+    const mapped = conditioningSipPlan(key, prof);
     if (mapped) { minHydration = mapped.minMin; maxHydration = mapped.maxMin; }
   }
   hydrationGapMin = Math.max(1, +minHydration || 6);
@@ -691,11 +691,23 @@ function triggerHydrationEvent(force = false, fromQueue = false) {
   // 1. Define Intensity from config
   const cfg = getProfileConfig();
   let [min, max] = cfg.hydrationSips;
+  let sipGapMin = 30;
   if (conditioning && typeof conditioningSipPlan === 'function') {
-    let key = 'none';
+    let key = 'none', prof = null;
     try { const info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); if (info && info.levelKey) key = info.levelKey; } catch (e) {}
-    const mapped = conditioningSipPlan(key);
-    if (mapped && mapped.sips) { min = mapped.sips[0]; max = mapped.sips[1]; }
+    try { prof = window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile; } catch (e) {}
+    const mapped = conditioningSipPlan(key, prof);
+    if (mapped && mapped.sips) { min = mapped.sips[0]; max = mapped.sips[1]; sipGapMin = mapped.gapMin || 30; }
+  }
+  if (conditioning && window.BSTank && window.BSTank.sipGate && !fromQueue) {
+    let lastSipAt = window._lastSipPromptAt || 0;
+    if (!lastSipAt) { try { lastSipAt = +(localStorage.getItem('bs_sip_prompt_at') || 0); } catch (e) {} }
+    const gate = window.BSTank.sipGate({ lastAt: lastSipAt, now: Date.now(), gapMin: sipGapMin, showing: !!isHydrationPending });
+    if (!gate.ok) {
+      const since = Date.now() - (window._lastSipPromptAt || 0);
+      if (force && gate.reason === 'gap' && since > 5000) logToOutput(`<span style="color:#7cc4ff">💧 Tank is low. Next sip in ${gate.waitMin} min.</span>`);
+      return;
+    }
   }
 
   // 2. Roll Content — same prompt for every profile, including conditioning.
@@ -737,6 +749,8 @@ function triggerHydrationEvent(force = false, fromQueue = false) {
     }
   }
   window._lastSipCount = count;
+  window._lastSipPromptAt = Date.now();
+  try { localStorage.setItem('bs_sip_prompt_at', String(window._lastSipPromptAt)); } catch (e) {}
   if (conditioning && window.BSTank) { try { window.BSTank.addSips(window.BSTank.load(), count); } catch (e) {} }
 
   // 3. UI Setup. Log first so a banner problem cannot erase the prompt.
@@ -811,7 +825,16 @@ function startSession(isResume = false) {
     clearTimeout(mainTimer);
     clearTimeout(preChimeTimer);
 
-    if (profileMode === 'conditioning' && (!hydrationEndAt || hydrationEndAt > Date.now() + 12 * 60000)) hydrationEndAt = null;
+    if (profileMode === 'conditioning') {
+      let gapMs = 30 * 60000;
+      try {
+        const info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile();
+        const prof = window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile;
+        const mapped = conditioningSipPlan(info && info.levelKey, prof);
+        if (mapped && mapped.gapMin) gapMs = mapped.gapMin * 60000;
+      } catch (e) {}
+      if (!hydrationEndAt || hydrationEndAt > Date.now() + gapMs) hydrationEndAt = null;
+    }
     const drinkLeft = (hydrationEndAt && hydrationEndAt > Date.now())
       ? hydrationEndAt - Date.now()
       : 0;

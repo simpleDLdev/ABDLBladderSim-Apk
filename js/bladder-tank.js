@@ -16,10 +16,10 @@
       capacity: capacity,
       ml: Math.max(0, Math.min(capacity, ml)),
       minVoidMl: minVoidMl,
-      sipMin: 1,
-      sipMax: 2,
-      gapMin: 6,
-      gapMax: 12,
+      sipMin: 4,
+      sipMax: 4,
+      gapMin: 30,
+      gapMax: 30,
       baselineMlPerMin: 0.35
     };
   }
@@ -59,7 +59,10 @@
   /** How long until the next void. A low tank waits, and a drink should come first. */
   function eventWaitMin(s) {
     s = s || load();
-    if (!canVoid(s)) return { voidOk: false, waitMin: 18, waitMax: 30, reason: 'low' };
+    if (!canVoid(s)) {
+      const gap = Math.max(5, Math.round(s.gapMin || 30));
+      return { voidOk: false, waitMin: gap, waitMax: gap + 5, reason: 'low' };
+    }
     const frac = s.capacity ? s.ml / s.capacity : 0;
     const wait = Math.round(36 - 22 * Math.min(1, frac));
     return { voidOk: true, waitMin: Math.max(8, wait - 3), waitMax: Math.max(12, wait + 4), reason: 'fill' };
@@ -68,6 +71,18 @@
     s = s || load();
     const eta = nextAt && nextAt > Date.now() ? Math.max(0, Math.ceil((nextAt - Date.now()) / 60000)) : null;
     return { ml: Math.round(s.ml), capacity: s.capacity, minVoidMl: s.minVoidMl, etaMin: eta, low: !canVoid(s) };
+  }
+  /** One drink alarm at a time, and not again until the quiet gap has passed. */
+  function sipGate(opts) {
+    opts = opts || {};
+    const gapMin = Math.max(1, Math.round(+opts.gapMin || 30));
+    if (opts.showing) return { ok: false, waitMin: gapMin, reason: 'showing' };
+    const last = +opts.lastAt || 0;
+    const now = +opts.now || 0;
+    if (!last) return { ok: true, waitMin: 0, reason: '' };
+    const left = last + gapMin * 60000 - now;
+    if (left <= 0) return { ok: true, waitMin: 0, reason: '' };
+    return { ok: false, waitMin: Math.max(1, Math.ceil(left / 60000)), reason: 'gap' };
   }
   function randInt(a, b, rng) {
     const lo = Math.min(a, b), hi = Math.max(a, b);
@@ -119,6 +134,6 @@
   }
   window.BSTank = {
     KEY, SIP_ML, defaults, load, save, reset, addSips, undoSips, tickBaseline,
-    canVoid, takeVoid, eventWaitMin, readout, simulate
+    canVoid, takeVoid, eventWaitMin, readout, simulate, sipGate
   };
 })();
