@@ -521,7 +521,10 @@ function closeVoidGuide() {
       return;
     }
     logToOutput(`<span style="color:#7cc4ff; font-style:italic;">⚠️ <b>Guide Aborted:</b> You stopped early. Checking hydration levels...</span>`);
-    triggerHydrationEvent(); // Force Drink
+    let low = false;
+    try { low = window.BSTank && !window.BSTank.canVoid(window.BSTank.load()); } catch (e) {}
+    if (low) logToOutput(`<span style="color:#7cc4ff">💧 Tank is low, so the next thing is a sip, not another void.</span>`);
+    triggerHydrationEvent(true);
   }
 
   if (isGuideComplete) {

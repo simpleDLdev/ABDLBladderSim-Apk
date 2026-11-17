@@ -661,6 +661,14 @@ function scheduleMainEvent(windowOverride) {
   min = Math.max(5, Math.floor(min * urgencyMultiplier));
   max = Math.max(10, Math.floor(max * urgencyMultiplier));
 
+  if (profileMode === 'conditioning' && window.BSTank && !(windowOverride && windowOverride._fromTank)) {
+    try { window.BSTank.tickBaseline(window.BSTank.load(), 1); } catch (e) {}
+    const plan = window.BSTank.eventWaitMin(window.BSTank.load());
+    min = plan.waitMin;
+    max = Math.max(plan.waitMin, plan.waitMax);
+    if (!plan.voidOk) setTimeout(() => { try { triggerHydrationEvent(true); } catch (e) {} }, 500);
+  }
+
   // 4. Prepare Micro Cycle (Preserved)
   targetMicrosPerMain = Number.isFinite(runtime?.microsPerCycle)
     ? clamp(runtime.microsPerCycle, 0, 10)
@@ -873,6 +881,25 @@ function runMobileRecoveryChecks(source = 'visibilitychange') {
   // Resume AudioContext when returning to foreground.
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
+  // A visible event banner used to return before this, so a dropped sip timer never came back.
+  if (!meetingActive && hydrationEndAt && now >= hydrationEndAt) {
+    clearTimeout(hydrationTimer);
+    hydrationEndAt = null;
+    if (!isHydrationPending) triggerHydrationEvent(profileMode === 'conditioning');
+    scheduleNextHydration();
+  } else if (!meetingActive && hydrationEndAt && !hydrationTimer) {
+    const hydrationRemaining = hydrationEndAt - now;
+    if (hydrationRemaining > 0) {
+      hydrationTimer = setTimeout(() => {
+        if (!sessionRunning) return;
+        triggerHydrationEvent();
+        scheduleNextHydration();
+      }, hydrationRemaining);
+    }
+  } else if (!meetingActive && profileMode === 'conditioning' && !hydrationEndAt) {
+    scheduleNextHydration();
+  }
+
   // Respect pause mode and active alarms; avoid stacking additional banners.
   if (meetingActive || isBannerVisible) return;
 
@@ -933,24 +960,6 @@ function runMobileRecoveryChecks(source = 'visibilitychange') {
     }
   }
 
-  // HYDRATION TIMER: catch up missed drink alerts, or re-arm dropped timer.
-  if (hydrationEndAt && now >= hydrationEndAt) {
-    clearTimeout(hydrationTimer);
-    hydrationEndAt = null;
-    if (!isHydrationPending) {
-      triggerHydrationEvent();
-    }
-    scheduleNextHydration();
-  } else if (hydrationEndAt && !hydrationTimer) {
-    const hydrationRemaining = hydrationEndAt - now;
-    if (hydrationRemaining > 0) {
-      hydrationTimer = setTimeout(() => {
-        if (!sessionRunning) return;
-        triggerHydrationEvent();
-        scheduleNextHydration();
-      }, hydrationRemaining);
-    }
-  }
 }
 
 // Catch up timers after mobile tab comes back from background
