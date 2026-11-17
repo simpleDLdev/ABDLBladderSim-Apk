@@ -1,5 +1,14 @@
 # Changelog
 
+## v49 — 2026-11-17
+
+Version name **49**, version code **49**.
+
+- Conditioning is a profile you pick at the top of Full Session and Natural Urge, and on the Profiles tab. New, Retake, Duplicate, Rename, Delete, Export, and Import are there. An existing single profile becomes the first one.
+- Export is JSON plus a text summary you can paste back. Import adds another profile. Export all is there too.
+- Conditioning events are their own list, separate from the regular sim tables. They follow direction, methods, and consent, and they get heavier when the gap is wide or pacing is instant. A real need still stops them.
+- Settings → Calibration keeps the bladder lab and a link to the same profile manager.
+
 ## v48 — 2026-11-16
 
 Version name **48**, version code **48**.

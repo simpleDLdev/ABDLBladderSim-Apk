@@ -73,6 +73,7 @@
       </button>
       <!-- v15 Play hub: four primary cards -->
       <div id="condSetupHint"></div>
+      <div id="condPickSession"></div>
       <div id="playHub" class="play-hub">
         <button type="button" id="btnStartSession" class="play-card pc-full" onclick="showSessionSetupModal()"><span class="pc-ic">▶</span><span><b>Full Session</b><br><small>Timed profile session — pick a profile &amp; go</small></span></button>
         <button type="button" id="hubQuick" class="play-card pc-quick" onclick="BSHub.openQuick()"><span class="pc-ic">⚡</span><span><b>Quick</b><br><small>Natural Urge, short play, or quiz → play</small></span></button>
@@ -344,6 +345,7 @@
     </section>
 
     <section id="tab-urge" class="tab-page panel" data-tab="urge">
+      <div id="condPickUrge"></div>
       <div id="drinkLogMount"></div>
       <div id="passMount"></div>
       <div id="checkinMount"></div>
@@ -358,7 +360,8 @@
 
     <section id="tab-profiles" class="tab-page panel stack" data-tab="profiles">
       <h2 style="margin:0;">Profiles &amp; Gear</h2>
-      <p class="section-desc">Quizzes first (what each one changes + where to go), then your profiles, gear and campaign.</p>
+      <p class="section-desc">Conditioning profiles first, then quizzes, gear and campaign.</p>
+      <div id="condProfileManager"></div>
       <div id="myProfileMount" class="quiz-hub"></div>
       <div class="hr"></div>
       <div class="buttons">
@@ -1517,6 +1520,7 @@
               <option value="chaos_manual">Chaos</option>
               <option value="omorashi_hold">Omorashi</option>
               <option value="babysitter" selected>Babysitter</option>
+              <option value="conditioning">Conditioning</option>
             </select>
           </div>
           <div>
@@ -1689,6 +1693,8 @@
   <script src="js/checkins.js"></script>
   <script src="js/intake.js"></script>
   <script src="js/onboarding.js"></script>
+  <script src="js/cond-events.js"></script>
+  <script src="js/cond-profiles.js"></script>
   <script src="js/urge-matrix.js"></script>
   <script src="js/campaign.js"></script>
   <script src="js/board.js"></script>

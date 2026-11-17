@@ -56,7 +56,7 @@ Y.setReminder('off');
 ok(Y.blocksSession() === false, 'off never blocks');
 
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "48"/.test(g) && /versionCode 48/.test(g), 'version 48');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 48, 'version at least 48');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v48 hub tests passed');

@@ -294,9 +294,19 @@
     s.habits.log = Array.isArray(s.habits.log) ? s.habits.log : [];
     s.diary = Array.isArray(s.diary) ? s.diary : [];
     if (s.habits.shield.day == null) s.habits.shield.day = 1;
+    try {
+      if (window.BSCondProfiles && window.BSCondProfiles.ensure) {
+        window.BSCondProfiles.ensure(s);
+        if (s._libraryMigrated) { delete s._libraryMigrated; save(s); }
+      }
+    } catch (e) {}
     return s;
   }
-  function save(s) { try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {} return s; }
+  function save(s) {
+    try { if (window.BSCondProfiles && window.BSCondProfiles.writeBack) window.BSCondProfiles.writeBack(s); } catch (e) {}
+    try { localStorage.setItem(KEY, JSON.stringify(s)); } catch (e) {}
+    return s;
+  }
   function migrateV44() {
     const s = load();
     if (s.completedAt || s.migratedFromV44) return s;
@@ -487,6 +497,12 @@
       return m ? { id: id, title: m.title, text: m.play } : null;
     }).filter(Boolean);
     if (bits && bits.prompts) bits.prompts.forEach(text => prompts.push({ id: 'train', title: 'Practice', text: text }));
+    try {
+      if (window.BSCondEvents && window.BSCondEvents.pick) {
+        const ev = window.BSCondEvents.pick({ track: hour >= 21 || hour < 6 ? 'night' : 'day', log: true });
+        if (ev) prompts.unshift({ id: ev.id, title: ev.label, text: ev.text });
+      }
+    } catch (e) {}
     return {
       profileId: 'conditioning',
       hydration: { min: min, max: max, sips: sips },

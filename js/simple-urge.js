@@ -209,7 +209,7 @@
     const cont = (M && !ev && ['gear', 'dribble', 'hard'].includes(outcome)) ? M.content(level, outcome, u, rng) : null;
     const voice = V ? V.getVoice() : 'caregiver';
     const voiceLine = V ? V.line(outcome === 'custom' ? 'gear' : outcome, voice, rng) : '';
-    const res = { id: 'r' + Date.now().toString(36) + Math.floor(rng() * 1e4), outcome, waitMin, hidden, urgency: u, weights: w, range: p.hold, gear: null, content: cont, voice: voiceLine, voiceKey: voice,
+    const res = { id: 'r' + Date.now().toString(36) + Math.floor(rng() * 1e4), outcome, waitMin, hidden, urgency: u, weights: w, range: p.hold, gear: null, content: cont, voice: voiceLine, voiceKey: voice, conditioningEvent: null,
       levelKey: p.levelKey, profileName: p.name, access: POTTY_ACCESS[level] != null ? POTTY_ACCESS[level] : 1, lowControl: (POTTY_ACCESS[level] || 1) < 0.5, chain,
       event: ev ? { id: ev.id, text: ev.text, guide: ev.guide, timer: ev.timer } : null };
     // v32 class eventSteps (e.g. Leaky/Dribbler micro leak before go)
@@ -225,6 +225,11 @@
           res.outcome = 'dribble'; res.stepText = 'Log a small dribble first, then press again for potty permission.';
           res.gated = 'dribble';
         }
+      }
+    } catch (e) {}
+    try {
+      if (p && p.id === 'conditioning' && window.BSCondEvents && window.BSCondEvents.pick) {
+        res.conditioningEvent = window.BSCondEvents.pick({ rng: rng, track: p.conditioning && p.conditioning.track, log: true });
       }
     } catch (e) {}
     if (p.levelKey === 'off') { res.outcome = 'go'; res.waitMin = 0; res.hidden = false; res.event = null; res.content = null; res.partial = null; }
