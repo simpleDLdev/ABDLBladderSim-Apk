@@ -682,7 +682,7 @@ function testSelectedGuide() {
   }
 }
 
-function triggerHydrationEvent(force = false) {
+function triggerHydrationEvent(force = false, fromQueue = false) {
   const conditioning = profileMode === 'conditioning';
   if (!force && window.BSSymptoms && window.BSSymptoms.paused && window.BSSymptoms.paused()) return;
   if (conditioning) window.hydrationEnabled = true;
@@ -725,6 +725,17 @@ function triggerHydrationEvent(force = false) {
   ];
 
   const msg = pick(templates);
+  if (window.BSEventQueue && !fromQueue) {
+    const cur = window.BSEventQueue.current();
+    if (!(cur && cur.kind === 'sip')) {
+      const ticket = window.BSEventQueue.offer({ key: 'sip', kind: 'sip', show: () => triggerHydrationEvent(true, true) });
+      if (ticket.duplicate) return;
+      if (ticket.state === 'waiting') {
+        logToOutput('<span style="color:#7cc4ff">💧 Sip is waiting until the current guide finishes.</span>');
+        return;
+      }
+    }
+  }
   window._lastSipCount = count;
   if (conditioning && window.BSTank) { try { window.BSTank.addSips(window.BSTank.load(), count); } catch (e) {} }
 
@@ -2568,19 +2579,21 @@ function setCountdownLabel() {
 
 function showBanner(msg, hint, priority = 'low') {
   const b = $('alarmBanner');
-  if (!b) return;
-
-  // TRAFFIC CONTROL:
-  // If banner is already showing...
-  if (b.style.display === 'flex') {
-    // If the incoming message is just a Micro or Drink (low priority), 
-    // discard it to prevent stacking/confusion.
-    if (priority === 'low') {
-      console.log("Skipped low priority event due to active banner.");
-      return;
-    }
-    // If it's High Priority (Main Event), we let it overwrite.
+  const guideEl = $('voidOverlay');
+  const bannerOpen = !!(b && b.style.display === 'flex');
+  const guideOpen = !!(guideEl && guideEl.style.display === 'flex');
+  const key = 'banner:' + String(msg || '').replace(/<[^>]+>/g, '').slice(0, 48);
+  if (window.BSEventQueue && (bannerOpen || guideOpen)) {
+    const ticket = window.BSEventQueue.offer({ key: key, kind: 'banner', show: () => showBannerNow(msg, hint, priority) });
+    if (ticket.state !== 'active') return;
+  } else if (window.BSEventQueue && !window.BSEventQueue.current()) {
+    window.BSEventQueue.offer({ key: key, kind: 'banner' });
   }
+  showBannerNow(msg, hint, priority);
+}
+function showBannerNow(msg, hint, priority = 'low') {
+  const b = $('alarmBanner');
+  if (!b) return;
 
   $('alarmText').innerHTML = msg; // Use innerHTML to allow bolding
   b.style.display = 'flex';
@@ -2594,18 +2607,24 @@ function showBanner(msg, hint, priority = 'low') {
 }
 function hideBanner() { const b = $('alarmBanner'); if (b) b.style.display = 'none'; }
 function acknowledgeAlarm() {
-  // NEW: Handle Hydration logic first
+  const guideEl = $('voidOverlay');
+  const guideOpen = !!(guideEl && guideEl.style.display === 'flex');
+  // A sip log never closes a guide that is already on screen.
   if (isHydrationPending) {
+      if (guideOpen) return;
       hideBanner();
       stopChime();
       toast("Hydration Logged.");
-      
-      resetBannerUI(); // Restore button text
+      resetBannerUI();
       isHydrationPending = false;
-      return; 
+      if (window.BSEventQueue) window.BSEventQueue.logSip();
+      return;
   }
 
-  // Standard Event Logic
+  hideBanner();
+  if (window.BSEventQueue && window.BSEventQueue.current() && window.BSEventQueue.current().kind === 'banner') {
+    window.BSEventQueue.replaceActive({ key: 'guide', kind: 'guide' });
+  }
   nextReveal();
 }
 
@@ -2618,6 +2637,9 @@ function resetBannerUI() {
 }
 
 function skipAlarm() {
+  const guideEl = $('voidOverlay');
+  const guideOpen = !!(guideEl && guideEl.style.display === 'flex');
+  if (isHydrationPending && guideOpen) return;
   hideBanner();
   stopChime();
 
@@ -2629,6 +2651,7 @@ function skipAlarm() {
       
       resetBannerUI();
       isHydrationPending = false;
+      if (window.BSEventQueue) window.BSEventQueue.logSip();
       return;
   }
 
@@ -2647,6 +2670,9 @@ function skipAlarm() {
   if (eventSkipped) {
     // Just a log note. No automatic penalty.
     logToOutput(`<span style="color:#fab1a0">🚫 <b>Event Skipped:</b> Urge suppressed manually.</span>`);
+  }
+  if (window.BSEventQueue && window.BSEventQueue.current() && window.BSEventQueue.current().kind === 'banner') {
+    window.BSEventQueue.completeActive();
   }
 }
 function toggleMicroNoise() { microNoiseOn = !microNoiseOn; toast(`Micros: ${microNoiseOn ? 'ON' : 'OFF'}`); }

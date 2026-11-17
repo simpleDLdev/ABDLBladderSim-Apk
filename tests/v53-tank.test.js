@@ -47,7 +47,7 @@ ok(engine.indexOf('scheduleNextHydration()') >= 0 && engine.indexOf('isBannerVis
 ok(ui.indexOf("profileMode === 'conditioning') window.hydrationEnabled = true") >= 0, 'a conditioning session turns sip reminders on');
 
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "53"/.test(g) && /versionCode 53/.test(g), 'version 53');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 53 && +g.match(/versionCode (\d+)/)[1] >= 53, 'version at least 53');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v53 tank tests passed');

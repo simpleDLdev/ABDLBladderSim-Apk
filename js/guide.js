@@ -7,8 +7,23 @@ let currentGuideSeq = [];
 // Add global variable
 let currentGuideType = 'full';
 
-function startVoidGuide(seq, instructionText = "", type = "full", trackingOutcome = null) {
+function startVoidGuide(seq, instructionText = "", type = "full", trackingOutcome = null, fromQueue = false) {
   if (!seq || seq.length === 0) return;
+  const guideKey = 'guide:' + String(instructionText || type || 'guide').slice(0, 48);
+  if (!fromQueue && window.BSEventQueue) {
+    const banner = (typeof $ === 'function') ? $('alarmBanner') : null;
+    const bannerOpen = !!(banner && banner.style.display === 'flex');
+    const current = window.BSEventQueue.current();
+    const blocked = bannerOpen || (current && current.kind !== 'guide');
+    if (blocked) {
+      window.BSEventQueue.offer({
+        key: guideKey, kind: 'guide',
+        show: () => startVoidGuide(seq, instructionText, type, trackingOutcome, true)
+      });
+      return;
+    }
+    if (!current) window.BSEventQueue.offer({ key: guideKey, kind: 'guide' });
+  }
 
   isGuideComplete = false;
   currentGuideSeq = seq;
@@ -485,6 +500,11 @@ function buildRandomGauntlet(difficulty) {
 let isRestroomTrip = false;
 let isPreviewMode = false; // Set true when event is being previewed from Event Builder
 
+function releaseGuideQueue() {
+  if (!window.BSEventQueue) return;
+  const cur = window.BSEventQueue.current();
+  if (cur && cur.kind === 'guide') window.BSEventQueue.completeActive();
+}
 function closeVoidGuide() {
   clearInterval(guideInterval);
   stopChime(); // Ensure chime stops when guide is dismissed
@@ -514,17 +534,20 @@ function closeVoidGuide() {
       if (sessionRunning) {
         scheduleMainEvent({ min: window.gauntletIntervalMin || 5, max: window.gauntletIntervalMax || 20 });
       }
+      releaseGuideQueue();
       return;
     }
     if (profileMode === 'chaos_manual') {
       logToOutput(`<span style="color:#ff7675; font-style:italic;">⚠️ <b>Skipped:</b> You bailed — maybe next time!</span>`);
+      releaseGuideQueue();
       return;
     }
     logToOutput(`<span style="color:#7cc4ff; font-style:italic;">⚠️ <b>Guide Aborted:</b> You stopped early. Checking hydration levels...</span>`);
     let low = false;
     try { low = window.BSTank && !window.BSTank.canVoid(window.BSTank.load()); } catch (e) {}
     if (low) logToOutput(`<span style="color:#7cc4ff">💧 Tank is low, so the next thing is a sip, not another void.</span>`);
-    triggerHydrationEvent(true);
+    if (window.BSEventQueue) window.BSEventQueue.offer({ key: 'sip', kind: 'sip', show: () => triggerHydrationEvent(true) });
+    else triggerHydrationEvent(true);
   }
 
   if (isGuideComplete) {
@@ -544,6 +567,7 @@ function closeVoidGuide() {
     if (isGuideComplete) {
       logToOutput(`<span style="color:#ff7675; font-style:italic;">🎲 Roll complete. Press the button when you're ready for another!</span>`);
     }
+    releaseGuideQueue();
     return;
   }
 
@@ -564,6 +588,7 @@ function closeVoidGuide() {
         // Handle both string or array for message variety
         const msg = Array.isArray(cfg.microCompleteMsg) ? pick(cfg.microCompleteMsg) : cfg.microCompleteMsg;
         logToOutput(`<span style="color:#fab1a0; font-style:italic;">${msg}</span>`);
+        releaseGuideQueue();
         return;
       }
       case 'gauntlet':
@@ -571,16 +596,20 @@ function closeVoidGuide() {
         if (sessionRunning) {
           scheduleMainEvent({ min: window.gauntletIntervalMin || 5, max: window.gauntletIntervalMax || 20 });
         }
+        releaseGuideQueue();
         return;
       default:
         scheduleForcedCheck();
+        releaseGuideQueue();
         return;
     }
   } else {
     scheduleForcedCheck();
+    releaseGuideQueue();
     return;
   }
 
+  releaseGuideQueue();
   setTimeout(() => {
     if (sessionRunning) {
       startChime(440);
