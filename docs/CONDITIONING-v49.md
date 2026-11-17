@@ -126,6 +126,14 @@ Import accepts one profile or a library. It checks `kind` and that now/want, sta
 - Conditioning events are prompts with short guide steps. They do not replace the urge-matrix roll, and they do not talk to DryClip hardware.
 - Delete confirms with a second tap on the button, not a system dialog, when `prompt`/`confirm` is missing.
 
+## Playtest fixes
+
+Two reports from a conditioning session with a thick diaper.
+
+**Change check waits when the diaper still has room.** A let-go used to open May I change? as soon as the guide finished, even at about 10% saturation. It now looks at the gear you have on (`js/gear.js` capacities: thick diaper 1500 ml, diaper 1000, overnight pull-up 600, pull-up 400, pad 150, training pants 80, underwear 0). Underwear, a pad, training pants, or a pull-up still asks immediately, and so does a thick diaper once saturation is near full (about 65%, or 80% on an untraining profile, 55% on a more-control profile). Under that, a major accident schedules a body / diaper check-in inside the profile's window, default 10–30 minutes. A bigger accident sits toward the early end of the window. A small one sits toward the late end, and a dribble or a small wet under 20% skips the check. The check-in offers **Still fine**, **Change now**, and **Remind me later**. Untraining (direction A) leans later inside that window. The two numbers are on the conditioning profile picker: "Change check after a wet". Natural Urge uses the same rule when you have entered a saturation.
+
+**A relax lasts about as long as your calibrated void.** Guide steps such as "SLOW STREAM" were written as 30 seconds and then multiplied by the leak scale, so a 12–15 second calibration could show a 33 second relax. A release step now uses the calibration median (the timed full-empty trials). If there is no timed trial, it uses volume ÷ flow, then the 14 second reference. A partial release is that time times the fraction of the fill. Each one gets a few seconds of grace (about 4 for a full void, 3 for a partial) and is capped at 1.5× the full-void time unless you set the leak scale higher than 1.5 on purpose. A 12–15 second calibration stays at about 16–19 seconds. Short relax cues under 8 seconds (a breath, a "let the muscle drop") stay as written so they are not turned into a full empty. The guide shows **I'm done** during a relax so you can end it when you are empty.
+
 ## Playtest checklist
 
 Look for these, and paste an export summary with what you saw.

@@ -196,6 +196,7 @@
       targetKey: profile.targetKey || null,
       urgency: profile.urgency || null,
       sleep: profile.sleep || null,
+      changeWindow: profile.changeWindow || { min: 10, max: 30 },
       checkins: slot.checkins || [],
       habits: slot.habits || null,
       eventLog: slot.eventLog || [],
@@ -243,6 +244,7 @@
       line('night'),
       dims.slice(0, 12).join('\n') || 'No per-dimension answers stored.',
       'Methods: ' + (methods.join(', ') || 'none'),
+      'Change check: ' + ((d.changeWindow && d.changeWindow.min) || 10) + '–' + ((d.changeWindow && d.changeWindow.max) || 30) + ' min after a wet, when the diaper still has room.',
       'Check-ins stored: ' + (d.checkins || []).length,
       'Events logged: ' + (d.eventLog || []).length
     ].filter(Boolean).join('\n');
@@ -272,6 +274,7 @@
       pacing: d.pacing || { day: 'gradual', night: 'gradual' },
       urgency: d.urgency || null,
       sleep: d.sleep || null,
+      changeWindow: d.changeWindow || { min: 10, max: 30 },
       intensity: 'steady',
       timeframe: 'open'
     };
@@ -307,6 +310,7 @@
         ${['instant', 'gradual', 'slow', 'hybrid'].map(k => `<option value="${k}" ${v === k ? 'selected' : ''}>${k}</option>`).join('')}
       </select></label>`;
     };
+    const win = (s.profile && s.profile.changeWindow) || { min: 10, max: 30 };
     return `<div class="cond-manager urge-note">
       <b>Conditioning profiles</b>
       <label class="urge-lbl">Profile <select class="condProfileSelect">${options || '<option value="">No profile yet</option>'}</select></label>
@@ -322,6 +326,10 @@
         <button type="button" data-cact="export-all">Export all</button>
       </div>
       <div class="condPaceBlock">${pace('day')}${pace('night')}</div>
+      <label class="urge-lbl">Change check after a wet
+        <input type="number" id="chgWinMin" min="5" max="60" value="${win.min}">–
+        <input type="number" id="chgWinMax" min="5" max="120" value="${win.max}"> min
+      </label>
       <div class="cal-legend">New keeps your other profiles. Retake overwrites this one. Export is JSON plus a text summary.</div>
     </div>`;
   }
@@ -406,6 +414,15 @@
     m.querySelectorAll('[data-cpace]').forEach(sel => {
       sel.onchange = () => { try { if (O.setPacing) O.setPacing(sel.getAttribute('data-cpace'), sel.value); } catch (e) {} };
     });
+    const saveWin = () => {
+      const lo = m.querySelector('#chgWinMin'), hi = m.querySelector('#chgWinMax');
+      if (!lo || !hi || !O.setChangeWindow) return;
+      const w = O.setChangeWindow(lo.value, hi.value);
+      lo.value = w.min; hi.value = w.max;
+    };
+    const wMin = m.querySelector('#chgWinMin'), wMax = m.querySelector('#chgWinMax');
+    if (wMin) wMin.onchange = saveWin;
+    if (wMax) wMax.onchange = saveWin;
   }
   function renderAll() {
     ['condPickSession', 'condPickUrge', 'condProfileManager'].forEach(renderInto);

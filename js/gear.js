@@ -145,5 +145,153 @@
     if (!d.text && !n.text) return '';
     return `<div class="urge-note" id="gearWarn">${d.text ? 'Day: ' + d.text : ''} ${n.text ? 'Night: ' + n.text : ''}</div>`;
   }
-  window.BSGear = { KEY, LADDER, FROM_PROT, load, save, byId, fromProt, recommend, baselineFromQuiz, mergeBase, currentBaseline, apply, refresh, recommended, compare, wearingFromInventory, warn, warnHtml };
+  /**
+   * After a wet: change now, or a body check later.
+   * Thick gear under the threshold waits. Underwear and thin protection, or a near-full diaper, change now.
+   * Direction A (untraining) stays in it longer. The delay window comes from the conditioning profile.
+   */
+  function planChange(opts) {
+    opts = opts || {};
+    const gear = String(opts.gearId || opts.gear || 'G0');
+    const known = byId(gear);
+    const cap = opts.capMl != null ? +opts.capMl : known.capMl;
+    const sat = Math.max(0, Math.min(100, opts.sat == null ? 0 : +opts.sat));
+    const size = ['major', 'small', 'dribble'].includes(opts.size) ? opts.size : 'major';
+    const dir = opts.direction === 'A' || opts.direction === 'B' ? opts.direction : 'off';
+    let wmin = opts.windowMin != null ? +opts.windowMin : 10;
+    let wmax = opts.windowMax != null ? +opts.windowMax : 30;
+    if (!(wmax >= wmin)) { wmin = 10; wmax = 30; }
+    const thin = cap <= 400 || gear === 'G3' || gear === 'G4' || gear === 'G5' || gear === 'G6';
+    let threshold = thin ? 20 : 65;
+    if (!thin && dir === 'A') threshold = 80;
+    if (!thin && dir === 'B') threshold = 55;
+    if (thin || sat >= threshold) {
+      return { when: 'now', delayMin: 0, reason: thin ? 'thin' : 'capacity', offers: null, threshold: threshold };
+    }
+    if (size === 'dribble' || (size === 'small' && sat < 20)) {
+      return { when: 'none', delayMin: 0, reason: 'small', offers: null, threshold: threshold };
+    }
+    const span = wmax - wmin;
+    let t = size === 'major' ? 0.25 : (size === 'small' ? 0.85 : 0.5);
+    if (dir === 'A') t = Math.min(1, t + 0.15);
+    if (dir === 'B') t = Math.max(0, t - 0.1);
+    let delay = wmin + span * t;
+    if (typeof opts.rng === 'function') delay += (opts.rng() - 0.5) * Math.min(6, span * 0.25);
+    delay = Math.round(Math.max(wmin, Math.min(wmax, delay)));
+    return {
+      when: 'later', delayMin: delay, reason: 'absorbent', threshold: threshold,
+      offers: ['Still fine', 'Change now', 'Remind me later']
+    };
+  }
+  function wornNow() {
+    const w = wearingFromInventory();
+    if (w) return w;
+    try {
+      if (typeof protectionTypes !== 'undefined' && protectionTypes && protectionTypes.length) {
+        const p = protectionTypes.indexOf('thick_diapers') >= 0 ? 'thick_diapers'
+          : protectionTypes.indexOf('diapers') >= 0 ? 'diapers'
+          : protectionTypes.indexOf('pullups') >= 0 ? 'pullups'
+          : protectionTypes.indexOf('pad') >= 0 ? 'pad'
+          : protectionTypes.indexOf('training') >= 0 ? 'training' : null;
+        if (p) return fromProt(p, false);
+      }
+    } catch (e) {}
+    return null;
+  }
+  /** What the post-guide change check should do, from the gear you have on and the saturation slider. */
+  function planAfterGuide() {
+    const gearId = wornNow();
+    if (!gearId) return null;
+    let sat = 0;
+    try { if (typeof manualSaturation === 'number') sat = manualSaturation; } catch (e) {}
+    let prof = null;
+    try {
+      const s = window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load();
+      prof = s && s.profile;
+    } catch (e) {}
+    const win = (prof && prof.changeWindow) || {};
+    let size = 'major';
+    try {
+      const t = typeof currentGuideType === 'string' ? currentGuideType : '';
+      if (/micro|dribble|partial/i.test(t)) size = 'small';
+    } catch (e) {}
+    const dir = prof && prof.direction
+      ? (prof.direction.day && prof.direction.day !== 'off' ? prof.direction.day : (prof.direction.night || 'off'))
+      : 'off';
+    return planChange({
+      sat: sat, gearId: gearId, size: size, direction: dir,
+      windowMin: win.min, windowMax: win.max
+    });
+  }
+  const CHECK_KEY = 'bs_change_check_v1';
+  function scheduleCheck(plan, now) {
+    if (!plan || plan.when !== 'later') return null;
+    const rec = {
+      at: (now || Date.now()) + plan.delayMin * 60000,
+      delayMin: plan.delayMin,
+      offers: plan.offers || ['Still fine', 'Change now', 'Remind me later']
+    };
+    try { localStorage.setItem(CHECK_KEY, JSON.stringify(rec)); } catch (e) {}
+    return rec;
+  }
+  function peekCheck(now) {
+    let rec = null;
+    try { rec = JSON.parse(localStorage.getItem(CHECK_KEY) || 'null'); } catch (e) {}
+    if (!rec || !rec.at) return null;
+    if ((now || Date.now()) < rec.at) return { waiting: true, rec: rec };
+    return { due: true, rec: rec, offers: rec.offers || ['Still fine', 'Change now', 'Remind me later'] };
+  }
+  function resolveCheck(choice, now) {
+    try { localStorage.removeItem(CHECK_KEY); } catch (e) {}
+    if (choice === 'remind') return scheduleCheck({ when: 'later', delayMin: 20, offers: ['Still fine', 'Change now', 'Remind me later'] }, now);
+    return { choice: choice || 'fine' };
+  }
+  function bannerHtml() {
+    const p = peekCheck();
+    if (!p || !p.due) return '';
+    return `<div class="urge-note" id="gearCheckIn"><b>Body / diaper check-in</b>
+      <p>How does it feel?</p>
+      <div class="quiz-nav">
+        <button type="button" data-gchk="fine">Still fine</button>
+        <button type="button" data-gchk="change">Change now</button>
+        <button type="button" data-gchk="remind">Remind me later</button>
+      </div></div>`;
+  }
+  function mountCheck() {
+    try {
+      if (typeof document === 'undefined' || !document.getElementById || !document.body) return;
+      let host = document.getElementById('gearCheckHost');
+      if (!host) {
+        host = document.createElement('div');
+        if (!host) return;
+        host.id = 'gearCheckHost';
+        if (document.body.insertBefore && document.body.firstChild) document.body.insertBefore(host, document.body.firstChild);
+        else if (document.body.appendChild) document.body.appendChild(host);
+      }
+      const html = bannerHtml();
+      if (host._html === html) return;
+      host._html = html;
+      host.innerHTML = html;
+      if (!html || !host.querySelectorAll) return;
+      host.querySelectorAll('[data-gchk]').forEach(btn => {
+        btn.onclick = () => {
+          const c = btn.getAttribute('data-gchk');
+          if (c === 'change') {
+            resolveCheck('change');
+            try { if (window.BSChange && window.BSChange.open) window.BSChange.open({ ctx: 'body_check' }); } catch (e) {}
+          } else if (c === 'remind') resolveCheck('remind');
+          else resolveCheck('fine');
+          host._html = '';
+          mountCheck();
+        };
+      });
+    } catch (e) {}
+  }
+  try {
+    if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('load', mountCheck);
+    if (typeof setInterval === 'function') setInterval(mountCheck, 20000);
+  } catch (e) {}
+
+  window.BSGear = { KEY, LADDER, FROM_PROT, load, save, byId, fromProt, recommend, baselineFromQuiz, mergeBase, currentBaseline, apply, refresh, recommended, compare, wearingFromInventory, warn, warnHtml,
+    planChange, planAfterGuide, wornNow, scheduleCheck, peekCheck, resolveCheck, bannerHtml, mountCheck };
 })();

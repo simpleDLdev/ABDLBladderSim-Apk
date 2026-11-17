@@ -759,6 +759,14 @@
         } catch (e) {}
         const r = orig.apply(this, arguments);
         if (chain) setTimeout(() => {
+          let plan = null;
+          try { plan = window.BSGear && window.BSGear.planAfterGuide && window.BSGear.planAfterGuide(); } catch (e) {}
+          if (plan && plan.when === 'later') {
+            try { window.BSGear.scheduleCheck(plan); } catch (e) {}
+            try { if (typeof toast === 'function') toast('Check-in in about ' + plan.delayMin + ' min'); } catch (e) {}
+            return;
+          }
+          if (plan && plan.when === 'none') return;
           try { if (typeof toast === 'function') toast('🧷 Guide done — May I change? check'); } catch (e) {}
           openMayChange('after_guide', { forced: true });
         }, 700);

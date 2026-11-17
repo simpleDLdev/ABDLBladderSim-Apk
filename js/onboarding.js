@@ -726,6 +726,18 @@
     save(s);
     return mode;
   }
+  function setChangeWindow(min, max) {
+    let lo = Math.round(+min);
+    let hi = Math.round(+max);
+    if (!(lo >= 5)) lo = 10;
+    if (!(hi >= lo)) hi = Math.max(lo, 30);
+    lo = Math.max(5, Math.min(60, lo));
+    hi = Math.max(lo, Math.min(120, hi));
+    const s = load();
+    if (s.profile) s.profile.changeWindow = { min: lo, max: hi };
+    save(s);
+    return { min: lo, max: hi };
+  }
   function setField(group, key, val) {
     const s = load();
     const target = s.profile || (s.hubPrefs = s.hubPrefs || {});
@@ -1313,7 +1325,7 @@
   try { migrateV44(); } catch (e) {}
   window.BSOnboard = {
     KEY, LIFE, GOALS, METHODS, load, save, scoreNow, scoreDay, scoreNight, bandOf, midOf, levelCard, defaultMethods,
-    startIntake, applyIntake, quizButtonLabel, statusText, hubTopHtml, hubRestHtml, homeHintHtml, setPacing, quickUrge, quickSession, renderHub,
+    startIntake, applyIntake, quizButtonLabel, statusText, hubTopHtml, hubRestHtml, homeHintHtml, setPacing, setChangeWindow, quickUrge, quickSession, renderHub,
     prefillFromQuiz, sleepHint, recommendGear, metricsFrom, finishQuiz, chooseCalib, capacityEstimate, updateProfile,
     migrateV44, playProfile, pickerOption, rollMods, sessionPlan, capSessionMl, todayPlan, logBehaviour,
     considerPromotion, nightAPoints, weeklyReview, onCheckIn, logDiary, diaryMetrics, progress, cuesFor, render

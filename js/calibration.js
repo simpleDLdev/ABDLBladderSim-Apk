@@ -196,7 +196,48 @@
     m.querySelectorAll('[data-cdel]').forEach(b => { b.onclick = () => { if (confirm('Delete this trial?')) deleteTrial(b.dataset.cdel); }; });
   }
 
+  /**
+   * Seconds for one release. Full void follows the calibration median.
+   * If there is no timed trial, volume / flow is the fallback, then the 14s reference.
+   * Partial is that time times the fraction of the current fill, plus a few seconds of grace.
+   * The result never goes past capMul × the full-void time (default 1.5) unless the caller raises capMul.
+   */
+  function fullVoidSec(opts) {
+    opts = opts || {};
+    if (+opts.medianSec > 0) return +opts.medianSec;
+    if (+opts.ml > 0 && +opts.flowMlS > 0) return +opts.ml / +opts.flowMlS;
+    return FULL_REF_SEC;
+  }
+  function releaseSeconds(opts) {
+    opts = opts || {};
+    const full = fullVoidSec(opts);
+    const frac = opts.fraction == null ? 1 : Math.max(0, Math.min(1, +opts.fraction));
+    const grace = opts.grace != null ? +opts.grace : (frac >= 0.85 ? 4 : 3);
+    const capMul = +opts.capMul > 0 ? +opts.capMul : 1.5;
+    const raw = full * frac + grace;
+    const cap = full * capMul;
+    return Math.max(1, Math.round(Math.min(raw, cap)));
+  }
+  /** Guide step length. A real release uses releaseSeconds. A cue under 8s stays as written. */
+  function stepReleaseSeconds(step, calib) {
+    step = step || {};
+    calib = calib || {};
+    const authored = +step.time || 0;
+    const text = String(step.text || '');
+    const isRelease = step.type === 'relax' || step.type === 'void' || step.type === 'release' || step.partial
+      || /let go|release|flood|stream|void|pee|wet/i.test(text);
+    if (!isRelease) return Math.max(0, Math.round(authored));
+    const shortCue = authored > 0 && authored < 8 && !step.partial && step.fraction == null && !/let a little|partial/i.test(text);
+    if (shortCue) return Math.max(1, Math.round(authored));
+    const fraction = step.fraction != null ? +step.fraction : ((step.partial || /partial|a little/i.test(text)) ? 0.35 : 1);
+    return releaseSeconds({
+      medianSec: calib.medianSec, ml: calib.ml, flowMlS: calib.flowMlS,
+      fraction: fraction, capMul: calib.capMul, grace: calib.grace, fallbackSec: calib.fallbackSec
+    });
+  }
+
   window.BSCalib = { ageStory, FULL_REF_SEC, load, save, summarize, scalarFor, leakSecondsFor, bladderAge, expectedCapacity, refAvgFlow, median, mean, toMl,
-    addTrial, deleteTrial, startTest, finishTest, press, release, render, applyScalar, URINATION_LAW };
+    addTrial, deleteTrial, startTest, finishTest, press, release, render, applyScalar, URINATION_LAW,
+    fullVoidSec, releaseSeconds, stepReleaseSeconds };
   window.renderCalibration = render;
 })();

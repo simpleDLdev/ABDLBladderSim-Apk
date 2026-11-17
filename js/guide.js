@@ -68,6 +68,32 @@ function reportFalseAlarm(type) {
   }
 }
 
+/** Relax / void length comes from calibration. Push steps still use the leak slider. */
+function guideReleaseSeconds(rawStep) {
+  const authored = rawStep && rawStep.time;
+  const scale = (typeof leakTimeScale === 'number' && leakTimeScale > 0) ? leakTimeScale : 1;
+  if (!(authored && rawStep && ['push', 'relax'].includes(rawStep.type))) return authored;
+  if (rawStep.type === 'push') return Math.max(1, Math.round(authored * scale));
+  const calib = {};
+  try {
+    const Cb = window.BSCalib;
+    if (Cb && Cb.load && Cb.summarize) {
+      const d = Cb.load() || {};
+      if (d.trials && d.trials.length) {
+        const s = Cb.summarize(d.trials);
+        calib.medianSec = s.medianSec;
+        calib.ml = s.medianMl;
+        calib.flowMlS = s.flowMlS;
+      }
+    }
+  } catch (e) {}
+  if (scale > 1.5) calib.capMul = scale;
+  try {
+    if (window.BSCalib && window.BSCalib.stepReleaseSeconds) return window.BSCalib.stepReleaseSeconds(rawStep, calib);
+  } catch (e) {}
+  return Math.max(1, Math.round(Math.min(authored, (calib.medianSec || 14) * 1.5)));
+}
+
 function runGuideStep() {
   const uiWrap = $('voidOverlay');
   const uiLabel = $('voidLabel');
@@ -148,10 +174,7 @@ function runGuideStep() {
   // --- CASE 3: RUNNING (Normal Steps) ---
 
   const rawStep = currentGuideSeq[currentGuideStep];
-  // Apply leak time scale to push/relax steps
-  const scaledTime = (rawStep.time && ['push', 'relax'].includes(rawStep.type))
-    ? Math.max(1, Math.round(rawStep.time * leakTimeScale))
-    : rawStep.time;
+  const scaledTime = guideReleaseSeconds(rawStep);
   const step = { ...rawStep, time: scaledTime };
   const needsPushToLeak = isPushToLeakStep(step.type, step.time);
 
@@ -173,9 +196,20 @@ function runGuideStep() {
   // Show/hide push-to-leak button for leak steps
   showPushToLeakButton(needsPushToLeak);
 
-  // Hide Button, Show Timer
-  uiBtn.style.display = 'none';
+  // Timer, plus I'm done so a release can end when the bladder is empty.
+  const canFinishEarly = step.type === 'relax' || step.type === 'void' || step.type === 'release';
+  uiBtn.style.display = canFinishEarly ? 'inline-block' : 'none';
   uiTimer.style.display = 'block';
+  if (canFinishEarly) {
+    uiBtn.textContent = "I'm done";
+    uiBtn.onclick = () => {
+      clearInterval(guideInterval);
+      showPushToLeakButton(false);
+      currentGuideStep++;
+      uiTimer.style.opacity = '1';
+      runGuideStep();
+    };
+  }
 
   const prevStep = currentGuideSeq[currentGuideStep - 1];
   const nextStep = currentGuideSeq[currentGuideStep + 1];
