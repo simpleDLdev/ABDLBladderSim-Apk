@@ -499,10 +499,6 @@ function urgeConditioningSips() {
   } catch (e) { return false; }
 }
 
-function conditioningHydrationOn() {
-  return (typeof sessionRunning !== 'undefined' && sessionRunning && profileMode === 'conditioning') || urgeConditioningSips();
-}
-
 function conditioningSipStatus() {
   return { nextAt: hydrationEndAt || 0, note: hydrationSkipNote || '' };
 }
@@ -528,26 +524,12 @@ function scheduleNextHydration() {
   if (typeof isBedwettingSilent === 'function' && isBedwettingSilent()) { hydrationEndAt = null; return; }
 
   const runtime = customProfileRuntime;
-  let minHydration = runtime?.hydrationMin ?? 6;
-  let maxHydration = runtime?.hydrationMax ?? 12;
-  if (conditioningHydrationOn() && window.BSOnboard && window.BSOnboard.sessionPlan) {
-    const plan = window.BSOnboard.sessionPlan();
-    if (plan && plan.hydration) { minHydration = plan.hydration.min; maxHydration = plan.hydration.max; }
-  }
-  hydrationGapMin = Math.max(10, +minHydration || 10);
-  let delayMs = Math.max(hydrationGapMin, randInt(minHydration, maxHydration)) * 60000;
-  if (window.BSSafety && window.BSSafety.capSips) {
-    const preview = window.BSSafety.capSips(1, { commit: false, minGapMin: hydrationGapMin });
-    if (!preview.ok && preview.reason === 'daily') {
-      if (!hydrationSkipNote) logToOutput('<span style="color:#888">💧 Sips paused: daily 1 L reached. No more sip reminders until tomorrow.</span>');
-      hydrationSkipNote = 'Sips paused: daily 1 L reached.';
-      hydrationTimer = null;
-      hydrationEndAt = null;
-      return;
-    }
-    hydrationSkipNote = '';
-    if (!preview.ok && preview.nextAt) delayMs = Math.max(delayMs, preview.nextAt - Date.now());
-  }
+  const cfgTimes = (typeof getProfileConfig === 'function') ? getProfileConfig() : {};
+  let minHydration = runtime?.hydrationMin ?? cfgTimes.hydrationMin ?? 6;
+  let maxHydration = runtime?.hydrationMax ?? cfgTimes.hydrationMax ?? 12;
+  hydrationGapMin = Math.max(1, +minHydration || 6);
+  const delayMs = Math.max(1, randInt(minHydration, maxHydration)) * 60000;
+  hydrationSkipNote = '';
 
   // SAVE THE TIME so the UI can see it
   hydrationEndAt = Date.now() + delayMs;
@@ -679,28 +661,16 @@ function triggerHydrationEvent(force = false) {
   // 1. Define Intensity from config
   const cfg = getProfileConfig();
   let [min, max] = cfg.hydrationSips;
-  if (profileMode === 'conditioning' && window.BSOnboard && window.BSOnboard.sessionPlan) {
-    const plan = window.BSOnboard.sessionPlan();
-    if (plan && plan.hydration && plan.hydration.sips) { min = plan.hydration.sips[0]; max = plan.hydration.sips[1]; }
-  }
 
-  // 2. Roll Content
+  // 2. Roll Content — same prompt for every profile, including conditioning.
   let count = randInt(min, max);
   if (!(count > 0)) return;
-  // Sips count toward the 1 L day. The 2 h gap is only for a large glass.
-  if (window.BSSafety) {
-    const c = window.BSSafety.capSips(count, { src: 'hydration', minGapMin: hydrationGapMin || 10 });
+  if (window.BSSafety && window.BSSafety.capSips) {
+    const c = window.BSSafety.capSips(count, { src: 'hydration' });
     if (!c.ok) {
-      if (c.reason === 'daily') {
-        hydrationSkipNote = 'Sips paused: daily 1 L reached.';
-        hydrationEndAt = null;
-        logToOutput('<span style="color:#888">💧 Sips paused: daily 1 L reached. No more sip reminders until tomorrow.</span>');
-      } else {
-        logToOutput(`<span style="color:#888">💧 Sip moved later (${c.reason === 'after_log' ? 'you just logged a drink' : 'a sip was recent'}).</span>`);
-      }
+      logToOutput('<span style="color:#888">💧 This sip reminder was over the optional 1 L cap. The next one is still scheduled.</span>');
       return;
     }
-    hydrationSkipNote = '';
     count = Math.min(count, c.sips);
   }
   const unitType = "sips";
@@ -732,7 +702,7 @@ function triggerHydrationEvent(force = false) {
       ackBtn.textContent = "Consumed"; 
   }
   if (skipBtn) {
-      skipBtn.textContent = "Already hydrated"; 
+      skipBtn.textContent = "Not thirsty / skip"; 
   }
 
   logToOutput(`<span style="color:#7cc4ff">💧 <b>Drink Alarm:</b> ${msg}</span>`);
@@ -756,8 +726,7 @@ function startSession(isResume = false) {
     try {
       const plan = window.BSOnboard.sessionPlan();
       if (plan && plan.prompts && plan.prompts.length) {
-        const hy = plan.hydration || {};
-        logToOutput('<b>My Conditioning</b><br>' + plan.prompts.map(p => '• ' + p.text).join('<br>') + '<br><span style="color:#888">Sips every ' + (hy.min || '?') + '–' + (hy.max || '?') + ' min. Skip one if you are not thirsty. The next sip time stays on the session clock.</span>');
+        logToOutput('<b>My Conditioning</b><br>' + plan.prompts.map(p => '• ' + p.text).join('<br>') + '<br><span style="color:#888">Sip reminders are the same as a regular session. Skip one if you are not thirsty. The next sip time stays on the session clock.</span>');
       }
     } catch (e) {}
   }
@@ -1685,7 +1654,7 @@ function selectProfileFromModal(profile) {
   }
   if (profile === 'conditioning' && window.BSOnboard && window.BSOnboard.sessionPlan) {
     const plan = window.BSOnboard.sessionPlan();
-    customProfileRuntime = { baseProfile: 'conditioning', mainMin: plan.timers.min, mainMax: plan.timers.max, hydrationMin: plan.hydration.min, hydrationMax: plan.hydration.max };
+    customProfileRuntime = { baseProfile: 'conditioning', mainMin: plan.timers.min, mainMax: plan.timers.max };
   }
   
   // For babysitter, show diapering setup instead of closing the modal
@@ -2079,7 +2048,7 @@ function showProfileSetupModal(profile) {
     content = `
       <div style="width:500px; max-width:92vw; background:#151923; padding:30px; border-radius:15px; border:2px solid #55efc4; text-align:left;">
         <h2 style="color:#55efc4; margin:0 0 10px 0;">🌿 My Conditioning</h2>
-        <p style="color:#cdd7e6; font-size:13px; margin:0 0 12px 0; line-height:1.6;">Timers and sip reminders follow the methods you opted into. Sips stay inside the drink cap. A real need still ends a prompt.</p>
+        <p style="color:#cdd7e6; font-size:13px; margin:0 0 12px 0; line-height:1.6;">Sip reminders match a regular session. Skip one if you are not thirsty. A real need still ends a prompt.</p>
         ${today ? `<div style="color:#55efc4; font-weight:bold; margin-bottom:6px;">Today's practice</div><ul style="color:#cdd7e6; font-size:13px;">${today}</ul>` : ''}
         <div style="color:#55efc4; font-weight:bold; margin-bottom:6px;">This session</div>
         <ul style="color:#cdd7e6; font-size:13px;">${lines}</ul>
@@ -2147,7 +2116,7 @@ function confirmProfileSetup(profile) {
     case 'conditioning':
       if (window.BSOnboard && window.BSOnboard.sessionPlan) {
         const plan = window.BSOnboard.sessionPlan();
-        customProfileRuntime = { baseProfile: 'conditioning', mainMin: plan.timers.min, mainMax: plan.timers.max, hydrationMin: plan.hydration.min, hydrationMax: plan.hydration.max };
+        customProfileRuntime = { baseProfile: 'conditioning', mainMin: plan.timers.min, mainMax: plan.timers.max };
         setupData.mainMin = plan.timers.min;
         setupData.mainMax = plan.timers.max;
         setupData.sipMin = plan.hydration.sips[0];
@@ -2600,7 +2569,7 @@ function skipAlarm() {
 
   // 1. Handle Hydration Refusal
   if (isHydrationPending) {
-      logToOutput(`<span style="color:#7cc4ff">💧 <b>Already hydrated</b> — drink prompt skipped. No problem.</span>`);
+      logToOutput(`<span style="color:#7cc4ff">💧 <b>Not thirsty</b> — skipped. The next sip reminder still comes.</span>`);
       
       resetBannerUI();
       isHydrationPending = false;

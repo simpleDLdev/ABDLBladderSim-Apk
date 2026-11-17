@@ -269,8 +269,7 @@ function initializeRegularTimedProfileSession() {
     const plan = window.BSOnboard.sessionPlan();
     const min = Math.max(1, plan.timers.min || 15);
     const max = Math.max(min, plan.timers.max || min);
-    const sipMin = plan.hydration && plan.hydration.min, sipMax = plan.hydration && plan.hydration.max;
-    logToOutput(`<span style="color:#55efc4"><b>🌿 My Conditioning</b><br>Next prompt in ${min}–${max} min. Sips every ${sipMin}–${sipMax} min, a few at a time. No single glass.</span>`);
+    logToOutput(`<span style="color:#55efc4"><b>🌿 My Conditioning</b><br>Next prompt in ${min}–${max} min. Sip reminders use the regular session loop. Skip one if you are not thirsty.</span>`);
     scheduleMainEvent({ min: min, max: max });
     scheduleNextHydration();
     return;

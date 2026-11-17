@@ -1,5 +1,9 @@
 # Conditioning sips (v50)
 
+**v51.** Sip reminders are the regular session loop (`scheduleNextHydration` → `triggerHydrationEvent`, notification id 1003), including Natural Urge while a conditioning profile is selected. A prompt is every 6–12 minutes, 1–2 sips on My Conditioning. Nothing stops the reminders at 1 L or for spacing. **Not thirsty / skip** moves on and the next reminder still comes. Safety has an optional "Cap sip reminders at 1 L/day" switch, off unless you turn it on. A large glass prompt elsewhere still has the 250 ml / 2 hour / 1 L cap. Conditioning does not issue that glass.
+
+The notes below are the v50 behavior this replaced.
+
 A playtest logged a 250 ml drink and then got no sip about 19 minutes later. Two things were stacked.
 
 A full conditioning event called `createDrinkPrompt`, which asks for one glass (200–250 ml) and records it through `BSSafety.capDrink`. That start the 2 hour gap. The real sip timer (`scheduleNextHydration` → `triggerHydrationEvent` → `capSips`) then came back `spacing` and did not show a banner or a phone notification.

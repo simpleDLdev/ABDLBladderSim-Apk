@@ -17,6 +17,7 @@ vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(root, 'js', f), 'utf8'), ctx, { filename: f });
 });
 const S = ctx.BSSafety;
+S.setSipCap(true);
 let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fail++; };
 const T = new Date(2026, 10, 17, 8, 0, 0).getTime();
 
@@ -75,10 +76,10 @@ ok(urge && /sip/i.test(urge.body), 'Natural Urge on a conditioning profile sched
 
 const ui = fs.readFileSync(path.join(root, 'js', 'ui.js'), 'utf8');
 const urgeJs = fs.readFileSync(path.join(root, 'js', 'simple-urge.js'), 'utf8');
-ok(ui.indexOf('Next sip') >= 0 && ui.indexOf('Sips paused: daily 1 L reached') >= 0, 'the session clock names the next sip and a daily-cap skip');
+ok(ui.indexOf('Next sip') >= 0 && ui.indexOf('Not thirsty / skip') >= 0, 'the session clock names the next sip and the prompt can be skipped');
 ok(urgeJs.indexOf('id="suSip"') >= 0, 'Natural Urge shows the sip line');
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "50"/.test(g) && /versionCode 50/.test(g), 'version 50');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 50 && +g.match(/versionCode (\d+)/)[1] >= 50, 'version at least 50');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v50 sip tests passed');
