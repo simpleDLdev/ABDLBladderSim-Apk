@@ -64,7 +64,7 @@ const alarm = ctx.BSNativeAlarm.collectDesired().get(1003);
 ok(alarm && alarm.kind === 'reminder' && /sip/i.test(alarm.body), 'the hydration notification is still scheduled');
 
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "51"/.test(g) && /versionCode 51/.test(g), 'version 51');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 51 && +g.match(/versionCode (\d+)/)[1] >= 51, 'version at least 51');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v51 sip tests passed');

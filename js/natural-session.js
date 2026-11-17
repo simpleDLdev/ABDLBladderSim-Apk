@@ -74,7 +74,7 @@
       <div class="actions"><button class="ok" id="nsGo">▶ Start</button><button data-x>Cancel</button></div>`);
     const src = document.getElementById('suProf');
     const copied = src && src.innerHTML && /conditioning/.test(src.innerHTML) ? src.innerHTML : '';
-    w.querySelector('#nsProf').innerHTML = copied || (S.profileOptions ? S.profileOptions(st.profileId) : `<option value="match">Match my profile</option><option value="conditioning">My Conditioning</option>`);
+    w.querySelector('#nsProf').innerHTML = copied || (S.profileOptions ? S.profileOptions(st.profileId) : `<option value="match">Match my profile</option><option value="conditioning">Conditioning ▸</option>`);
     w.querySelector('#nsProf').value = st.profileId;
     w.querySelector('[data-x]').onclick = () => w.remove();
     w.querySelector('#nsGo').onclick = () => {

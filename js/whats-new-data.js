@@ -3,6 +3,18 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v52',
+    date: '2026-11-17',
+    title: 'v52 — Quieter screens, same conditioning',
+    bullets: [
+      'The conditioning manager is only on Profiles. Session and Urge pick a saved profile from Conditioning ▸.',
+      'Hold ≡ on a section header and drag it. Pin and hide are in the ⋮ menu.',
+      'Urgency and saturation stay on the Bio-Logger. The gear opens the extra tools.',
+      'A high urgency on a less-control profile pulls the next event forward. Sip amounts follow the level, with Infant matching the dependent profile.',
+      'Version 52.'
+    ]
+  },
+  {
     hash: 'v51',
     date: '2026-11-17',
     title: 'v51 — Sip reminders keep coming',

@@ -20,7 +20,7 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 ok(/id="setCalib"/.test(html) && /Calibration &amp; Conditioning/.test(html), 'calibration section is labelled Calibration & Conditioning');
 ok(html.indexOf('id="setCondition"') < 0, 'the separate conditioning section is gone');
-ok(html.indexOf('condHubTop') >= 0 && html.indexOf('calibrationMount') > html.indexOf('condHubTop') && html.indexOf('condHubRest') > html.indexOf('calibrationMount'), 'hub, bladder calibration, then the rest of the controls');
+ok(html.indexOf('condHubTop') >= 0 && html.indexOf('id="profCalibration"') >= 0 && html.indexOf('calibrationMount') >= 0, 'settings links out and calibration lives on Profiles');
 ok(html.indexOf('id="condSetupHint"') >= 0 && html.indexOf('safetyBodyCheck') >= 0, 'home hint and safety body-check mount exist');
 
 const fresh = O.hubTopHtml({ completedAt: 0, profile: null, intakeResume: null });

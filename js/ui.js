@@ -527,6 +527,12 @@ function scheduleNextHydration() {
   const cfgTimes = (typeof getProfileConfig === 'function') ? getProfileConfig() : {};
   let minHydration = runtime?.hydrationMin ?? cfgTimes.hydrationMin ?? 6;
   let maxHydration = runtime?.hydrationMax ?? cfgTimes.hydrationMax ?? 12;
+  if ((profileMode === 'conditioning' || urge) && typeof hydrationForLevel === 'function') {
+    let key = null;
+    try { const info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); key = info && info.levelKey; } catch (e) {}
+    const mapped = hydrationForLevel(key);
+    if (mapped) { minHydration = mapped.minMin; maxHydration = mapped.maxMin; }
+  }
   hydrationGapMin = Math.max(1, +minHydration || 6);
   const delayMs = Math.max(1, randInt(minHydration, maxHydration)) * 60000;
   hydrationSkipNote = '';
@@ -661,6 +667,12 @@ function triggerHydrationEvent(force = false) {
   // 1. Define Intensity from config
   const cfg = getProfileConfig();
   let [min, max] = cfg.hydrationSips;
+  if (profileMode === 'conditioning' && typeof hydrationForLevel === 'function') {
+    let key = null;
+    try { const info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); key = info && info.levelKey; } catch (e) {}
+    const mapped = hydrationForLevel(key);
+    if (mapped && mapped.sips) { min = mapped.sips[0]; max = mapped.sips[1]; }
+  }
 
   // 2. Roll Content — same prompt for every profile, including conditioning.
   let count = randInt(min, max);
@@ -1640,6 +1652,16 @@ function quickModeRollLegacy() {
 
 /* ===== BEDWETTING MODE ===== */
 
+function showSessionCondList() {
+  const box = $('sessionSetupCond');
+  if (box) box.style.display = box.style.display === 'none' ? 'block' : 'block';
+  try { if (window.BSCondProfiles && window.BSCondProfiles.fillSub) window.BSCondProfiles.fillSub('sessionSetupCondPick'); } catch (e) {}
+}
+function startChosenConditioning() {
+  const sel = $('sessionSetupCondPick');
+  try { if (sel && sel.value && window.BSCondProfiles) window.BSCondProfiles.setActive(sel.value); } catch (e) {}
+  selectProfileFromModal('conditioning');
+}
 function selectProfileFromModal(profile) {
   const profileSelect = $('profileSelect');
   if (profileSelect) {
@@ -1648,6 +1670,11 @@ function selectProfileFromModal(profile) {
 
   profileMode = profile;
   localStorage.setItem('profileMode', profile);
+  const condSlot = $('sessionCondSlot');
+  if (condSlot) {
+    condSlot.style.display = profile === 'conditioning' ? 'block' : 'none';
+    if (profile === 'conditioning') { try { window.BSCondProfiles && window.BSCondProfiles.fillSub('sessionCondPick'); } catch (e) {} }
+  }
 
   if (typeof applySelectedProfile === 'function') {
     applySelectedProfile();
@@ -1758,12 +1785,9 @@ function saveDiaperingSetup() {
 }
 
 function toggleBioLogger() {
-  const bioLogger = $('bioLoggerSection');
-  if (bioLogger.style.display === 'none') {
-    bioLogger.style.display = 'block';
-  } else {
-    bioLogger.style.display = 'none';
-  }
+  const advanced = $('bioLoggerAdvanced');
+  if (!advanced) return;
+  advanced.style.display = advanced.style.display === 'none' ? 'block' : 'none';
 }
 
 function toggleSidebarSection(id) {
