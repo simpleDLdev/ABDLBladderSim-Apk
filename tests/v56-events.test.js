@@ -98,9 +98,9 @@ const pre = engine.slice(engine.indexOf('function prerollEvent'), engine.indexOf
 ok(pre.indexOf('conditioningDeckEvent') < pre.indexOf('microTableForMode') || pre.indexOf('microTableForMode') < 0, 'the deck runs before the standard tables');
 
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "56"/.test(g) && /versionCode 56/.test(g), 'version 56');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 56 && +g.match(/versionCode (\d+)/)[1] >= 56, 'version at least 56');
 const pkg = fs.readFileSync(path.join(root, 'package.json'), 'utf8');
-ok(/"version": "56.0.0"/.test(pkg), 'package version 56');
+ok(/"version": "(\d+)\.0\.0"/.test(pkg) && +pkg.match(/"version": "(\d+)\.0\.0"/)[1] >= 56, 'package version at least 56');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v56 events ok');

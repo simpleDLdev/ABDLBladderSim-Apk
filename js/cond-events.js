@@ -193,6 +193,14 @@
       if (ev.dir !== 'both' && dirs.indexOf(ev.dir) < 0) {
         if (!(ev.optIn && hasMethod(profile, ev.optIn))) return false;
       }
+      if (!track && ev.dir === 'both') {
+        const dayOn = profile.direction && profile.direction.day && profile.direction.day !== 'off';
+        const nightOn = profile.direction && profile.direction.night && profile.direction.night !== 'off';
+        if (ev.track === 'day' && !dayOn) return false;
+        if (ev.track === 'night' && !nightOn) return false;
+        if (ev.track === 'both' && !dayOn && !nightOn) return false;
+        return hasMethod(profile, ev.methods);
+      }
       if (ev.dir === 'both' && track && ev.track !== 'both' && ev.track !== track) return false;
       if (track && ev.track !== 'both' && ev.track !== track) return false;
       if (!track && ev.track === 'night' && (profile.direction && profile.direction.night) !== ev.dir) return false;
@@ -407,8 +415,39 @@
     const event = draw(Object.assign({}, opts, { profile: profile, record: true }));
     return { kind: event ? 'event' : 'pass', chance: chance, event: event };
   }
+  function addEvents(list) {
+    (list || []).forEach(ev => {
+      if (!ev || !ev.id) return;
+      if (EVENTS.some(e => e.id === ev.id)) return;
+      EVENTS.push(ev);
+    });
+    return EVENTS.length;
+  }
+  const GOAL_LABELS = {
+    urgency: 'urgency', first_urge: 'first urge', relaxed: 'relaxed release', fade: 'signal fade',
+    unnoticed: 'unnoticed', dribble: 'dribbles', spurt: 'spurts', seep: 'seep', full: 'full let-go',
+    bedwetting: 'bedwetting', deeper: 'deeper sleep', thin: 'thin protection', surprise: 'surprise mix',
+    giggle: 'giggle and cough', habit: 'in-play cues', reward: 'reward', streak: 'streak', control: 'more control'
+  };
+  function deckSummary(profile) {
+    profile = profile || {};
+    const list = eligible(profile, { ignoreConsent: true });
+    let micro = 0, macro = 0, dry = 0;
+    const counts = {};
+    list.forEach(ev => {
+      if (ev.size === 'full') macro++;
+      else if (ev.size === 'none') dry++;
+      else micro++;
+      (ev.goals || []).forEach(id => { counts[id] = (counts[id] || 0) + 1; });
+    });
+    const chosen = (profile.goals || []).map(id => ({ id: id, n: counts[id] || 0, label: GOAL_LABELS[id] || id }));
+    const top = Object.keys(counts).map(id => ({ id: id, n: counts[id], label: GOAL_LABELS[id] || id }))
+      .sort((a, b) => b.n - a.n).slice(0, 4);
+    return { total: list.length, micro: micro, macro: macro, dry: dry, chosen: chosen, top: top, labels: GOAL_LABELS };
+  }
   window.BSCondEvents = {
     EVENTS, REAL, weight, eligible, pick, catalog, gapOf,
-    draw, resetDeck, passChance, needToPee, isStartStop, letGoMode, wantsSurprise
+    draw, resetDeck, passChance, needToPee, isStartStop, letGoMode, wantsSurprise,
+    addEvents, deckSummary, GOAL_LABELS
   };
 })();
