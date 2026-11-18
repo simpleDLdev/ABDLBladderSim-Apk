@@ -79,7 +79,7 @@
         <button type="button" id="hubQuick" class="play-card pc-quick" onclick="BSHub.openQuick()"><span class="pc-ic">⚡</span><span><b>Quick</b><br><small>Natural Urge, short play, or quiz → play</small></span></button>
         <button type="button" id="hubBoard" class="play-card pc-board" onclick="BSHub.openBoard()"><span class="pc-ic">🎲</span><span><b>Potty Path</b><br><small id="hubBoardSub">Path | Campaign · classes · deep start</small></span></button>
         <details id="hubNights" class="play-card pc-nights"><summary><span class="pc-ic">🌙</span><span><b>Nights</b><br><small>Natural Night · Bedwetting sim · board nights</small></span></summary>
-          <button type="button" id="btnNightCond" class="hub-sub" onclick="startConditioningTrack('night')">🌙 Night Conditioning <small>(bedtime routine, then a quiet night)</small></button>
+          <button type="button" id="btnNightCond" class="hub-sub" onclick="startConditioningTrack('night')">🌙 Night Conditioning <small>(bedtime routine, then a silent night — no event timer)</small></button>
           <button id="btnNaturalNight" onclick="BSNight.open()" class="hub-sub">🌙 Natural Night <small>(silent, real-life — no alarms)</small></button>
           <button type="button" id="hubBedSim" onclick="BSHub.startBedwetting()" class="hub-sub">🛏️ Bedwetting sim <small>(profile session)</small></button>
           <div id="hubBoardNight" class="cal-legend"></div>
@@ -343,7 +343,7 @@
       <p class="section-desc">Live event feed. Every alarm, guide outcome, progression change, and status check is
         recorded here in order.</p>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
-        <span class="tag">Event: <b id="countdown">Waiting...</b></span>
+        <span class="tag" id="eventTag"><span id="eventTagLead">Event: </span><b id="countdown">Waiting...</b></span>
         <div style="display:flex; gap:6px;">
           <button class="pill nextAction" onclick="nextReveal()">Reveal ▶</button>
           <button class="pill" id="btnILeaked" onclick="reportEmergencyOmorashiLeak()"

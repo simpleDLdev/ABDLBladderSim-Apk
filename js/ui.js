@@ -543,6 +543,13 @@ function conditioningSipStatus() {
 }
 
 function syncConditioningSips() {
+  if (typeof nightCondNoTimer === 'function' && nightCondNoTimer()) {
+    clearTimeout(hydrationTimer);
+    hydrationTimer = null;
+    hydrationEndAt = null;
+    hydrationSkipNote = '';
+    return;
+  }
   if (typeof sessionRunning !== 'undefined' && sessionRunning) return;
   if (urgeConditioningSips()) {
     if (!hydrationTimer) scheduleNextHydration();
@@ -555,7 +562,12 @@ function syncConditioningSips() {
 }
 
 function scheduleNextHydration() {
-  if (window._nightCondQuiet) { clearTimeout(hydrationTimer); hydrationEndAt = null; return; }
+  if (window._nightCondQuiet || (typeof nightCondNoTimer === 'function' && nightCondNoTimer())) {
+    clearTimeout(hydrationTimer);
+    hydrationTimer = null;
+    hydrationEndAt = null;
+    return;
+  }
   clearTimeout(hydrationTimer);
   const urge = urgeConditioningSips();
   const conditioning = profileMode === 'conditioning' || urge;
@@ -592,6 +604,10 @@ function scheduleNextHydration() {
 
 function renderTank() {
   const el = $('tankReadout');
+  if (window._nightCondQuiet || (typeof nightCondNoTimer === 'function' && nightCondNoTimer())) {
+    if (el) { el.hidden = true; el.textContent = ''; }
+    return;
+  }
   if (!el || !window.BSTank || profileMode !== 'conditioning') {
     if (el) el.hidden = true;
     return;
@@ -714,7 +730,7 @@ function testSelectedGuide() {
 }
 
 function triggerHydrationEvent(force = false, fromQueue = false) {
-  if (window._nightCondQuiet && !window._nightSipManual) return;
+  if ((window._nightCondQuiet || (typeof nightCondNoTimer === 'function' && nightCondNoTimer())) && !window._nightSipManual) return;
   const conditioning = profileMode === 'conditioning';
   if (!force && window.BSSymptoms && window.BSSymptoms.paused && window.BSSymptoms.paused()) return;
   if (conditioning) window.hydrationEnabled = true;
@@ -803,6 +819,14 @@ function triggerHydrationEvent(force = false, fromQueue = false) {
   try { if (typeof renderTank === 'function') renderTank(); } catch (e) {}
 }
 function startSession(isResume = false) {
+  if (typeof nightCondNoTimer === 'function' && nightCondNoTimer()) {
+    if (typeof clearNightClock === 'function') clearNightClock();
+    sessionRunning = false;
+    try { saveState(); } catch (e) {}
+    try { setCountdownLabel(); } catch (e) {}
+    try { if (typeof window.nativeNotifySync === 'function') window.nativeNotifySync(); } catch (e) {}
+    return;
+  }
   if (sessionRunning && !isResume) return;
   if (!isResume && !startSession._skipBody && window.BSSymptoms && window.BSSymptoms.blocksSession && window.BSSymptoms.blocksSession()) {
     window.BSSymptoms.openCheck(function () {
@@ -1758,10 +1782,16 @@ function startConditioningTrack(track) {
   try { if (sel && sel.value && window.BSCondProfiles) window.BSCondProfiles.setActive(sel.value); } catch (e) {}
   if (window._condTrack === 'night' && window.BSNightCond && window.BSNightCond.open) {
     try { if (typeof closeSessionSetupModal === 'function') closeSessionSetupModal(); } catch (e) {}
-    selectProfileFromModal('conditioning');
+    const profileSelect = $('profileSelect');
+    if (profileSelect) profileSelect.value = 'conditioning';
+    profileMode = 'conditioning';
+    try { localStorage.setItem('profileMode', 'conditioning'); } catch (e) {}
+    if (typeof applySelectedProfile === 'function') applySelectedProfile();
     window.BSNightCond.open();
     return;
   }
+  try { localStorage.removeItem('bs_night_cond_v1'); } catch (e) {}
+  try { if (window.BSNightCond && window.BSNightCond.dismiss) window.BSNightCond.dismiss(); } catch (e) {}
   selectProfileFromModal('conditioning');
 }
 function startChosenConditioning() {
@@ -2577,6 +2607,23 @@ function logToOutput(html) {
 function setCountdownLabel() {
   const lbl = $('countdown');
   if (!lbl) return;
+  if (typeof nightCondNoTimer === 'function' && nightCondNoTimer()) {
+    const quiet = !!window._nightCondQuiet;
+    const lead = $('eventTagLead');
+    if (lead) lead.textContent = '';
+    lbl.textContent = quiet ? 'Silent night' : 'Bedtime';
+    const timerEl = $('sessionTimerDisplay');
+    const stateEl = $('sessionTimerState');
+    if (timerEl) timerEl.textContent = '—';
+    if (stateEl) stateEl.textContent = quiet ? 'Silent night' : 'Bedtime';
+    const tank = $('tankReadout');
+    if (tank) { tank.hidden = true; tank.textContent = ''; }
+    if (document.body) document.body.classList.toggle('nc-quiet', quiet);
+    return;
+  }
+  if (document.body) document.body.classList.remove('nc-quiet');
+  const lead = $('eventTagLead');
+  if (lead) lead.textContent = 'Event: ';
   updateSessionTimerDisplay();
 
   // 1. Check if user wants to hide the timer
@@ -2671,6 +2718,10 @@ function peeLogLine(roll, shown) {
   return '🚽 <b>I need to pee</b> — ' + name + '.';
 }
 function needToPee() {
+  if (window._nightCondQuiet || (window.BSNightCond && window.BSNightCond.isQuiet && window.BSNightCond.isQuiet())) {
+    if (window.BSNightCond && window.BSNightCond.peeNow) window.BSNightCond.peeNow();
+    return;
+  }
   const roll = buildPeeRoll();
   const result = window.BSPee
     ? window.BSPee.show(document, roll, {
@@ -2851,7 +2902,12 @@ function haveAccident() {
 
   // 2. Load State & Resume if needed
   const shouldResume = loadState();
-  if (shouldResume) {
+  if (typeof nightCondNoTimer === 'function' && nightCondNoTimer()) {
+    if (typeof clearNightClock === 'function') clearNightClock();
+    sessionRunning = false;
+    try { saveState(); } catch (e) {}
+    try { setCountdownLabel(); } catch (e) {}
+  } else if (shouldResume) {
     startSession(true);
   } else if (!localStorage.getItem('abdlSimState') && !localStorage.getItem('profileMode')) {
     // First visit — no cached session or profile. Auto-show the setup modal.
