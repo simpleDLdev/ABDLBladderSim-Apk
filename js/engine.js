@@ -334,7 +334,30 @@ function rollMicroForMode() {
 function rollFullForMode() { return d(20); }
 
 /* ---------- Preroll ---------- */
+function conditioningDeckEvent(kind) {
+  let tank = null;
+  try { tank = window.BSTank && window.BSTank.load && window.BSTank.load(); } catch (e) {}
+  if (window.BSCondEvents && window.BSCondEvents.draw) {
+    const drawn = window.BSCondEvents.draw({ kind: kind, tank: tank, ignoreConsent: true });
+    if (drawn) return drawn;
+  }
+  return {
+    kind: 'micro',
+    desc: 'Check-in. A real need still means stop and go.',
+    guide: [{ text: 'CHECK', time: 3, type: 'stop' }],
+    id: 'c_check',
+    family: 'check',
+    size: 'tiny',
+    label: 'Check-in'
+  };
+}
 function prerollEvent(kind) {
+  if (typeof profileMode !== 'undefined' && profileMode === 'conditioning') {
+    const event = conditioningDeckEvent(kind);
+    if (kind === 'micro') lastMicroEvent = event;
+    else lastMacroEvent = event;
+    return event;
+  }
   let event, i = 0;
   const maxRetries = 5; // Failsafe to prevent infinite loops
 

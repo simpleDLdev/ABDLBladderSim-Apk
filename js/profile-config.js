@@ -255,11 +255,12 @@ const PROFILE_CONFIG = {
   /* ---- MY CONDITIONING (v45 intake profile) ---- */
   conditioning: {
     label: 'My Conditioning',
+    /* Session rolls use BSCondEvents.draw. These tables are not the conditioning deck. */
     microTable: () => (typeof MICRO_STD_D6 !== 'undefined' ? MICRO_STD_D6 : []),
-    microSource: 'MICRO_STD_D6',
+    microSource: 'COND_DECK',
     microDie: () => (typeof d === 'function' ? d(6) : 1),
     macroTable: () => (typeof FULL_D20 !== 'undefined' ? FULL_D20 : []),
-    macroSource: 'FULL_D20',
+    macroSource: 'COND_DECK',
     mainMin: 30, mainMax: 70,
     microMin: 5, microMax: 15,
     hydrationSips: [1, 2],

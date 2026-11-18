@@ -36,7 +36,7 @@ Q.offer({ key: 'sip', kind: 'sip' });
 ok(Q.offer({ key: 'sip', kind: 'sip' }).duplicate, 'the queue drops a second sip');
 
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "55"/.test(g) && /versionCode 55/.test(g), 'version 55');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 55 && +g.match(/versionCode (\d+)/)[1] >= 55, 'version at least 55');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v55 sip tests passed');

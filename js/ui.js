@@ -2600,6 +2600,71 @@ function setCountdownLabel() {
   lbl.innerHTML = text.join(' <span style="opacity:0.4; margin:0 5px;">|</span> ');
 }
 
+function needToPee() {
+  const cond = typeof profileMode !== 'undefined' && profileMode === 'conditioning';
+  let profile = {};
+  let info = null;
+  try { profile = (window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile) || {}; } catch (e) {}
+  try { info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); } catch (e) {}
+  const track = (info && info.track) || 'day';
+  const levelKey = (info && info.levelKey) || (profile.levelKey && profile.levelKey[track]);
+  let tank = null;
+  try { tank = window.BSTank && window.BSTank.load && window.BSTank.load(); } catch (e) {}
+  const chance = window.BSCondEvents && window.BSCondEvents.passChance
+    ? window.BSCondEvents.passChance(profile, { track: track, levelKey: levelKey })
+    : 0.4;
+  let roll;
+  if (Math.random() < chance) roll = { kind: 'pass', chance: chance };
+  else {
+    let kind = 'micro';
+    try {
+      if (window.BSTank && window.BSTank.canVoid && window.BSTank.canVoid(tank) && Math.random() < 0.35) kind = 'full';
+    } catch (e) {}
+    const ev = typeof prerollEvent === 'function' ? prerollEvent(kind) : null;
+    roll = { kind: ev ? 'event' : 'pass', chance: chance, event: ev };
+  }
+  if (typeof logToOutput === 'function') {
+    logToOutput(roll.kind === 'pass'
+      ? '<span style="color:#81ecec">🚽 <b>I need to pee</b> — potty pass. You can go.</span>'
+      : '<span style="color:#fab1a0">🚽 <b>I need to pee</b> — ' + (roll.event && (roll.event.label || roll.event.desc) ? (roll.event.label || 'event') : 'event') + '.</span>');
+  }
+  if (cond && typeof applyConditioningUrge === 'function') {
+    const lv = typeof getUrgencyLevel === 'function' ? getUrgencyLevel(typeof manualPressure === 'number' ? manualPressure : 0) : 0;
+    applyConditioningUrge(Math.max(lv, 6));
+  }
+  const banner = $('alarmBanner');
+  const guideEl = $('voidOverlay');
+  const bannerOpen = !!(banner && banner.style.display === 'flex');
+  const guideOpen = !!(guideEl && guideEl.style.display === 'flex');
+  const queued = window.BSEventQueue && window.BSEventQueue.current();
+  if (window.BSEventQueue && (bannerOpen || guideOpen || queued)) {
+    const ticket = window.BSEventQueue.offer({
+      key: 'pee:' + Date.now(),
+      kind: roll.kind === 'pass' ? 'banner' : 'guide',
+      show: () => presentNeedToPee(roll)
+    });
+    if (!ticket || ticket.state === 'waiting' || ticket.duplicate) {
+      if (typeof logToOutput === 'function') logToOutput('<span class="muted">🚽 Queued. The open guide stays up.</span>');
+      return;
+    }
+  }
+  presentNeedToPee(roll);
+}
+function presentNeedToPee(roll) {
+  if (!roll || roll.kind === 'pass' || !roll.event || !roll.event.guide) {
+    window._peePass = true;
+    if (typeof showBannerNow === 'function') showBannerNow('🚽 <b>Potty pass</b>', 'You can go. A real need still means stop and go.');
+    if (window.BSEventQueue && !(window.BSEventQueue.current() && window.BSEventQueue.current().kind === 'banner')) {
+      window.BSEventQueue.offer({ key: 'pee-pass:' + Date.now(), kind: 'banner' });
+    }
+    return;
+  }
+  window._peePass = false;
+  const ev = roll.event;
+  try { pendingMainEvent = ev; } catch (e) {}
+  if (typeof startVoidGuide === 'function') startVoidGuide(ev.guide, ev.desc || ev.label || 'I need to pee', ev.kind === 'full' ? 'full' : 'micro', null, true);
+  if (window.BSEventQueue && !window.BSEventQueue.current()) window.BSEventQueue.offer({ key: 'pee-guide:' + Date.now(), kind: 'guide' });
+}
 function showBanner(msg, hint, priority = 'low') {
   const b = $('alarmBanner');
   const guideEl = $('voidOverlay');
@@ -2643,6 +2708,16 @@ function acknowledgeAlarm() {
       if (window.BSEventQueue) window.BSEventQueue.logSip();
       return;
   }
+  if (window._peePass) {
+      window._peePass = false;
+      hideBanner();
+      stopChime();
+      logToOutput('<span style="color:#81ecec">🚽 <b>Potty pass</b> used.</span>');
+      if (window.BSEventQueue && window.BSEventQueue.current() && window.BSEventQueue.current().kind === 'banner') {
+        window.BSEventQueue.completeActive();
+      }
+      return;
+  }
 
   hideBanner();
   if (window.BSEventQueue && window.BSEventQueue.current() && window.BSEventQueue.current().kind === 'banner') {
@@ -2663,6 +2738,16 @@ function skipAlarm() {
   const guideEl = $('voidOverlay');
   const guideOpen = !!(guideEl && guideEl.style.display === 'flex');
   if (isHydrationPending && guideOpen) return;
+  if (window._peePass && !guideOpen) {
+      window._peePass = false;
+      hideBanner();
+      stopChime();
+      logToOutput('<span style="color:#81ecec">🚽 Potty pass dismissed.</span>');
+      if (window.BSEventQueue && window.BSEventQueue.current() && window.BSEventQueue.current().kind === 'banner') {
+        window.BSEventQueue.completeActive();
+      }
+      return;
+  }
   hideBanner();
   stopChime();
 

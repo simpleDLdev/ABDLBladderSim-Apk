@@ -978,7 +978,8 @@ details.set-sec { background:#151923; border:1px solid #2b3348; border-radius:12
 details.set-sec > summary { min-height:48px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; cursor:pointer; font-weight:bold; color:#a29bfe; font-size:15px; }
 details.set-sec > summary small { color:#8ea0b6; font-weight:normal; font-size:11px; }
 details.set-sec[open] { padding-bottom:10px; }
-@media (max-width: 360px) { .play-hub { grid-template-columns:1fr; } }
+@media (max-width: 520px) { .play-hub { grid-template-columns:1fr; } }
+#btnNeedToPee { width:100%; min-height:48px; padding:12px 14px; margin-top:8px; background:#81ecec; color:#042; font-weight:800; font-size:1.05em; border:none; border-radius:10px; cursor:pointer; }
 
 /* v20 DryClip overnight flags */
 .cal-entry.clip-flag { opacity: 0.95; background: rgba(116,185,255,0.06); }
