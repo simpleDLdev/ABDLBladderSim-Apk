@@ -982,7 +982,7 @@
     try {
       const BA = W.Capacitor && W.Capacitor.Plugins && W.Capacitor.Plugins.BladderAlarm;
       const n = pendingAlarm();
-      if (BA && n) await BA.schedule({ id: n.id, at: n.at, title: n.title, body: n.body, kind: n.kind });
+      if (BA && n) await BA.schedule({ id: n.id, at: n.at, title: n.title, body: n.body, kind: n.kind, channel: 'bs_morning_v1', allowWhileIdle: true });
     } catch (e) { log('warn', 'morning schedule: ' + (e.message || e)); }
     renderLab(); refreshBadge();
     return d.night;

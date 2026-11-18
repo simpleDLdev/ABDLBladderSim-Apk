@@ -3,6 +3,20 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v60',
+    date: '2026-11-18',
+    title: 'v60 — Night conditioning runs like a Natural Night',
+    bullets: [
+      'After the bedtime routine there is no event timer, no countdown, no sip prompts and no alarms.',
+      'The night uses the silent Natural Night screen. I woke up (urge, already wet, or dry) and I need to pee draw night events.',
+      'DryClip sleep mode (quiet, gentle, or alarm) is opt-in and is the only thing that reacts overnight. The only reminder is the morning check-in at your wake time.',
+      'The night quiet ends at your wake time, or as soon as you start any day session, so day alarms ring with the app closed again. Old leftover night state is cleared on start.',
+      'The morning check-in (night conditioning, Natural Night and DryClip) is a real Android notification on its own high-importance channel, and fires with the app closed.',
+      'Day conditioning is unchanged.',
+      'Version 60.'
+    ]
+  },
+  {
     hash: 'v55',
     date: '2026-11-17',
     title: 'v55 — Sip batches, then quiet',
