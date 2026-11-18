@@ -378,6 +378,13 @@ function getNextAvailableProtection(direction, fromLevel) {
 }
 
 function nextReveal() {
+  const guideEl = $('voidOverlay');
+  if (guideEl && guideEl.style.display === 'flex') {
+    const busy = window.BSPee ? window.BSPee.reveal(document, { guideOpen: true, queue: window.BSEventQueue }) : { shown: 'busy', text: 'A guide is already on screen.' };
+    if (typeof logToOutput === 'function') logToOutput('<span class="muted">▶ ' + busy.text + '</span>');
+    if (typeof toast === 'function') toast(busy.text);
+    return busy;
+  }
   hideBanner();
   // Chime keeps ringing until user presses START in guide or Stop Event button
 
@@ -398,18 +405,47 @@ function nextReveal() {
     microPauseUntilTs = Date.now() + 10 * 60000; // Pause micros for 10m
 
     if (sessionRunning) scheduleMainEvent(nxt);
+  } else if (profileMode === 'conditioning' && typeof prerollEvent === 'function') {
+    evtToRun = prerollEvent('micro');
   } else {
     // Emergency / Manual Click (No event pending)
     evtToRun = microTableForMode(rollMicroForMode());
   }
 
-  if (profileMode === 'conditioning' && evtToRun && window.BSTank && !window.BSTank.canVoid(window.BSTank.load())) {
-    triggerHydrationEvent(true);
-    if (sessionRunning) scheduleMainEvent({ _fromTank: true, min: 18, max: 30 });
-    return;
+  const lowTank = profileMode === 'conditioning' && window.BSTank && !window.BSTank.canVoid(window.BSTank.load());
+  if (lowTank && window.BSPee) {
+    const note = window.BSPee.reveal(document, { lowTank: true, queue: window.BSEventQueue });
+    window._peePass = true;
+    if (typeof logToOutput === 'function') logToOutput('<span style="color:#81ecec">🫧 <b>Reveal</b> — not enough in the tank yet. Potty pass, or try a sip.</span>');
+    if (typeof toast === 'function') toast('Not enough in the tank yet. Potty pass, or try a sip.');
+    try { triggerHydrationEvent(true); } catch (e) {}
+    return note;
   }
   if (profileMode === 'conditioning' && evtToRun && window.BSTank) {
     try { window.BSTank.takeVoid(window.BSTank.load(), evtToRun.kind === 'micro' ? 'partial' : 'full'); } catch (e) {}
+  }
+
+  if (window.BSPee) {
+    const shown = window.BSPee.reveal(document, {
+      event: evtToRun,
+      queue: window.BSEventQueue,
+      startGuide: function (guide, text, kind) {
+        if (typeof startVoidGuide === 'function') startVoidGuide(guide, text, kind, null, true);
+      }
+    });
+    if (evtToRun && shown && shown.shown === 'guide') {
+      window._lastRevealedEvent = evtToRun;
+      applyEvent(evtToRun);
+    } else if (shown && shown.shown === 'banner') {
+      window._peePass = true;
+      if (typeof logToOutput === 'function') logToOutput('<span style="color:#81ecec">' + shown.text + '</span>');
+      if (typeof toast === 'function') toast(String(shown.text || '').replace(/<[^>]+>/g, ''));
+    }
+    if (evtToRun && !evtToRun.guide && profileMode !== 'babysitter' && typeof isPottyPromptEvent === 'function' &&
+        isPottyPromptEvent(evtToRun, null) && shouldTrackSessionStats()) {
+      setTimeout(() => resolvePottyPrompt(evtToRun), 600);
+    }
+    return shown;
   }
 
   // 2. Execute
@@ -423,15 +459,9 @@ function nextReveal() {
       setTimeout(() => resolvePottyPrompt(evtToRun), 600);
     }
 
-    // AUTO-START MECHANIC
-    // If the event has a guide, launch it immediately.
     if (evtToRun.guide) {
-      const typeStr = evtToRun.kind || 'full'; // 'micro' or 'full'
-
-      // Small delay to let the log appear first
-      setTimeout(() => {
-        startVoidGuide(evtToRun.guide, evtToRun.desc, typeStr);
-      }, 500);
+      const typeStr = evtToRun.kind || 'full';
+      startVoidGuide(evtToRun.guide, evtToRun.desc, typeStr, null, true);
     }
   }
 }
@@ -2600,8 +2630,7 @@ function setCountdownLabel() {
   lbl.innerHTML = text.join(' <span style="opacity:0.4; margin:0 5px;">|</span> ');
 }
 
-function needToPee() {
-  const cond = typeof profileMode !== 'undefined' && profileMode === 'conditioning';
+function buildPeeRoll() {
   let profile = {};
   let info = null;
   try { profile = (window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile) || {}; } catch (e) {}
@@ -2613,57 +2642,44 @@ function needToPee() {
   const chance = window.BSCondEvents && window.BSCondEvents.passChance
     ? window.BSCondEvents.passChance(profile, { track: track, levelKey: levelKey })
     : 0.4;
-  let roll;
-  if (Math.random() < chance) roll = { kind: 'pass', chance: chance };
-  else {
-    let kind = 'micro';
-    try {
-      if (window.BSTank && window.BSTank.canVoid && window.BSTank.canVoid(tank) && Math.random() < 0.35) kind = 'full';
-    } catch (e) {}
-    const ev = typeof prerollEvent === 'function' ? prerollEvent(kind) : null;
-    roll = { kind: ev ? 'event' : 'pass', chance: chance, event: ev };
-  }
-  if (typeof logToOutput === 'function') {
-    logToOutput(roll.kind === 'pass'
-      ? '<span style="color:#81ecec">🚽 <b>I need to pee</b> — potty pass. You can go.</span>'
-      : '<span style="color:#fab1a0">🚽 <b>I need to pee</b> — ' + (roll.event && (roll.event.label || roll.event.desc) ? (roll.event.label || 'event') : 'event') + '.</span>');
-  }
-  if (cond && typeof applyConditioningUrge === 'function') {
-    const lv = typeof getUrgencyLevel === 'function' ? getUrgencyLevel(typeof manualPressure === 'number' ? manualPressure : 0) : 0;
-    applyConditioningUrge(Math.max(lv, 6));
-  }
-  const banner = $('alarmBanner');
-  const guideEl = $('voidOverlay');
-  const bannerOpen = !!(banner && banner.style.display === 'flex');
-  const guideOpen = !!(guideEl && guideEl.style.display === 'flex');
-  const queued = window.BSEventQueue && window.BSEventQueue.current();
-  if (window.BSEventQueue && (bannerOpen || guideOpen || queued)) {
-    const ticket = window.BSEventQueue.offer({
-      key: 'pee:' + Date.now(),
-      kind: roll.kind === 'pass' ? 'banner' : 'guide',
-      show: () => presentNeedToPee(roll)
-    });
-    if (!ticket || ticket.state === 'waiting' || ticket.duplicate) {
-      if (typeof logToOutput === 'function') logToOutput('<span class="muted">🚽 Queued. The open guide stays up.</span>');
-      return;
-    }
-  }
-  presentNeedToPee(roll);
+  const low = !!(tank && window.BSTank && window.BSTank.canVoid && !window.BSTank.canVoid(tank));
+  if (Math.random() < chance) return { kind: 'pass', chance: chance, low: low };
+  if (low) return { kind: 'low', chance: chance, low: true };
+  let ev = null;
+  try { ev = typeof prerollEvent === 'function' ? prerollEvent('micro') : null; } catch (e) { ev = null; }
+  if (!ev || !ev.guide || !ev.guide.length) return { kind: 'low', chance: chance, low: true };
+  return { kind: 'event', chance: chance, event: ev };
 }
-function presentNeedToPee(roll) {
-  if (!roll || roll.kind === 'pass' || !roll.event || !roll.event.guide) {
-    window._peePass = true;
-    if (typeof showBannerNow === 'function') showBannerNow('🚽 <b>Potty pass</b>', 'You can go. A real need still means stop and go.');
-    if (window.BSEventQueue && !(window.BSEventQueue.current() && window.BSEventQueue.current().kind === 'banner')) {
-      window.BSEventQueue.offer({ key: 'pee-pass:' + Date.now(), kind: 'banner' });
-    }
-    return;
+function peeLogLine(roll, shown) {
+  if (shown === 'queued') return '🚽 <b>I need to pee</b> — queued. The one on screen stays up.';
+  if (!roll || roll.kind === 'low') return '🫧 <b>I need to pee</b> — not enough in the tank yet. Potty pass, or try a sip.';
+  if (roll.kind === 'pass') return '🚽 <b>I need to pee</b> — potty pass. You can go.';
+  const name = roll.event && (roll.event.label || 'event');
+  return '🚽 <b>I need to pee</b> — ' + name + '.';
+}
+function needToPee() {
+  const roll = buildPeeRoll();
+  const result = window.BSPee
+    ? window.BSPee.show(document, roll, {
+        queue: window.BSEventQueue,
+        startGuide: function (guide, text, kind) {
+          window._peePass = false;
+          try { pendingMainEvent = roll.event; } catch (e) {}
+          if (typeof startVoidGuide === 'function') startVoidGuide(guide, text, kind, null, true);
+        }
+      })
+    : { shown: 'banner' };
+  if (result && result.shown === 'banner') window._peePass = true;
+  if (result && result.shown === 'guide') window._peePass = false;
+  const line = peeLogLine(roll, result && result.shown);
+  if (typeof logToOutput === 'function') logToOutput('<span style="color:#81ecec">' + line + '</span>');
+  if (typeof toast === 'function') toast(line.replace(/<[^>]+>/g, ''));
+  if (typeof profileMode !== 'undefined' && profileMode === 'conditioning' && typeof applyConditioningUrge === 'function') {
+    try {
+      const lv = typeof getUrgencyLevel === 'function' ? getUrgencyLevel(typeof manualPressure === 'number' ? manualPressure : 0) : 0;
+      applyConditioningUrge(Math.max(lv, 6));
+    } catch (e) {}
   }
-  window._peePass = false;
-  const ev = roll.event;
-  try { pendingMainEvent = ev; } catch (e) {}
-  if (typeof startVoidGuide === 'function') startVoidGuide(ev.guide, ev.desc || ev.label || 'I need to pee', ev.kind === 'full' ? 'full' : 'micro', null, true);
-  if (window.BSEventQueue && !window.BSEventQueue.current()) window.BSEventQueue.offer({ key: 'pee-guide:' + Date.now(), kind: 'guide' });
 }
 function showBanner(msg, hint, priority = 'low') {
   const b = $('alarmBanner');
@@ -2719,10 +2735,6 @@ function acknowledgeAlarm() {
       return;
   }
 
-  hideBanner();
-  if (window.BSEventQueue && window.BSEventQueue.current() && window.BSEventQueue.current().kind === 'banner') {
-    window.BSEventQueue.replaceActive({ key: 'guide', kind: 'guide' });
-  }
   nextReveal();
 }
 

@@ -445,9 +445,33 @@
       .sort((a, b) => b.n - a.n).slice(0, 4);
     return { total: list.length, micro: micro, macro: macro, dry: dry, chosen: chosen, top: top, labels: GOAL_LABELS };
   }
+  function aboutText(profile) {
+    profile = profile || {};
+    const track = 'day';
+    const key = (profile.levelKey && (profile.levelKey[track] || profile.levelKey.day)) || 'okay';
+    let base = '';
+    try { base = window.BSControl && window.BSControl.describe ? window.BSControl.describe(key, false) : ''; } catch (e) {}
+    const sum = deckSummary(profile);
+    const chance = Math.round(passChance(profile, { track: track, levelKey: key }) * 100);
+    let sip = { count: 4, gapMin: 30 };
+    try {
+      if (typeof conditioningSipPlan === 'function') {
+        const plan = conditioningSipPlan(key, profile);
+        if (plan) sip = { count: plan.count, gapMin: plan.gapMin };
+      }
+    } catch (e) {}
+    const picked = (profile.goals && profile.goals.length && sum.chosen) ? sum.chosen : sum.top;
+    const goals = (picked || []).filter(g => g.n > 0).slice(0, 4);
+    const goalLine = goals.length ? goals.map(g => (g.label || g.id) + ' (' + g.n + ')').join(', ') : 'the goals on this profile';
+    const level = window.BSControl && window.BSControl.level ? window.BSControl.level(key) : null;
+    const name = level ? level.label : key;
+    const head = base ? '' : ('About ' + name + '. ');
+    const extra = 'This setup can draw ' + sum.total + ' events: ' + sum.micro + ' micro, ' + sum.macro + ' macro, ' + sum.dry + ' no-wet. Most of those train ' + goalLine + '. Sips are a batch of ' + sip.count + ', then ' + sip.gapMin + ' min quiet. I need to pee is a potty pass about ' + chance + '% of the time.';
+    return (head + (base ? base + ' ' : '') + extra).replace(/\s+/g, ' ').trim();
+  }
   window.BSCondEvents = {
     EVENTS, REAL, weight, eligible, pick, catalog, gapOf,
     draw, resetDeck, passChance, needToPee, isStartStop, letGoMode, wantsSurprise,
-    addEvents, deckSummary, GOAL_LABELS
+    addEvents, deckSummary, aboutText, GOAL_LABELS
   };
 })();

@@ -386,6 +386,38 @@
     if (t <= 0.33) return dim.nowText;
     return 'Between ' + dim.nowText + ' and ' + dim.wantText;
   }
+  function expandGoals(ans, dimensions, goals) {
+    ans = ans || {};
+    const g = new Set(goals || []);
+    const add = function () { for (let i = 0; i < arguments.length; i++) if (arguments[i]) g.add(arguments[i]); };
+    if (g.has('signal')) add('fade', 'urgency');
+    if (g.has('capacity')) add('control');
+    if (g.has('drynight')) add('control');
+    if (ans.u_style === 'first_urge') add('first_urge', 'urgency');
+    if (ans.u_style === 'partial') add('seep', 'dribble', 'urgency');
+    if (ans.u_style === 'surf' || ans.u_style === 'timed') add('control');
+    const day = (dimensions && dimensions.day) || {};
+    const w = id => (day[id] && day[id].want != null && day[id].want !== '') ? +day[id].want : null;
+    const n = id => (day[id] && day[id].now != null && day[id].now !== '') ? +day[id].now : null;
+    if (w('warning') != null && w('warning') <= 33) add('surprise', 'fade');
+    if (w('dribble') != null && w('dribble') <= 45) add('dribble', 'spurt', 'thin');
+    if (w('notice') != null && w('notice') <= 30) add('unnoticed');
+    if (w('hold') != null && w('hold') <= 30) add('first_urge', 'urgency');
+    if (w('sudden') != null && w('sudden') <= 25) add('fade', 'surprise');
+    if (w('leaks') != null && w('leaks') <= 40) add('seep', 'full');
+    if (w('stress') != null && w('stress') <= 40) add('giggle');
+    if (n('stress') != null && n('stress') <= 40) add('giggle');
+    if (w('dayGear') != null && w('dayGear') >= 60) add('thin');
+    if (ans.u_often === 'some' || ans.u_often === 'often' || (ans.where && ans.where.length)) add('habit');
+    if (ans.intensity === 'intense' || (ans.timeframe && ans.timeframe !== 'open')) add('streak');
+    if (ans.s_deeper === 'more') add('deeper');
+    if (ans.s_stay === 'yes' || ans.s_before === 'yes') add('bedwetting', 'deeper');
+    if (ans.f_desk === 'later') add('unnoticed');
+    if (ans.f_desk === 'drops') add('dribble');
+    if (ans.f_desk === 'gear') add('full');
+    if (g.size) add('reward');
+    return Array.from(g);
+  }
   function goalList(ans) {
     const g = new Set(Array.isArray(ans.goals) ? ans.goals.filter(x => x !== 'none') : []);
     if (ans.u_style === 'first_urge' || ans.u_style === 'partial') g.add('urgency');
@@ -409,7 +441,7 @@
     const nightWant = nightWantN == null ? nightNow : Math.round(nightWantN);
     let dayDir = dirOf(dayNow, dayWant);
     let nightDir = dirOf(nightNow, nightWant);
-    const goals = goalList(ans);
+    const goals = expandGoals(ans, dimensions, goalList(ans));
     const less = goals.some(id => id === 'bedwetting' || id === 'urgency' || id === 'thin' || id === 'relaxed' || id === 'signal' || id === 'deeper');
     const more = goals.some(id => id === 'control' || id === 'capacity' || id === 'drynight');
     if (dayDir === 'off' && more && !less) dayDir = 'B';
@@ -570,6 +602,6 @@
   }
   window.BSIntake = {
     TITLES, questions, sectionCounts, skipSectionFrom, resumeIndex, controlOf, mix, scoreIntake,
-    urgeModel, sessionBits, passMode, breakdown, trackEffective, agreeingCount, prefill, bandOf, dirOf
+    urgeModel, sessionBits, passMode, breakdown, trackEffective, agreeingCount, prefill, bandOf, dirOf, expandGoals, goalList
   };
 })();
