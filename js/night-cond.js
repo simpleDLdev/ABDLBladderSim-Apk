@@ -75,7 +75,7 @@
       { id: 'affirm', title: 'Affirmation', skip: true, text: less
         ? 'If you wake, you can stay in bed and let go. A real need still means get up.'
         : 'If you wake with an urge, you get up and finish in the toilet. A real need still means go.' },
-      { id: 'wake', title: 'Wake time', skip: true, text: 'Set the time morning starts. Until then there are no sip prompts and no day events.' },
+      { id: 'wake', title: 'Wake time', skip: true, text: 'Set the time morning starts. That is the morning check-in. Until then there is no event timer, no countdown, and no sip prompts.' },
       { id: 'clip', title: 'DryClip (opt in)', skip: true, text: 'DryClip sleep mode is off until you turn it on. Suggested if you do: ' + clip.suggested + ', from your night-alarm answer. Quiet logs the wet time with no alert. Gentle is a soft stay-asleep or get-up line. Alarm wakes you fully.' }
     ];
   }
@@ -149,27 +149,125 @@
       });
     } catch (e) {}
     const clip = clipDefaults(p);
-    return 'At night you are ' + gear.levelName + '. Recommended night gear: ' + gear.name + '. ' + gear.why + ' Night events available: ' + total + ' (' + micro + ' micro, ' + macro + ' macro, ' + dry + ' no-wet). DryClip sleep mode is off until you opt in' + (clip.suggested ? '; if you turn it on, the quiz points at ' + clip.suggested : '') + '.';
+    return 'At night you are ' + gear.levelName + '. Recommended night gear: ' + gear.name + '. ' + gear.why + ' Night events available: ' + total + ' (' + micro + ' micro, ' + macro + ' macro, ' + dry + ' no-wet). After the bedtime routine the night is silent, like a natural night: no event timer, no countdown, no sip prompts, and no tank time. A night event shows only if you tap I woke up or I need to pee, or if an opted-in DryClip gets wet. The morning check-in is at the wake time you set. DryClip sleep mode is off until you opt in' + (clip.suggested ? '; if you turn it on, the quiz points at ' + clip.suggested : '') + '.';
+  }
+  const MORNING_ID = 1961;
+  function wakeTimestamp(hhmm, now) {
+    now = now || Date.now();
+    if (!/^\d\d:\d\d$/.test(hhmm || '')) return null;
+    const d = new Date(now);
+    d.setSeconds(0, 0);
+    d.setHours(+hhmm.slice(0, 2), +hhmm.slice(3), 0, 0);
+    let t = d.getTime();
+    if (t < now - 60000) t += 86400000;
+    return t;
+  }
+  function noTimer() {
+    if (window._nightCondQuiet) return true;
+    const st = loadState();
+    return !!(st && (st.phase === 'quiet' || st.phase === 'routine'));
+  }
+  function isQuiet() {
+    const st = loadState();
+    return !!(window._nightCondQuiet && st && st.phase === 'quiet') || !!(st && st.phase === 'quiet');
+  }
+  function clipOptedIn() {
+    const st = loadState();
+    return !!(st && st.phase === 'quiet' && st.optedIn && st.clipMode && st.clipMode !== 'off');
+  }
+  function pendingMorning(now) {
+    const st = loadState();
+    if (!st || st.phase !== 'quiet') return null;
+    now = now || Date.now();
+    const at = st.wakeTs || wakeTimestamp(st.wakeAt || '07:00', now);
+    if (!at || at < now - 60000) return null;
+    return { id: MORNING_ID, at: at, kind: 'reminder', title: 'Morning check-in', body: 'Night conditioning morning check-in. No event timer ran overnight.' };
+  }
+  function sessionPlan(opts) {
+    opts = opts || {};
+    const night = opts.track === 'night' || opts.quiet === true || opts.phase === 'quiet' || opts.phase === 'routine';
+    if (!night) {
+      return { timer: true, countdown: true, preroll: true, sips: true, eta: true, pending: 'event', notifications: ['main', 'micro', 'hydration'] };
+    }
+    const notes = [];
+    if (opts.phase === 'quiet' || opts.quiet) {
+      notes.push('morning');
+      if (opts.optedIn) notes.push('dryclip');
+    }
+    return { timer: false, countdown: false, preroll: false, sips: false, eta: false, pending: null, notifications: notes };
+  }
+  function silenceClock() {
+    window._condTrack = 'night';
+    try { if (typeof clearNightClock === 'function') clearNightClock(); } catch (e) {}
+    try {
+      if (typeof sessionRunning !== 'undefined') sessionRunning = false;
+      if (typeof mainEndAt !== 'undefined') mainEndAt = null;
+      if (typeof microEndAt !== 'undefined') microEndAt = null;
+      if (typeof hydrationEndAt !== 'undefined') hydrationEndAt = null;
+      if (typeof pendingMainEvent !== 'undefined') pendingMainEvent = null;
+      if (typeof pendingAmbientEvent !== 'undefined') pendingAmbientEvent = null;
+    } catch (e) {}
   }
   function quietOn() {
     window._condTrack = 'night';
     window._nightCondQuiet = true;
-    try { clearTimeout(hydrationTimer); } catch (e) {}
-    try { if (typeof hydrationEndAt !== 'undefined') hydrationEndAt = null; } catch (e) {}
-    try { if (typeof scheduleMainEvent === 'function') scheduleMainEvent(); } catch (e) {}
+    const st = loadState();
+    if (st) {
+      st.phase = 'quiet';
+      st.bedtime = st.bedtime || Date.now();
+      st.wakeAt = st.wakeAt || '07:00';
+      if (!st.wakeTs) st.wakeTs = wakeTimestamp(st.wakeAt, Date.now());
+      saveState(st);
+    }
+    silenceClock();
+    try { if (typeof window.nativeNotifySync === 'function') window.nativeNotifySync(); } catch (e) {}
+  }
+  function drawPee(p, opts) {
+    opts = opts || {};
+    if (!window.BSCondEvents || !window.BSCondEvents.draw) return null;
+    return window.BSCondEvents.draw({
+      profile: p || profile(),
+      track: 'night',
+      tank: opts.tank || null,
+      ignoreConsent: true,
+      rng: opts.rng
+    });
+  }
+  function fmtClock(ts) {
+    try { return new Date(ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+    catch (e) { return ''; }
+  }
+  let clockTimer = null;
+  function closeSilent() {
+    const o = document.getElementById('ncNightOv');
+    if (o) o.remove();
+    try { clearInterval(clockTimer); } catch (e) {}
+    clockTimer = null;
+    if (document.body) document.body.classList.remove('nn-open');
+  }
+  function dismiss() {
+    closeSilent();
+    saveState(null);
+    window._nightCondQuiet = false;
+    window._condTrack = 'day';
+    if (document.body) document.body.classList.remove('nc-quiet');
+    const host = document.getElementById('nightCondMount');
+    if (host) { host.hidden = true; host.innerHTML = ''; }
+    try { if (typeof setCountdownLabel === 'function') setCountdownLabel(); } catch (e) {}
+    try { if (typeof window.nativeNotifySync === 'function') window.nativeNotifySync(); } catch (e) {}
   }
   function paint() {
     const host = document.getElementById('nightCondMount');
     if (!host) return;
     const st = loadState();
-    if (!st) { host.hidden = true; host.innerHTML = ''; return; }
+    if (!st) { host.hidden = true; host.innerHTML = ''; closeSilent(); return; }
     host.hidden = false;
-    const p = st.profile || profile() || {};
     if (st.phase === 'routine') {
+      closeSilent();
       const step = st.steps[st.i] || st.steps[st.steps.length - 1];
       host.innerHTML = '<div class="night-step"><b>Night conditioning</b><div class="cal-legend">Step ' + (st.i + 1) + ' of ' + st.steps.length + '</div><h2>' + step.title + '</h2><p>' + step.text + '</p>'
         + (step.id === 'clip' ? '<label class="urge-lbl"><input type="checkbox" id="ncClip"> Opt in to DryClip</label><label class="urge-lbl">Mode <select id="ncClipMode"><option value="quiet">Quiet</option><option value="gentle">Gentle</option><option value="alarm">Alarm</option></select></label>' : '')
-        + (step.id === 'wake' ? '<label class="urge-lbl">Wake <input id="ncWake" type="time" value="07:00"></label>' : '')
+        + (step.id === 'wake' ? '<label class="urge-lbl">Wake <input id="ncWake" type="time" value="' + (st.wakeAt || '07:00') + '"></label>' : '')
         + (step.id === 'check' ? '<label class="urge-lbl">Wearing <select id="ncGear"><option>thick diaper</option><option>diaper</option><option>pull-up</option><option>pad</option><option>underwear</option></select></label>' : '')
         + '<div class="night-actions">' + (step.skip ? '<button type="button" id="ncSkip">Skip</button>' : '') + '<button type="button" id="ncNext">Done</button></div></div>';
       const next = document.getElementById('ncNext');
@@ -182,11 +280,52 @@
       return;
     }
     const wets = (st.wets || []).length;
-    host.innerHTML = '<div class="night-step"><b>Quiet night</b><p>No sip prompts and no day events. DryClip is ' + (st.optedIn ? st.clipMode : 'off') + '. Clip wets logged: ' + wets + '.</p>'
-      + '<div class="night-actions"><button type="button" id="ncWoke">I woke up</button><button type="button" id="ncMorning">Morning check-in</button></div>'
-      + '<div id="ncWakeBox"></div></div>';
+    host.innerHTML = '<div class="night-step"><b>Silent night</b><p>No event timer, no countdown, no sip prompts. DryClip is ' + (st.optedIn ? st.clipMode : 'off') + '. Clip wets logged: ' + wets + '.</p>'
+      + '<div class="night-actions"><button type="button" id="ncOpenSilent">Open silent night</button></div></div>';
+    const reopen = document.getElementById('ncOpenSilent');
+    if (reopen) reopen.onclick = function () { renderSilent(); };
+    renderSilent();
+  }
+  function renderSilent() {
+    const st = loadState();
+    if (!st || st.phase !== 'quiet') return;
+    if (document.body) {
+      document.body.classList.add('nn-open');
+      document.body.classList.add('nc-quiet');
+    }
+    let o = document.getElementById('ncNightOv');
+    if (!o) {
+      o = document.createElement('div');
+      o.id = 'ncNightOv';
+      o.className = 'nn-ov';
+      o.setAttribute('role', 'dialog');
+      document.body.appendChild(o);
+    }
+    const since = Math.max(0, Math.round((Date.now() - (st.bedtime || Date.now())) / 60000));
+    const hh = Math.floor(since / 60);
+    const mm = String(since % 60).padStart(2, '0');
+    o.innerHTML = '<div class="nn-night" id="ncSilent">'
+      + '<div class="nn-clock" id="ncClock">' + fmtClock(Date.now()) + '</div>'
+      + '<div class="nn-muted">In bed since ' + fmtClock(st.bedtime || Date.now()) + ' · ' + hh + 'h ' + mm + 'm · wakes ' + (st.wakes || 0) + ' · silent · no timer</div>'
+      + '<div class="nn-muted">DryClip is ' + (st.optedIn ? st.clipMode : 'off') + '. Nothing else is scheduled until the morning check-in.</div>'
+      + '<div class="nn-body"><button type="button" id="ncWoke" class="nn-big">I woke up</button>'
+      + '<button type="button" id="ncPee" class="nn-big">I need to pee</button>'
+      + '<button type="button" id="ncMorning" class="nn-big nn-rise">Morning check-in</button></div>'
+      + '<div id="ncWakeBox"></div>'
+      + '<div class="nn-foot"><button type="button" id="ncMin" class="nn-btn nn-ghost">Minimise</button></div></div>';
     document.getElementById('ncWoke').onclick = wakeForm;
+    document.getElementById('ncPee').onclick = function () { peeNow(); };
     document.getElementById('ncMorning').onclick = morningForm;
+    document.getElementById('ncMin').onclick = function () {
+      closeSilent();
+    };
+    try { clearInterval(clockTimer); } catch (e) {}
+    clockTimer = setInterval(function () {
+      const c = document.getElementById('ncClock');
+      if (!c) { clearInterval(clockTimer); return; }
+      c.textContent = fmtClock(Date.now());
+    }, 15000);
+    try { if (typeof setCountdownLabel === 'function') setCountdownLabel(); } catch (e) {}
   }
   function advance(skipped) {
     const st = loadState(); if (!st) return;
@@ -201,7 +340,8 @@
     }
     if (step && step.id === 'wake') {
       const t = document.getElementById('ncWake');
-      st.wakeAt = t ? t.value : '07:00';
+      st.wakeAt = (t && t.value) ? t.value : '07:00';
+      st.wakeTs = wakeTimestamp(st.wakeAt, Date.now());
     }
     if (step && step.id === 'clip') {
       const box = document.getElementById('ncClip');
@@ -216,7 +356,7 @@
       st.phase = 'quiet';
       saveState(st);
       quietOn();
-      try { if (typeof logToOutput === 'function') logToOutput('🌙 Night conditioning is quiet until you wake or it is morning.'); } catch (e) {}
+      try { if (typeof logToOutput === 'function') logToOutput('🌙 Silent night. No event timer, no countdown, no sip prompts. Morning check-in is at ' + (st.wakeAt || '07:00') + '.'); } catch (e) {}
       if (st.optedIn) offerClip();
       paint();
       return;
@@ -225,26 +365,83 @@
     paint();
   }
   function offerClip() {
+    const st = loadState() || {};
     let paired = false;
     try { paired = window.BSDryClip && window.BSDryClip.deviceId; } catch (e) {}
     if (paired && window.BSDryClip.arm) {
       try { window.BSDryClip.arm(); } catch (e) {}
-      try { if (window.BSDryClip.startNight) window.BSDryClip.startNight(); } catch (e) {}
+      try {
+        if (window.BSDryClip.startNight) {
+          const parts = String(st.wakeAt || '07:00').split(':');
+          window.BSDryClip.startNight({ wakeHour: +parts[0] || 7, wakeMin: +parts[1] || 0, wakeAt: st.wakeTs });
+        }
+      } catch (e) {}
+      try { if (typeof window.nativeNotifySync === 'function') window.nativeNotifySync(); } catch (e) {}
       return;
     }
     try { if (typeof logToOutput === 'function') logToOutput('📎 DryClip is not paired. Open Settings → DryClip when you want to arm it.'); } catch (e) {}
   }
+  function showNightEvent(ev) {
+    if (!ev) return null;
+    try {
+      if (typeof startVoidGuide === 'function') startVoidGuide(ev.guide, ev.desc || ev.label, ev.size === 'full' || ev.kind === 'full' ? 'full' : 'micro');
+    } catch (e) {}
+    return ev;
+  }
+  function peeNow(opts) {
+    opts = opts || {};
+    silenceClock();
+    window._nightCondQuiet = true;
+    const st = loadState() || {};
+    const ev = opts.event || drawPee(st.profile || profile(), opts);
+    const el = document.getElementById('ncWakeEvent');
+    if (!ev) {
+      if (el) el.textContent = 'No night event on this profile.';
+      try { if (typeof logToOutput === 'function') logToOutput('🚽 <b>I need to pee</b> — no night event on this profile.'); } catch (e) {}
+      return null;
+    }
+    const roll = { kind: 'event', event: ev, chance: 0 };
+    if (window.BSPee && typeof document !== 'undefined') {
+      try {
+        window.BSPee.show(document, roll, {
+          queue: window.BSEventQueue,
+          startGuide: function (guide, text, kind) {
+            if (typeof startVoidGuide === 'function') startVoidGuide(guide, text, kind === 'full' ? 'full' : 'micro');
+          }
+        });
+      } catch (e) { showNightEvent(ev); }
+    } else {
+      showNightEvent(ev);
+    }
+    if (el) el.textContent = ev.label + ' — ' + ev.desc;
+    try { if (typeof logToOutput === 'function') logToOutput('🚽 <b>I need to pee</b> — ' + (ev.label || 'night event') + '.'); } catch (e) {}
+    return ev;
+  }
+  function offerClipWake() {
+    try {
+      if (window.BSDryClip && window.BSDryClip.openWakeCheckIn && window.BSCalendar && window.BSCalendar.unconfirmedClipCount) {
+        const n = window.BSCalendar.unconfirmedClipCount();
+        if (n > 0) window.BSDryClip.openWakeCheckIn({ from: 'night-cond' });
+      }
+    } catch (e) {}
+  }
   function wakeForm() {
+    silenceClock();
+    window._nightCondQuiet = true;
+    const st0 = loadState();
+    if (st0) { st0.wakes = (st0.wakes || 0) + 1; saveState(st0); }
+    offerClipWake();
     const box = document.getElementById('ncWakeBox'); if (!box) return;
-    box.innerHTML = '<p>What woke you?</p><div class="night-actions"><button type="button" id="ncUrge">I have an urge</button><button type="button" id="ncWet">Already wet</button><button type="button" id="ncDry">Dry</button></div><div id="ncWakeEvent"></div>';
+    box.innerHTML = '<p>What woke you?</p><div class="nn-body"><button type="button" id="ncUrge" class="nn-big">I have an urge</button><button type="button" id="ncWet" class="nn-big">Already wet</button><button type="button" id="ncDry" class="nn-big">Dry</button></div><div id="ncWakeEvent" class="nn-muted"></div>';
     const run = function (answers) {
       const st = loadState() || {};
       const ev = drawWake(st.profile || profile(), answers);
       const el = document.getElementById('ncWakeEvent');
-      if (!ev) { if (el) el.textContent = 'No matching night event for this profile.'; return; }
+      if (!ev) { if (el) el.textContent = 'No matching night event for this profile.'; return null; }
       if (el) el.textContent = ev.label + ' — ' + ev.desc;
-      try { if (typeof startVoidGuide === 'function') startVoidGuide(ev.guide, ev.desc, ev.kind === 'full' ? 'full' : 'micro', null, true); } catch (e) {}
+      showNightEvent(ev);
       try { if (typeof logToOutput === 'function') logToOutput('🌙 Wake: ' + ev.label); } catch (e) {}
+      return ev;
     };
     document.getElementById('ncUrge').onclick = function () { run({ urge: true, wet: false }); };
     document.getElementById('ncWet').onclick = function () { run({ urge: false, wet: true }); };
@@ -252,28 +449,34 @@
   }
   function morningForm() {
     const box = document.getElementById('ncWakeBox'); if (!box) return;
-    box.innerHTML = '<label class="urge-lbl">Wakes <input id="ncMWoke" type="number" min="0" value="0"></label><label class="urge-lbl">Wets <input id="ncMWet" type="number" min="0" value="0"></label><label class="urge-lbl">When <input id="ncMWhen" type="text" placeholder="early / through / morning"></label><label class="urge-lbl">Gear saturation <input id="ncMSat" type="number" min="0" max="100" value="0"></label><label class="urge-lbl">Feeling <input id="ncMFeel" type="text" placeholder="sleepy, fine, annoyed"></label><button type="button" id="ncMSave">Save morning</button>';
+    const st = loadState() || {};
+    const clipBtn = st.optedIn ? '<button type="button" id="ncClipMorning" class="nn-big">DryClip morning check-in</button>' : '';
+    box.innerHTML = '<div class="nn-body"><label class="nn-fld">Wakes <input id="ncMWoke" type="number" min="0" value="' + (st.wakes || 0) + '"></label><label class="nn-fld">Wets <input id="ncMWet" type="number" min="0" value="' + ((st.wets || []).length) + '"></label><label class="nn-fld">When <input id="ncMWhen" type="text" placeholder="early / through / morning"></label><label class="nn-fld">Gear saturation <input id="ncMSat" type="number" min="0" max="100" value="0"></label><label class="nn-fld">Feeling <input id="ncMFeel" type="text" placeholder="sleepy, fine, annoyed"></label>'
+      + clipBtn + '<button type="button" id="ncMSave" class="nn-big nn-primary">Save morning</button></div>';
+    const clip = document.getElementById('ncClipMorning');
+    if (clip) clip.onclick = function () {
+      try { if (window.BSDryClip && window.BSDryClip.openMorningCheckIn) window.BSDryClip.openMorningCheckIn(); } catch (e) {}
+    };
     document.getElementById('ncMSave').onclick = function () {
-      const st = loadState() || {};
-      const entry = {
+      const cur = loadState() || {};
+      const entry = morningEntry({
         woke: +document.getElementById('ncMWoke').value || 0,
         wets: +document.getElementById('ncMWet').value || 0,
         when: document.getElementById('ncMWhen').value || '',
         sat: +document.getElementById('ncMSat').value || 0,
-        feeling: document.getElementById('ncMFeel').value || '',
-        clipWets: st.wets || [],
-        gear: st.worn || (st.gear && st.gear.name)
-      };
+        feeling: document.getElementById('ncMFeel').value || ''
+      }, cur);
       try {
         if (window.BSCalendar && window.BSCalendar.addEntry) {
           window.BSCalendar.addEntry({ source: 'sim', mode: 'night_cond', type: entry.wets > 0 ? 'accident' : 'event', memo: 'Night conditioning morning', night: entry });
         }
       } catch (e) {}
       try { if (typeof logToOutput === 'function') logToOutput('🌅 Morning: ' + entry.wets + ' wet(s), woke ' + entry.woke + ', sat ' + entry.sat + '%.'); } catch (e) {}
-      window._nightCondQuiet = false;
-      window._condTrack = 'day';
-      saveState(null);
-      paint();
+      const opted = !!cur.optedIn;
+      dismiss();
+      if (opted) {
+        try { if (window.BSDryClip && window.BSDryClip.openMorningCheckIn) window.BSDryClip.openMorningCheckIn(); } catch (e) {}
+      }
     };
   }
   function open() {
@@ -287,9 +490,15 @@
     const clip = clipDefaults(p);
     const st = {
       phase: 'routine', i: 0, profile: p, steps: routine(p), gear: gearRec(p),
-      optedIn: false, clipMode: 'off', clipSuggest: clip.suggested, wets: [], done: []
+      optedIn: false, clipMode: 'off', clipSuggest: clip.suggested, wets: [], wakes: 0, done: [],
+      bedtime: Date.now()
     };
     saveState(st);
+    try {
+      if (typeof sessionRunning !== 'undefined' && sessionRunning && typeof stopAll === 'function') stopAll();
+    } catch (e) {}
+    silenceClock();
+    try { if (typeof window.nativeNotifySync === 'function') window.nativeNotifySync(); } catch (e) {}
     try { if (typeof switchTab === 'function') switchTab('session'); } catch (e) {}
     paint();
     return { ok: true };
@@ -304,6 +513,28 @@
     };
   }
   window.BSNightCond = {
-    KEY, gearRec, routine, clipDefaults, clipReaction, wakeKind, drawWake, onClipWet, aboutNight, hasProfile, open, quietOn, loadState, morningEntry
+    KEY, MORNING_ID, gearRec, routine, clipDefaults, clipReaction, wakeKind, drawWake, drawPee, peeNow,
+    onClipWet, aboutNight, hasProfile, open, quietOn, loadState, morningEntry, saveState,
+    noTimer, isQuiet, clipOptedIn, pendingMorning, sessionPlan, silenceClock, dismiss, wakeTimestamp
   };
+  if (window.addEventListener) window.addEventListener('load', function () {
+    const st = loadState();
+    if (!st || (st.phase !== 'quiet' && st.phase !== 'routine')) return;
+    window._condTrack = 'night';
+    if (st.phase === 'quiet') {
+      window._nightCondQuiet = true;
+      if (!st.wakeTs) {
+        st.wakeAt = st.wakeAt || '07:00';
+        st.wakeTs = wakeTimestamp(st.wakeAt, Date.now());
+        st.bedtime = st.bedtime || Date.now();
+        saveState(st);
+      }
+    }
+    silenceClock();
+    try { paint(); } catch (e) {}
+    try { if (typeof window.nativeNotifySync === 'function') window.nativeNotifySync(); } catch (e) {}
+    if (st.phase === 'quiet' && st.wakeTs && Date.now() >= st.wakeTs) {
+      try { morningForm(); } catch (e) {}
+    }
+  });
 })();

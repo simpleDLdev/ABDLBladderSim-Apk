@@ -97,10 +97,36 @@
     return ' Open the app to see your next event.';
   }
 
+  function nightCondBlocking() {
+    if (window._nightCondQuiet) return true;
+    try {
+      if (window.BSNightCond && typeof window.BSNightCond.noTimer === 'function' && window.BSNightCond.noTimer()) return true;
+    } catch (e) {}
+    try {
+      const st = JSON.parse(localStorage.getItem('bs_night_cond_v1') || 'null');
+      if (st && (st.phase === 'quiet' || st.phase === 'routine')) return true;
+    } catch (e) {}
+    return false;
+  }
+
   /** Desired native alarms from current JS state. Map id -> item. */
   function collectDesired() {
     const out = new Map();
     const chan = window.BSPrompt ? window.BSPrompt.channel() : null;
+    // Night conditioning is a silent night: morning check-in, and DryClip only if opted in.
+    if (nightCondBlocking()) {
+      try {
+        const m = window.BSNightCond && window.BSNightCond.pendingMorning && window.BSNightCond.pendingMorning();
+        if (m && m.at) out.set(m.id, { at: Math.floor(m.at), kind: m.kind || 'reminder', title: m.title, body: m.body, channel: chan });
+      } catch (e) {}
+      try {
+        if (window.BSNightCond && window.BSNightCond.clipOptedIn && window.BSNightCond.clipOptedIn()) {
+          const dc = window.BSDryClip && window.BSDryClip.pendingAlarm();
+          if (dc && dc.at) out.set(dc.id, { at: dc.at, kind: dc.kind || 'reminder', title: dc.title, body: dc.body, channel: chan });
+        }
+      } catch (e) {}
+      return out;
+    }
     // v20 DryClip morning check-in — always schedule (even in bedwetting silence; no alert at wet time, only at wake)
     try { const dc = window.BSDryClip && window.BSDryClip.pendingAlarm(); if (dc) out.set(dc.id, { at: dc.at, kind: dc.kind || 'reminder', title: dc.title, body: dc.body, channel: chan }); } catch (e) {}
     // v9 Simple Urge: ONE reminder at the end of a wait (independent of a running session).
@@ -169,7 +195,7 @@
     syncing = true;
     try {
       await seed();
-      if (window.isBedwettingSilent()) {
+      if (window.isBedwettingSilent() && !nightCondBlocking()) {
         // Cancel urge/session alarms but keep DryClip morning check-in
         const now = Date.now();
         const desired = new Map();

@@ -373,7 +373,7 @@ window.chooseNaturalNightSession = chooseNaturalNightSession;
     const sub = c.querySelector('.nn-pick-sub');
     if (nightCond && !st) {
       if (t) t.textContent = 'Going to bed? Start Night Conditioning';
-      if (sub) sub.textContent = 'Bedtime routine, what to wear, then a quiet night. Natural Night is still in Nights.';
+      if (sub) sub.textContent = 'Bedtime routine, then a silent night. No event timer. Natural Night is still in Nights.';
       c.onclick = function () { window.BSNightCond.open(); };
     } else {
       if (t) t.textContent = st ? 'Natural Night in progress — resume' : 'Going to bed? Start Natural Night';
