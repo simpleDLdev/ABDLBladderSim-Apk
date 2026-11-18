@@ -92,7 +92,7 @@ ok(engine.indexOf("_condTrack === 'night'") >= 0 && engine.indexOf('_nightCondQu
 ok(ui.indexOf('startConditioningTrack') >= 0 && html.indexOf('Night conditioning') >= 0 && html.indexOf('id="nightCondMount"') >= 0, 'day and night are choices, and the routine has a home');
 ok(fs.readFileSync(path.join(root, 'js', 'dryclip.js'), 'utf8').indexOf('BSNightCond.onClipWet') >= 0, 'a clip wet can reach night conditioning');
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "59"/.test(g) && /versionCode 59/.test(g), 'version 59');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 59 && +g.match(/versionCode (\d+)/)[1] >= 59, 'version at least 59');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v59 night ok');

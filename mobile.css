@@ -799,8 +799,11 @@ body.bs-theme-toddler .sb-next b { color: var(--text); }
   .quiz-nav button, .camp-actions button { flex: 1 1 100%; }
   #alarmBanner { position: fixed; left: 0; right: 0; top: calc(var(--sbh) + var(--sat)); max-width: 100vw; box-sizing: border-box; z-index: 4500; }
   .about-blurb, #nightCondMount, .night-step { font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
-  .night-track-row, #nightCondMount .night-actions { display: flex; flex-direction: column; gap: 8px; }
-  .night-track-row button, #nightCondMount button { width: 100%; min-height: 48px; box-sizing: border-box; }
+  .night-track-row, #nightCondMount .night-actions, #ncWakeBox, #ncSilent .nn-body { display: flex; flex-direction: column; gap: 8px; }
+  .night-track-row button, #nightCondMount button, #ncWakeBox button, #ncSilent button { width: 100%; min-height: 48px; box-sizing: border-box; }
+  body.nc-quiet #tankReadout { display: none !important; }
+  body.nc-quiet #eventTagLead { display: none; }
+  #ncNightOv .nn-clock { font-size: 48px; letter-spacing: 0; }
   #alarmText { overflow-wrap: anywhere; }
   #sessionSetupBackdrop > div, #statusModalBackdrop > div, #modal { max-width: calc(100vw - 12px) !important; box-sizing: border-box; }
   .wrap select, .tab-page select, select { background: #1b2030; color: #e8eefc; border: 1px solid #2b3348; border-radius: 8px; max-width: 100%; }

@@ -64,7 +64,42 @@ function updatePressureUI(val) {
   }
 }
 
+function nightCondNoTimer() {
+  if (window._nightCondQuiet) return true;
+  try {
+    if (window.BSNightCond && typeof window.BSNightCond.noTimer === 'function') return !!window.BSNightCond.noTimer();
+  } catch (e) {}
+  try {
+    const st = JSON.parse(localStorage.getItem('bs_night_cond_v1') || 'null');
+    if (st && (st.phase === 'quiet' || st.phase === 'routine')) return true;
+  } catch (e) {}
+  return false;
+}
+function clearNightClock() {
+  try { clearTimeout(mainTimer); } catch (e) {}
+  try { clearTimeout(preChimeTimer); } catch (e) {}
+  try { clearTimeout(microTimer); } catch (e) {}
+  try { clearTimeout(hydrationTimer); } catch (e) {}
+  try { clearInterval(tickInterval); } catch (e) {}
+  mainTimer = null;
+  preChimeTimer = null;
+  microTimer = null;
+  hydrationTimer = null;
+  tickInterval = null;
+  mainEndAt = null;
+  microEndAt = null;
+  hydrationEndAt = null;
+  pendingMainEvent = null;
+  pendingAmbientEvent = null;
+  try { sessionRunning = false; } catch (e) {}
+  try { if (typeof saveState === 'function') saveState(); } catch (e) {}
+  try { if (typeof setCountdownLabel === 'function') setCountdownLabel(); } catch (e) {}
+}
+window.nightCondNoTimer = nightCondNoTimer;
+window.clearNightClock = clearNightClock;
+
 function applyConditioningUrge(urgency) {
+  if (nightCondNoTimer()) return;
   if (typeof urgeAcceleration !== 'function' || typeof getMainTimerRemaining !== 'function') return;
   let info = null;
   try { info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); } catch (e) {}
@@ -353,6 +388,11 @@ function conditioningDeckEvent(kind) {
   };
 }
 function prerollEvent(kind) {
+  if (nightCondNoTimer()) {
+    pendingMainEvent = null;
+    pendingAmbientEvent = null;
+    return null;
+  }
   if (typeof profileMode !== 'undefined' && profileMode === 'conditioning') {
     const event = conditioningDeckEvent(kind);
     if (kind === 'micro') lastMicroEvent = event;
@@ -507,10 +547,8 @@ function scheduleBabysitterManagedTimeout(kind, desiredDelayMs, callback, store 
 }
 
 function scheduleMainEvent(windowOverride) {
-  if (window._nightCondQuiet) {
-    clearTimeout(mainTimer);
-    clearTimeout(preChimeTimer);
-    pendingMainEvent = null;
+  if (window._nightCondQuiet || nightCondNoTimer()) {
+    clearNightClock();
     return;
   }
 
@@ -757,7 +795,12 @@ function alarmMain() {
 /* Replaces existing scheduleNextMicro in app.js */
 function scheduleNextMicro() {
   clearTimeout(microTimer);
-  
+  if (nightCondNoTimer()) {
+    microEndAt = null;
+    pendingAmbientEvent = null;
+    return;
+  }
+
   const cfg = getProfileConfig();
   if (!sessionRunning || !microNoiseOn || cfg.scheduler === 'dependent') return;
 
@@ -901,6 +944,10 @@ document.addEventListener('touchstart', function resumeAudioTouch() {
 let lastVisibilityCatchupAt = 0;
 
 function runMobileRecoveryChecks(source = 'visibilitychange') {
+  if (nightCondNoTimer()) {
+    clearNightClock();
+    return;
+  }
   if (!sessionRunning || document.hidden) return;
 
   const now = Date.now();
