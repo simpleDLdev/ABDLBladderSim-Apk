@@ -368,7 +368,18 @@ window.chooseNaturalNightSession = chooseNaturalNightSession;
     const st = window.BSNight.get();
     const show = !!st || isEvening(now);
     c.style.display = show ? '' : 'none';
-    const t = document.getElementById('nnEveningTitle'); if (t) t.textContent = st ? 'Natural Night in progress — resume' : 'Going to bed? Start Natural Night';
+    const nightCond = window.BSNightCond && window.BSNightCond.hasProfile && window.BSNightCond.hasProfile();
+    const t = document.getElementById('nnEveningTitle');
+    const sub = c.querySelector('.nn-pick-sub');
+    if (nightCond && !st) {
+      if (t) t.textContent = 'Going to bed? Start Night Conditioning';
+      if (sub) sub.textContent = 'Bedtime routine, what to wear, then a quiet night. Natural Night is still in Nights.';
+      c.onclick = function () { window.BSNightCond.open(); };
+    } else {
+      if (t) t.textContent = st ? 'Natural Night in progress — resume' : 'Going to bed? Start Natural Night';
+      if (sub) sub.textContent = 'Real-life, totally silent — no alarms, no sim wetting.';
+      c.onclick = function () { window.BSNight.open(); };
+    }
   }
   window.BSNight.isEvening = isEvening; window.BSNight.updateEveningCard = updateEveningCard;
   window.addEventListener('load', () => { updateEveningCard(); setInterval(updateEveningCard, 60000); });

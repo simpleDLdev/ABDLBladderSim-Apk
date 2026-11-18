@@ -555,6 +555,7 @@ function syncConditioningSips() {
 }
 
 function scheduleNextHydration() {
+  if (window._nightCondQuiet) { clearTimeout(hydrationTimer); hydrationEndAt = null; return; }
   clearTimeout(hydrationTimer);
   const urge = urgeConditioningSips();
   const conditioning = profileMode === 'conditioning' || urge;
@@ -713,6 +714,7 @@ function testSelectedGuide() {
 }
 
 function triggerHydrationEvent(force = false, fromQueue = false) {
+  if (window._nightCondQuiet && !window._nightSipManual) return;
   const conditioning = profileMode === 'conditioning';
   if (!force && window.BSSymptoms && window.BSSymptoms.paused && window.BSSymptoms.paused()) return;
   if (conditioning) window.hydrationEnabled = true;
@@ -1749,10 +1751,21 @@ function showSessionCondList() {
   if (box) box.style.display = box.style.display === 'none' ? 'block' : 'block';
   try { if (window.BSCondProfiles && window.BSCondProfiles.fillSub) window.BSCondProfiles.fillSub('sessionSetupCondPick'); } catch (e) {}
 }
-function startChosenConditioning() {
-  const sel = $('sessionSetupCondPick');
+function startConditioningTrack(track) {
+  window._condTrack = track === 'night' ? 'night' : 'day';
+  window._nightCondQuiet = false;
+  const sel = $('sessionSetupCondPick') || $('sessionCondPick');
   try { if (sel && sel.value && window.BSCondProfiles) window.BSCondProfiles.setActive(sel.value); } catch (e) {}
+  if (window._condTrack === 'night' && window.BSNightCond && window.BSNightCond.open) {
+    try { if (typeof closeSessionSetupModal === 'function') closeSessionSetupModal(); } catch (e) {}
+    selectProfileFromModal('conditioning');
+    window.BSNightCond.open();
+    return;
+  }
   selectProfileFromModal('conditioning');
+}
+function startChosenConditioning() {
+  startConditioningTrack(window._condTrack === 'night' ? 'night' : 'day');
 }
 function selectProfileFromModal(profile) {
   const profileSelect = $('profileSelect');
@@ -2635,7 +2648,7 @@ function buildPeeRoll() {
   let info = null;
   try { profile = (window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile) || {}; } catch (e) {}
   try { info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); } catch (e) {}
-  const track = (info && info.track) || 'day';
+  const track = (window._condTrack === 'night' || window._condTrack === 'day') ? window._condTrack : ((info && info.track) || 'day');
   const levelKey = (info && info.levelKey) || (profile.levelKey && profile.levelKey[track]);
   let tank = null;
   try { tank = window.BSTank && window.BSTank.load && window.BSTank.load(); } catch (e) {}
