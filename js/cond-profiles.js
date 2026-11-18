@@ -301,6 +301,13 @@
     O.save(s);
     return { ok: true, ids: ids };
   }
+  function deckSummaryLine(profile) {
+    if (!profile || !window.BSCondEvents || !window.BSCondEvents.deckSummary) return 'The event deck summary appears once a profile is saved.';
+    const sum = window.BSCondEvents.deckSummary(profile);
+    const trained = (sum.chosen && sum.chosen.length ? sum.chosen : sum.top).filter(g => g.n > 0).slice(0, 4);
+    const goals = trained.length ? trained.map(g => g.label + ' (' + g.n + ')').join(', ') : 'the goals on this profile';
+    return '<b>' + sum.total + ' events</b> eligible for this setup: ' + sum.micro + ' micro, ' + sum.macro + ' macro, ' + sum.dry + ' no-wet. Trains ' + goals + '.';
+  }
   function managerHtml() {
     const s = O.load();
     const options = (s.profiles || []).map(p => `<option value="${p.id}" ${p.id === s.activeId ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
@@ -336,6 +343,7 @@
         <input type="number" id="chgWinMin" min="5" max="60" value="${win.min}">–
         <input type="number" id="chgWinMax" min="5" max="120" value="${win.max}"> min
       </label>
+      <div class="cal-legend" id="condDeckSummary">${deckSummaryLine(s.profile)}</div>
       <div class="cal-legend">New keeps your other profiles. Retake overwrites this one. Export is JSON plus a text summary.</div>
     </div>`;
   }
