@@ -61,5 +61,53 @@
     if (queue && queue.offer && !(queue.current && queue.current())) queue.offer({ key: 'pee-guide:' + Date.now(), kind: 'guide' });
     return { shown: 'guide', plan: plan, text: plan.text };
   }
-  window.BSPee = { surface: surface, copy: copy, show: show };
+  function reveal(doc, opts) {
+    opts = opts || {};
+    const queue = opts.queue;
+    const view = surface(doc);
+    if (view.guideOpen && !opts.force) {
+      return { shown: 'busy', text: 'A guide is already on screen.' };
+    }
+    const note = function (title, hint) {
+      paintBanner(view, title + '<div class="small">' + hint + '</div>');
+      if (queue && queue.current && queue.replaceActive) {
+        const cur = queue.current();
+        if (cur && cur.kind === 'guide') queue.replaceActive({ key: 'reveal-note:' + Date.now(), kind: 'banner' });
+        else if (!cur && queue.offer) queue.offer({ key: 'reveal-note:' + Date.now(), kind: 'banner' });
+      } else if (queue && queue.offer && !(queue.current && queue.current())) {
+        queue.offer({ key: 'reveal-note:' + Date.now(), kind: 'banner' });
+      }
+      return title + ' ' + hint;
+    };
+    if (opts.lowTank) {
+      const text = note('🫧 <b>Not enough in the tank yet</b>', 'Potty pass, or try a sip. A real need still means stop and go.');
+      return { shown: 'banner', text: text };
+    }
+    const event = opts.event;
+    if (!event) {
+      const text = note('<b>Nothing is queued right now.</b>', 'Start a session, or wait for the next alarm.');
+      return { shown: 'banner', text: text };
+    }
+    if (!event.guide || !event.guide.length) {
+      const text = note('<b>' + (event.label || 'Event') + '</b>', event.desc || 'Nothing else is attached to this one.');
+      return { shown: 'banner', text: text };
+    }
+    if (queue && queue.current && queue.replaceActive) {
+      const cur = queue.current();
+      if (cur && cur.kind !== 'guide') queue.replaceActive({ key: 'guide', kind: 'guide' });
+      else if (!cur && queue.offer) queue.offer({ key: 'guide:' + Date.now(), kind: 'guide' });
+    } else if (queue && queue.offer && !(queue.current && queue.current())) {
+      queue.offer({ key: 'guide:' + Date.now(), kind: 'guide' });
+    }
+    const text = event.desc || event.label || 'Event';
+    const kind = event.kind === 'full' ? 'full' : 'micro';
+    if (typeof opts.startGuide === 'function') opts.startGuide(event.guide, text, kind);
+    else if (view.guide) {
+      view.guide.style.display = 'flex';
+      const inst = doc.getElementById('voidInstruction');
+      if (inst) inst.textContent = text;
+    }
+    return { shown: 'guide', text: text };
+  }
+  window.BSPee = { surface: surface, copy: copy, show: show, reveal: reveal };
 })();

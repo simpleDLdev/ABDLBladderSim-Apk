@@ -52,6 +52,32 @@ const ev = Pee.show(evDoc, { kind: 'event', event: { label: 'Kettle', desc: 'Ket
 });
 ok(ev.shown === 'guide' && started === 'Kettle ping' && evDoc.els.voidOverlay.style.display === 'flex', 'an event tap opens the guide');
 
+Q.clear();
+const revDoc = docOf();
+let revealed = null;
+const rev = Pee.reveal(revDoc, {
+  event: { label: 'First urge', desc: 'Let go as it starts.', guide: [{ text: 'LET GO', time: 5, type: 'relax' }], kind: 'micro' },
+  queue: Q,
+  startGuide: function (guide, text) { revealed = text; revDoc.els.voidOverlay.style.display = 'flex'; revDoc.els.voidInstruction.textContent = text; }
+});
+ok(rev.shown === 'guide' && revealed === 'Let go as it starts.' && revDoc.els.voidOverlay.style.display === 'flex', 'Reveal now opens the queued event');
+Q.clear();
+const lowRev = docOf();
+const lowNote = Pee.reveal(lowRev, { lowTank: true, queue: Q });
+ok(lowNote.shown === 'banner' && lowRev.els.alarmBanner.style.display === 'flex' && /Not enough in the tank yet/.test(lowRev.els.alarmBanner.alarm.innerHTML), 'Reveal now with a low tank paints the tank message');
+Q.clear();
+const emptyRev = docOf();
+const empty = Pee.reveal(emptyRev, { queue: Q });
+ok(empty.shown === 'banner' && /Nothing is queued right now/.test(emptyRev.els.alarmBanner.alarm.innerHTML), 'Reveal now with nothing queued says so');
+Q.clear();
+const busyRev = docOf();
+busyRev.els.voidOverlay.style.display = 'flex';
+busyRev.els.voidInstruction.textContent = 'OPEN GUIDE';
+const busyNote = Pee.reveal(busyRev, { guideOpen: true, event: { desc: 'Should not replace', guide: [{ text: 'X', time: 2, type: 'relax' }] }, queue: Q });
+ok(busyNote.shown === 'busy' && busyRev.els.voidInstruction.textContent === 'OPEN GUIDE', 'Reveal now does not replace an open guide');
+const uiReveal = fs.readFileSync(path.join(root, 'js', 'ui.js'), 'utf8');
+ok(uiReveal.indexOf('BSPee.reveal') >= 0 && uiReveal.indexOf('function nextReveal') >= 0, 'Reveal now goes through the visible reveal path');
+
 const ui = fs.readFileSync(path.join(root, 'js', 'ui.js'), 'utf8');
 const urge = fs.readFileSync(path.join(root, 'js', 'simple-urge.js'), 'utf8');
 ok(ui.indexOf('BSPee.show') >= 0 && ui.indexOf('function buildPeeRoll') >= 0 && ui.indexOf('peeLogLine') >= 0, 'the session button goes through the visible pee path');

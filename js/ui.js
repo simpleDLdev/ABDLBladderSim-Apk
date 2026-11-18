@@ -378,6 +378,13 @@ function getNextAvailableProtection(direction, fromLevel) {
 }
 
 function nextReveal() {
+  const guideEl = $('voidOverlay');
+  if (guideEl && guideEl.style.display === 'flex') {
+    const busy = window.BSPee ? window.BSPee.reveal(document, { guideOpen: true, queue: window.BSEventQueue }) : { shown: 'busy', text: 'A guide is already on screen.' };
+    if (typeof logToOutput === 'function') logToOutput('<span class="muted">▶ ' + busy.text + '</span>');
+    if (typeof toast === 'function') toast(busy.text);
+    return busy;
+  }
   hideBanner();
   // Chime keeps ringing until user presses START in guide or Stop Event button
 
@@ -398,18 +405,47 @@ function nextReveal() {
     microPauseUntilTs = Date.now() + 10 * 60000; // Pause micros for 10m
 
     if (sessionRunning) scheduleMainEvent(nxt);
+  } else if (profileMode === 'conditioning' && typeof prerollEvent === 'function') {
+    evtToRun = prerollEvent('micro');
   } else {
     // Emergency / Manual Click (No event pending)
     evtToRun = microTableForMode(rollMicroForMode());
   }
 
-  if (profileMode === 'conditioning' && evtToRun && window.BSTank && !window.BSTank.canVoid(window.BSTank.load())) {
-    triggerHydrationEvent(true);
-    if (sessionRunning) scheduleMainEvent({ _fromTank: true, min: 18, max: 30 });
-    return;
+  const lowTank = profileMode === 'conditioning' && window.BSTank && !window.BSTank.canVoid(window.BSTank.load());
+  if (lowTank && window.BSPee) {
+    const note = window.BSPee.reveal(document, { lowTank: true, queue: window.BSEventQueue });
+    window._peePass = true;
+    if (typeof logToOutput === 'function') logToOutput('<span style="color:#81ecec">🫧 <b>Reveal</b> — not enough in the tank yet. Potty pass, or try a sip.</span>');
+    if (typeof toast === 'function') toast('Not enough in the tank yet. Potty pass, or try a sip.');
+    try { triggerHydrationEvent(true); } catch (e) {}
+    return note;
   }
   if (profileMode === 'conditioning' && evtToRun && window.BSTank) {
     try { window.BSTank.takeVoid(window.BSTank.load(), evtToRun.kind === 'micro' ? 'partial' : 'full'); } catch (e) {}
+  }
+
+  if (window.BSPee) {
+    const shown = window.BSPee.reveal(document, {
+      event: evtToRun,
+      queue: window.BSEventQueue,
+      startGuide: function (guide, text, kind) {
+        if (typeof startVoidGuide === 'function') startVoidGuide(guide, text, kind, null, true);
+      }
+    });
+    if (evtToRun && shown && shown.shown === 'guide') {
+      window._lastRevealedEvent = evtToRun;
+      applyEvent(evtToRun);
+    } else if (shown && shown.shown === 'banner') {
+      window._peePass = true;
+      if (typeof logToOutput === 'function') logToOutput('<span style="color:#81ecec">' + shown.text + '</span>');
+      if (typeof toast === 'function') toast(String(shown.text || '').replace(/<[^>]+>/g, ''));
+    }
+    if (evtToRun && !evtToRun.guide && profileMode !== 'babysitter' && typeof isPottyPromptEvent === 'function' &&
+        isPottyPromptEvent(evtToRun, null) && shouldTrackSessionStats()) {
+      setTimeout(() => resolvePottyPrompt(evtToRun), 600);
+    }
+    return shown;
   }
 
   // 2. Execute
@@ -423,15 +459,9 @@ function nextReveal() {
       setTimeout(() => resolvePottyPrompt(evtToRun), 600);
     }
 
-    // AUTO-START MECHANIC
-    // If the event has a guide, launch it immediately.
     if (evtToRun.guide) {
-      const typeStr = evtToRun.kind || 'full'; // 'micro' or 'full'
-
-      // Small delay to let the log appear first
-      setTimeout(() => {
-        startVoidGuide(evtToRun.guide, evtToRun.desc, typeStr);
-      }, 500);
+      const typeStr = evtToRun.kind || 'full';
+      startVoidGuide(evtToRun.guide, evtToRun.desc, typeStr, null, true);
     }
   }
 }
@@ -2705,10 +2735,6 @@ function acknowledgeAlarm() {
       return;
   }
 
-  hideBanner();
-  if (window.BSEventQueue && window.BSEventQueue.current() && window.BSEventQueue.current().kind === 'banner') {
-    window.BSEventQueue.replaceActive({ key: 'guide', kind: 'guide' });
-  }
   nextReveal();
 }
 
