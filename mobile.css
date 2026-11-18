@@ -770,6 +770,42 @@ body.bs-theme-baby .sb-timer b,
 body.bs-theme-toddler .sb-timer b,
 body.bs-theme-baby .sb-next b,
 body.bs-theme-toddler .sb-next b { color: var(--text); }
+/* v56 phone layout */
+@media (max-width: 520px) {
+  :root { --tbh: 70px; }
+  header { flex-wrap: wrap; }
+  header h1 { font-size: 15px; flex: 1 1 140px; min-width: 0; line-height: 1.2; }
+  #btnWhatsNew { flex: 0 0 auto; font-size: 12px !important; padding: 8px 10px !important; max-width: 46%; }
+  #statusBar { grid-template-columns: 68px minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+  .sb-next { grid-column: 1 / -1; max-width: none; flex-direction: row; align-items: baseline; justify-content: space-between; text-align: left; gap: 8px; }
+  .sb-next b { white-space: normal; font-size: 13px; }
+  #tabBar { height: auto; min-height: calc(var(--tbh) + var(--sab)); }
+  #tabBar button { min-height: 56px; padding: 4px 1px 6px; font-size: 10px; }
+  #tabBar .ti { font-size: 18px; }
+  #tabBar .tl { display: block; max-width: 100%; line-height: 1.05; white-space: normal; text-align: center; }
+  .play-hub { grid-template-columns: 1fr; }
+  .play-card, .play-card small { min-width: 0; }
+  .buttons { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+  .buttons button, .buttons .pill, #btnNeedToPee { width: 100% !important; margin: 0 !important; box-sizing: border-box; min-height: 48px; }
+  #sessionTimerDisplay { font-size: 1.45em !important; }
+  #bioLoggerSection { max-width: 100%; padding: 10px !important; }
+  #bioLoggerSection input[type="range"], #pressureSlider, #saturationSlider { width: 100%; max-width: 100%; min-height: 44px; margin: 8px 0; }
+  #tankReadout { display: block; font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; padding: 8px 10px; }
+  #tankReadout[hidden] { display: none; }
+  .tab-page details > summary { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 48px; }
+  .lay-menu { float: none !important; margin-left: auto; display: inline-flex; align-items: center; position: relative; }
+  .lay-grip, .lay-more, .lay-pop button { min-width: 44px !important; min-height: 44px !important; }
+  .lay-pop { position: absolute; right: 0; top: 100%; z-index: 30; background: #121620; border: 1px solid #2b3348; border-radius: 8px; padding: 6px; }
+  .quiz-nav button, .camp-actions button { flex: 1 1 100%; }
+  #alarmBanner { max-width: 100vw; box-sizing: border-box; left: 0; right: 0; }
+  #alarmText { overflow-wrap: anywhere; }
+  #sessionSetupBackdrop > div, #statusModalBackdrop > div, #modal { max-width: calc(100vw - 12px) !important; box-sizing: border-box; }
+  .wrap select, .tab-page select, select { background: #1b2030; color: #e8eefc; border: 1px solid #2b3348; border-radius: 8px; max-width: 100%; }
+  #stashGrid { grid-template-columns: 1fr !important; }
+  .cal-quick { grid-template-columns: 1fr; }
+  .camp-goal, .pp-gl-row, .urge-note { overflow-wrap: anywhere; }
+  .wrap, .tab-page, .panel { max-width: 100%; min-width: 0; }
+}
 body.bs-theme-teen details.set-sec,
 body.bs-theme-teen .cal-entry,
 body.bs-theme-teen .panel,
