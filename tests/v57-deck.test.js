@@ -108,7 +108,7 @@ ok(html.indexOf('js/cond-deck-v57.js') > html.indexOf('js/cond-events.js'), 'the
 ok(profiles.indexOf('id="condDeckSummary"') >= 0 && profiles.indexOf('deckSummary') >= 0, 'Profiles shows the per-setup counts');
 ok(E.EVENTS.every(e => doc.indexOf('| ' + e.id + ' |') >= 0), 'the docs table lists every event id');
 const gradle = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "57"/.test(gradle) && /versionCode 57/.test(gradle), 'version 57');
+ok(/versionName "(\d+)"/.test(gradle) && +gradle.match(/versionName "(\d+)"/)[1] >= 57 && +gradle.match(/versionCode (\d+)/)[1] >= 57, 'version at least 57');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v57 deck ok');

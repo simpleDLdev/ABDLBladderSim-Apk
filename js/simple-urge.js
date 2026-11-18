@@ -228,8 +228,27 @@
       }
     } catch (e) {}
     try {
-      if (p && p.id === 'conditioning' && window.BSCondEvents && window.BSCondEvents.pick) {
-        res.conditioningEvent = window.BSCondEvents.pick({ rng: rng, track: p.conditioning && p.conditioning.track, log: true });
+      if (p && p.id === 'conditioning' && window.BSCondEvents && window.BSCondEvents.draw) {
+        let tank = null;
+        try { tank = window.BSTank && window.BSTank.load && window.BSTank.load(); } catch (e) {}
+        const low = !!(tank && window.BSTank && window.BSTank.canVoid && !window.BSTank.canVoid(tank));
+        let saved = null;
+        try { saved = window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile; } catch (e) {}
+        const drawn = window.BSCondEvents.draw({
+          profile: saved || undefined,
+          track: (p.conditioning && p.conditioning.track) || 'day',
+          tank: tank,
+          ignoreConsent: true,
+          rng: rng,
+          kind: outcome === 'gear' && !low ? 'full' : 'micro'
+        });
+        res.conditioningEvent = drawn;
+        if (low && (outcome === 'gear' || outcome === 'dribble')) res.tankNote = 'Not enough in the tank yet — potty pass, or try a sip.';
+        if (drawn) {
+          res.content = { label: drawn.label, flow: drawn.desc, guide: drawn.guide };
+          res.event = { id: drawn.id, text: drawn.desc, guide: drawn.guide, timer: 'none' };
+          if (!res.gear) res.gear = res.content;
+        }
       }
     } catch (e) {}
     if (p.levelKey === 'off') { res.outcome = 'go'; res.waitMin = 0; res.hidden = false; res.event = null; res.content = null; res.partial = null; }
@@ -251,6 +270,8 @@
       else if (res.outcome === 'gear' || res.outcome === 'dribble') { const h = pickMessy('push', rng); if (h) { res.content = h; res.gear = h; } }
     }
     res.text = describe(res);
+    if (res.tankNote) res.text = res.tankNote + (res.conditioningEvent && res.conditioningEvent.label ? ' ' + res.conditioningEvent.label : '');
+    else if (res.conditioningEvent && res.conditioningEvent.label && String(res.text || '').indexOf(res.conditioningEvent.label) < 0) res.text = res.text + ' · ' + res.conditioningEvent.label;
     if (res.stepText) res.text = res.stepText + (res.text ? ' · ' + res.text : '');
     if (opts.quick) res.quick = true;
     try {
@@ -712,7 +733,7 @@
       <label class="urge-lbl">Control <select id="suProf">${profileOptions(s.profileId)}</select></label>
       ${s.profileId === 'conditioning' && window.BSCondProfiles && window.BSCondProfiles.subPickerHtml ? window.BSCondProfiles.subPickerHtml('suCondPick') : ''}
       ${sipStatusHtml()}
-      ${lvl ? `<details class="urge-more" id="suLvlInfo"><summary>About ${esc(window.BSControl.label(lvl, office))}</summary><div class="urge-note" id="suLvlDesc" data-office-raw="1">${esc(window.BSControl.describe(lvl.key, office))}</div><div class="urge-actions"><button type="button" id="suLvlAll">📋 All levels</button></div></details>` : ''}
+      ${lvl ? `<details class="urge-more" id="suLvlInfo"><summary>About ${esc(window.BSControl.label(lvl, office))}</summary><div class="urge-note about-blurb" id="suLvlDesc" data-office-raw="1">${esc(p.id === 'conditioning' && window.BSCondEvents && window.BSCondEvents.aboutText ? window.BSCondEvents.aboutText((window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile) || {}) : window.BSControl.describe(lvl.key, office))}</div><div class="urge-actions"><button type="button" id="suLvlAll">📋 All levels</button></div></details>` : ''}
       ${reset ? `<div class="urge-result" id="suDaily" style="border-color:#fdcb6e"><b>☀️ New day: what are you wearing / carrying?</b>${supplyForm(i, 'suD')}
         <div class="urge-actions"><button type="button" id="suDailySave">Save for today</button><button type="button" id="suDailyKeep">Keep as is</button></div></div>` : ''}
       ${sess ? NS.chip() : `<div class="urge-actions"><button type="button" id="suSessStart">▶ Start natural session</button></div>`}

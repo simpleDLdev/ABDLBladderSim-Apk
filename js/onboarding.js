@@ -955,6 +955,26 @@
       }
     });
   }
+  function quizDeckCard(sc) {
+    if (!window.BSCondEvents || !window.BSCondEvents.deckSummary) return '';
+    const preview = {
+      levelKey: { day: sc.dayKey, night: sc.nightKey },
+      direction: { day: sc.dayDir, night: sc.nightDir },
+      goals: sc.goals || [],
+      methods: sc.methods || { day: [], night: [] },
+      urgency: sc.urgency || null,
+      dimensions: sc.dimensions || null,
+      pacing: sc.pacing || null
+    };
+    const sum = window.BSCondEvents.deckSummary(preview);
+    const about = window.BSCondEvents.aboutText ? window.BSCondEvents.aboutText(preview) : '';
+    const top = (sum.chosen && sum.chosen.length ? sum.chosen : sum.top).filter(g => g.n > 0).slice(0, 4);
+    const goals = top.length ? top.map(g => esc(g.label || g.id) + ' (' + g.n + ')').join(', ') : 'the goals these answers landed on';
+    return `<div class="quiz-card" id="quizDeckMix"><div class="calib-big">Events this setup trains</div>
+      <div class="camp-goal">${sum.total} eligible · ${sum.micro} micro · ${sum.macro} macro · ${sum.dry} no-wet</div>
+      <div class="cal-legend">Top goals: ${goals}</div>
+      <div class="about-blurb" id="quizAbout">${esc(about)}</div></div>`;
+  }
   function renderResult(m, s) {
     const ans = s.pendingIntake;
     if (!ans || !window.BSIntake) { s.quizStep = 'intake'; save(s); renderIntakeHome(m, load()); return; }
@@ -985,6 +1005,7 @@
       <div class="quiz-card"><div class="calib-big">Practice</div>
         <div class="camp-goal">Day (${esc(sc.dayDir)}): ${esc(methodLine(sc.methods.day))}</div>
         <div class="camp-goal">Night (${esc(sc.nightDir)}): ${esc(methodLine(sc.methods.night))}</div></div>
+      ${quizDeckCard(sc)}
       <div class="quiz-nav"><button type="button" id="obBackHome">← Back</button><button type="button" id="obToConsent" style="background:#55efc4;color:#000;font-weight:bold;">Consent →</button></div>`;
     m.querySelector('#obBackHome').onclick = () => { const n = load(); n.quizStep = 'intake'; save(n); render(); };
     m.querySelector('#obToConsent').onclick = () => { const n = load(); n.quizStep = 'consent'; save(n); render(); };
