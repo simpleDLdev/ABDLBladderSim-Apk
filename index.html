@@ -68,6 +68,7 @@
 
   <main class="wrap app-tabs">
     <section id="tab-session" class="tab-page panel stack" data-tab="session">
+      <div id="nightCondMount" hidden></div>
       <button type="button" id="nnEveningCard" class="nn-evening" style="display:none;" onclick="BSNight.open()">
         <span style="font-size:1.8em;">🌙</span><span><b id="nnEveningTitle">Going to bed? Start Natural Night</b><br><span class="nn-pick-sub">Real-life, totally silent — no alarms, no sim wetting.</span></span>
       </button>
@@ -78,6 +79,7 @@
         <button type="button" id="hubQuick" class="play-card pc-quick" onclick="BSHub.openQuick()"><span class="pc-ic">⚡</span><span><b>Quick</b><br><small>Natural Urge, short play, or quiz → play</small></span></button>
         <button type="button" id="hubBoard" class="play-card pc-board" onclick="BSHub.openBoard()"><span class="pc-ic">🎲</span><span><b>Potty Path</b><br><small id="hubBoardSub">Path | Campaign · classes · deep start</small></span></button>
         <details id="hubNights" class="play-card pc-nights"><summary><span class="pc-ic">🌙</span><span><b>Nights</b><br><small>Natural Night · Bedwetting sim · board nights</small></span></summary>
+          <button type="button" id="btnNightCond" class="hub-sub" onclick="startConditioningTrack('night')">🌙 Night Conditioning <small>(bedtime routine, then a quiet night)</small></button>
           <button id="btnNaturalNight" onclick="BSNight.open()" class="hub-sub">🌙 Natural Night <small>(silent, real-life — no alarms)</small></button>
           <button type="button" id="hubBedSim" onclick="BSHub.startBedwetting()" class="hub-sub">🛏️ Bedwetting sim <small>(profile session)</small></button>
           <div id="hubBoardNight" class="cal-legend"></div>
@@ -311,6 +313,10 @@
       <!-- Hidden profile select for modal interaction -->
       <div id="sessionCondSlot" style="display:none;margin:8px 0;">
         <label class="urge-lbl">Conditioning profile <select id="sessionCondPick"></select></label>
+        <div class="night-track-row">
+          <button type="button" onclick="startConditioningTrack('day')">Day conditioning</button>
+          <button type="button" onclick="startConditioningTrack('night')">Night conditioning</button>
+        </div>
         <button type="button" class="pill" onclick="switchTab('profiles')">Manage → Profiles</button>
       </div>
       <select id="profileSelect" onchange="applySelectedProfile()" style="display:none;">
@@ -915,7 +921,10 @@
               Conditioning ▸<br><span style="font-size:0.75em; color:#cdd7e6;">Pick a saved conditioning profile</span></button>
             <div id="sessionSetupCond" style="display:none;padding:8px 12px 12px;">
               <label class="urge-lbl">Saved profile <select id="sessionSetupCondPick"></select></label>
-              <button type="button" class="pill" onclick="startChosenConditioning()" style="width:100%;margin-top:6px;">Use this profile</button>
+              <div class="night-track-row">
+                <button type="button" onclick="startConditioningTrack('day')">Day conditioning</button>
+                <button type="button" onclick="startConditioningTrack('night')">Night conditioning</button>
+              </div>
               <button type="button" class="pill" onclick="switchTab('profiles')" style="width:100%;margin-top:6px;">Manage → Profiles</button>
             </div>
             <button onclick="toggleProfileDetails('conditioning')"
@@ -1717,6 +1726,8 @@
   <script src="js/onboarding.js"></script>
   <script src="js/cond-events.js"></script>
   <script src="js/cond-deck-v57.js"></script>
+  <script src="js/cond-night-v59.js"></script>
+  <script src="js/night-cond.js"></script>
   <script src="js/cond-profiles.js"></script>
   <script src="js/urge-matrix.js"></script>
   <script src="js/campaign.js"></script>

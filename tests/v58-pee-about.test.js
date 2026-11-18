@@ -167,7 +167,7 @@ const onboard = fs.readFileSync(path.join(root, 'js', 'onboarding.js'), 'utf8');
 ok(html.indexOf('js/pee-tap.js') >= 0, 'pee tap script is loaded');
 ok(profiles.indexOf('id="condAbout"') >= 0 && onboard.indexOf('id="quizDeckMix"') >= 0 && onboard.indexOf('id="quizAbout"') >= 0, 'Profiles and the quiz result show the write-up');
 const g = fs.readFileSync(path.join(root, 'android/app/build.gradle'), 'utf8');
-ok(/versionName "58"/.test(g) && /versionCode 58/.test(g), 'version 58');
+ok(/versionName "(\d+)"/.test(g) && +g.match(/versionName "(\d+)"/)[1] >= 58 && +g.match(/versionCode (\d+)/)[1] >= 58, 'version at least 58');
 
 if (fail) { console.error(fail + ' failed'); process.exit(1); }
 console.log('v58 ok');

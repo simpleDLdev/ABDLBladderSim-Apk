@@ -930,6 +930,9 @@
       if (window.BSClipBridge && window.BSClipBridge.onClipWet) {
         window.BSClipBridge.onClipWet({ wetAt: wetAt, source: 'night', st: st, secs: st && st.secs });
       }
+      if (window.BSNightCond && window.BSNightCond.onClipWet) {
+        window.BSNightCond.onClipWet({ wetAt: wetAt, source: 'night' });
+      }
     } catch (e) {}
     if (!o.native) scheduleRearm(rearmMinutesFor(d));
     return true;

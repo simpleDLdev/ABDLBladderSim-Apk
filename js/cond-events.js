@@ -348,6 +348,8 @@
       label: ev.label,
       id: ev.id,
       family: ev.family || 'habit',
+      nightKind: ev.nightKind || '',
+      track: ev.track,
       size: size,
       classKey: size === 'full' ? 'full_letgo' : (size === 'tiny' ? 'micro_tiny' : 'micro_small'),
       tmin: 12,
@@ -368,6 +370,7 @@
       if (+tank.ml < min) list = list.filter(ev => ev.size !== 'full');
     }
     if (opts.kind === 'micro') list = list.filter(ev => ev.size !== 'full');
+    if (opts.nightKind) list = list.filter(ev => ev.nightKind === opts.nightKind);
     if (!list.length) return null;
     const surprise = opts.surprise != null ? !!opts.surprise : wantsSurprise(profile, track);
     const preferHold = opts.preferHold != null ? !!opts.preferHold : holdPref(profile, track);
@@ -466,7 +469,9 @@
     const level = window.BSControl && window.BSControl.level ? window.BSControl.level(key) : null;
     const name = level ? level.label : key;
     const head = base ? '' : ('About ' + name + '. ');
-    const extra = 'This setup can draw ' + sum.total + ' events: ' + sum.micro + ' micro, ' + sum.macro + ' macro, ' + sum.dry + ' no-wet. Most of those train ' + goalLine + '. Sips are a batch of ' + sip.count + ', then ' + sip.gapMin + ' min quiet. I need to pee is a potty pass about ' + chance + '% of the time.';
+    let nightLine = '';
+    try { if (window.BSNightCond && window.BSNightCond.aboutNight) nightLine = ' ' + window.BSNightCond.aboutNight(profile); } catch (e) {}
+    const extra = 'This setup can draw ' + sum.total + ' events: ' + sum.micro + ' micro, ' + sum.macro + ' macro, ' + sum.dry + ' no-wet. Most of those train ' + goalLine + '. Sips are a batch of ' + sip.count + ', then ' + sip.gapMin + ' min quiet. I need to pee is a potty pass about ' + chance + '% of the time.' + nightLine;
     return (head + (base ? base + ' ' : '') + extra).replace(/\s+/g, ' ').trim();
   }
   window.BSCondEvents = {

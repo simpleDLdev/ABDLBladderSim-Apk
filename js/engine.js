@@ -338,7 +338,8 @@ function conditioningDeckEvent(kind) {
   let tank = null;
   try { tank = window.BSTank && window.BSTank.load && window.BSTank.load(); } catch (e) {}
   if (window.BSCondEvents && window.BSCondEvents.draw) {
-    const drawn = window.BSCondEvents.draw({ kind: kind, tank: tank, ignoreConsent: true });
+    const track = window._condTrack === 'night' ? 'night' : 'day';
+    const drawn = window.BSCondEvents.draw({ kind: kind, tank: tank, ignoreConsent: true, track: track });
     if (drawn) return drawn;
   }
   return {
@@ -506,6 +507,12 @@ function scheduleBabysitterManagedTimeout(kind, desiredDelayMs, callback, store 
 }
 
 function scheduleMainEvent(windowOverride) {
+  if (window._nightCondQuiet) {
+    clearTimeout(mainTimer);
+    clearTimeout(preChimeTimer);
+    pendingMainEvent = null;
+    return;
+  }
 
   const schedulerType = getProfileConfig().scheduler;
 
