@@ -108,6 +108,14 @@ class DryClipPlugin : Plugin() {
         s.post { s.ackWet(true) }; call.resolve()
     }
 
+    /** v43: log a wet test. If the clip is already armed and wet, post the alert. A disarmed clip does not notify. */
+    @PluginMethod
+    fun testWet(call: PluginCall) {
+        val s = DryClipService.instance ?: run { call.reject("Background watch is off"); return }
+        s.post { s.debugTestWet() }
+        call.resolve()
+    }
+
     @PluginMethod
     fun setConfig(call: PluginCall) {
         val store = DryClipStore(context)

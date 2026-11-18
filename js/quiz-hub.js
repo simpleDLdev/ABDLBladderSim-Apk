@@ -18,7 +18,7 @@
   ];
   /** Collapsed by default — still available, still feed campaign/Path. */
   const ADVANCED_SECTIONS = [
-    { id: 'start', title: '🚀 Start packs', cards: ['qzA', 'qzB', 'qzQuick', 'readiness'] },
+    { id: 'start', title: '🚀 Start packs', cards: ['qzA', 'qzB', 'qzQuick', 'readiness', 'qzIntake'] },
     { id: 'person', title: '🧸 Personality flavour', cards: ['qzC', 'thisorthat', 'maturity'] },
     { id: 'board', title: '🎲 Board extras', cards: ['dare', 'qzCamp', 'recap'] },
     { id: 'voice', title: '🎧 Voice & stories', cards: ['voice', 'scenario'] },

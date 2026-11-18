@@ -937,7 +937,17 @@ function check(name, ok, info) { results.push({ name, ok: !!ok, info }); console
       return { e, v: BSControl.load().value, hist: BSControl.load().history.slice(-1)[0], inv: BSSimpleUrge.inv(), cap: cap && cap.val, leak: leak && leak.val, ended: BSSimpleUrge.state().last.closed };
     });
     check('v11 couldn\'t-wait: button in wait, quick log button, natural entry tagged "during wait" linked to roll', pre.btn && pre.quick && acc.e.source === 'natural' && acc.e.type === 'accident' && (acc.e.tags || []).includes('during wait') && acc.e.link && acc.e.link.roll === pre.roll && acc.e.urgencyBefore === 90 && acc.e.releasedPct === 60 && acc.ended === 'accident', JSON.stringify(acc.e));
-    check('v11 couldn\'t-wait: worn marked used, change prompt (May I change? or legacy), Control -2, campaign counts failed hold (progress cap + regress leaks)', (chg.roll || chg.old) && (acc.inv.wetCount >= pre.wet + 1 || acc.inv.changes >= 1) && acc.hist.kind === 'failed_wait' && acc.v < pre.v && acc.cap >= 1 && acc.leak >= 1, JSON.stringify({ pre, v: acc.v, inv: acc.inv, cap: acc.cap, leak: acc.leak, chg }));
+    check('v11 couldn\'t-wait: worn marked used, change prompt, real accident does not move Control until you opt in', (chg.roll || chg.old) && (acc.inv.wetCount >= pre.wet + 1 || acc.inv.changes >= 1) && acc.v === pre.v && !(acc.hist && acc.hist.kind === 'failed_wait') && !(acc.cap >= 1) && !(acc.leak >= 1), JSON.stringify({ pre, v: acc.v, inv: acc.inv, cap: acc.cap, leak: acc.leak, hist: acc.hist, chg }));
+    const opted = await page.evaluate(() => {
+      BSControl.saveSettings({ countWaitAccidents: true });
+      const before = BSControl.load().value;
+      const applied = BSControl.event('failed_wait', { source: 'real', track: 'day' });
+      const s = BSCampaign.load();
+      const cap = BSCampaign.scoreDay(s, BSCampaign.dayKey(Date.now())).goals.find(g => g.id === 'cap');
+      const leak = BSCampaign.scoreDay(Object.assign({}, s, { rank: 3, target: 6 }), BSCampaign.dayKey(Date.now())).goals.find(g => g.id === 'simleaks');
+      return { applied, before, v: BSControl.load().value, kind: BSControl.load().history.slice(-1)[0].kind, cap: cap && cap.val, leak: leak && leak.val };
+    });
+    check('opt-in: failed wait moves control and campaign counts it', opted.applied === -2 && opted.v < opted.before && opted.kind === 'failed_wait' && opted.cap >= 1 && opted.leak >= 1, JSON.stringify(opted));
     // control cap
     const cc = await page.evaluate(() => { const s = { value: 50, cap: 8, dayDelta: 0, lastDay: 'x' }; let t = 0; for (let i = 0; i < 20; i++) t += BSControl.applyDelta(s, 1, Date.now()).applied; return { t, v: s.value }; });
     check('v11 Control meter daily cap ±8', cc.t === 8 && cc.v === 58, JSON.stringify(cc));

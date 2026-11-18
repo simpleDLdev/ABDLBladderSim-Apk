@@ -2,7 +2,7 @@
 
 **258 ideas.** Reply with the numbers to approve, e.g. "approve 1–12, 40, 77".
 
-*Branch `android-capacitor`, v13. Game rules only: every item is an in-app rule (a timer, dice, gate, prompt or limit). Nothing here trains the real body. A real urge always wins, and the skin-safety cap always overrides curses and gates. No sexual content; no laxatives, enemas, suppositories, restraints or chastity; no laugh/cough events; drink prompts stay capped (js/safety.js). Bedwetting mode is silent. Office mode uses neutral wording.*
+*Branch `android-capacitor`, v13. Game rules only, unless you opt in to conditioning mode (docs/ANALYSIS-control-conditioning-infinite-campaign.md): every item is an in-app rule (a timer, dice, gate, prompt or limit). A real urge always wins, and the skin-safety cap always overrides curses and gates. No sexual content; no laxatives, enemas, suppositories, restraints or chastity; no laugh/cough events; drink prompts stay capped (js/safety.js). Bedwetting mode is silent. Office mode uses neutral wording.*
 
 Sources (mechanics only): Omorashi Curse blessings/curses list, the '1 Day in Diaper' roulette, js/classes.js, docs/DESIGN-classes-perks-campaign.md, the Rank Trainer HTML files. Levers used throughout: **change saturation threshold, timer urgency, chance of staying dry, urgency-threshold accident flags, accident shape (floods ↔ small dribbles).**
 

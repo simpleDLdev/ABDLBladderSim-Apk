@@ -55,7 +55,7 @@ ok(skipped.tummy === true && skipped.outcome === 'allowed' && skipped.waitMin ==
 BSCampaign.setTummy(false, { user: true });
 ok(BSCampaign.pooWaitMin(8) === 8, 'clearing tummy restores the wait');
 
-ok(read('android/app/build.gradle').includes('versionName "42"') && read('android/app/build.gradle').includes('versionCode 42'), 'version 42');
+ok(/versionName "\d+"/.test(read('android/app/build.gradle')) && /versionCode \d+/.test(read('android/app/build.gradle')), 'gradle version present');
 ok(read('js/whats-new-data.js').includes("hash: 'v42'"), "What's New v42");
 ok(!/bs_campaign_tummy|bs_path_tummy|bs_urge_type/.test(read('js/campaign.js') + read('js/simple-urge.js') + read('js/potty-path.js')), 'no new top-level storage key for these flags');
 

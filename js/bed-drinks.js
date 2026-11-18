@@ -20,6 +20,7 @@
     { ml: 250, label: 'up to 1 glass (250 ml)', when: 'spread over the last 2 hours', flavour: 'One normal glass across the evening is plenty.' }
   ];
   function levelIdx() {
+    try { if (window.BSControl && window.BSControl.continenceIndex) return window.BSControl.continenceIndex('night'); } catch (e) {}
     try { if (window.BSSimpleUrge) return window.BSSimpleUrge.profile().levelIdx; } catch (e) {}
     try { const q = window.BSQuiz && window.BSQuiz.load(); if (q && q.baseline) return q.baseline.levelIdx; } catch (e) {}
     return 1;
@@ -27,6 +28,9 @@
   /** Pure-ish: { levelIdx, bedtime, drinks:[{ts,ml}], now, thirsty } → suggestion. Uses BSSafety preview (no commit). */
   function suggest(o) {
     o = o || {};
+    if (window.BSSymptoms && window.BSSymptoms.paused && window.BSSymptoms.paused()) {
+      return { ml: 0, sips: 0, tier: 0, when: '', recent: 0, reason: 'paused', text: 'Drink prompts are paused. Pee before bed.', endsWithPee: true };
+    }
     const now = o.now || Date.now(), bed = o.bedtime || now;
     const li = Math.max(0, Math.min(4, o.levelIdx == null ? levelIdx() : +o.levelIdx | 0));
     const t = TIERS[li];

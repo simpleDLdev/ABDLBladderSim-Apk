@@ -13,7 +13,7 @@
   const PKEY = 'bs_urge_profiles_v1', EKEY = 'bs_urge_events_v1', LKEY = 'bs_urge_level_odds_v1';
   const ALARM_ID = 1950; // outside babysitter range 1100-1899
   const OUT = ['go', 'wait', 'hard', 'dribble', 'gear'];
-  const OUT_LABEL = { go: 'Go now', wait: 'Wait', hard: 'Hold till hard', dribble: 'Wait for dribble', gear: 'Use gear' };
+  const OUT_LABEL = { go: 'Go now', wait: 'Wait', hard: 'Short hold', dribble: 'Wait for dribble', gear: 'Use gear', partial: 'Partial' };
   const LV = ['fully_continent', 'mostly_continent', 'somewhat_incontinent', 'mostly_incontinent', 'fully_incontinent'];
   const PROT = ['none', 'pad', 'pullups', 'diapers', 'thick_diapers'];
   const SPARE = PROT.slice(1);
@@ -94,9 +94,32 @@
   /** Resolve the active profile → { id, name, levelKey, levelIdx, level, hold, odds, hiddenWait, fastFill, quietSignals, sources } */
   function profile(id) {
     const s = settings(); id = id || s.profileId || 'match';
-    let lk, name, hold, odds, hidden, ff = s.fastFill, qs = s.quietSignals, src = [];
+    let lk, name, hold, odds, hidden, ff = s.fastFill, qs = s.quietSignals, src = [], cond = null;
     const cp = customProfiles().find(x => x.id === id);
-    if (cp) {
+    if (id === 'conditioning') {
+      const info = window.BSOnboard && window.BSOnboard.playProfile ? window.BSOnboard.playProfile() : null;
+      cond = info;
+      lk = info && info.levelKey ? info.levelKey : (window.BSControl ? window.BSControl.band() : 'okay');
+      const l = (window.BSControl && window.BSControl.level(lk)) || { label: lk, wait: [5, 15], hidden: false };
+      name = 'My Conditioning' + (info && info.levelName ? ' · ' + info.levelName : '');
+      hold = (l.wait || [5, 15]).slice(); odds = ladderOdds(lk); hidden = l.hidden;
+      src.push('conditioning profile');
+      if (info && info.direction) src.push('direction ' + info.direction);
+      if (info && info.gear && info.gear.recommended) src.push('gear ' + (info.gear.recommended.day || ''));
+      try {
+        if (window.BSIntake && window.BSIntake.urgeModel) {
+          const model = window.BSIntake.urgeModel(info && info.track);
+          if (model && model.levelKey) {
+            lk = model.levelKey;
+            const paced = (window.BSControl && window.BSControl.level(lk)) || l;
+            name = 'My Conditioning · ' + (paced.label || lk);
+            if (model.hold) hold = model.hold.slice();
+            if (cond) cond.urge = model;
+            src.push(model.pacing || 'paced');
+          }
+        }
+      } catch (e) {}
+    } else if (cp) {
       lk = cp.level || (window.BSControl ? window.BSControl.band() : 'okay'); name = cp.name; hold = cp.wait.slice(); odds = Object.assign({}, cp.odds); hidden = cp.hiddenWait;
       ff = ff || cp.traits.fastFill; qs = qs || cp.traits.quietSignals; src.push('custom profile');
     } else {
@@ -111,7 +134,7 @@
     if (s.holdOverride) hold = s.holdOverride.slice(); // dev/test hook (pre-v11 API)
     if (s.oddsOverride) odds = Object.assign({}, odds, s.oddsOverride);
     const lv = L().find(x => x.key === lk); const li = lv ? lv.li : 1;
-    return { id, name, levelKey: lk, levelIdx: li, level: LV[li], hold, odds, hiddenWait: !!(hidden || s.hideWaits), fastFill: ff, quietSignals: qs, sources: src };
+    return { id, name, levelKey: lk, levelIdx: li, level: LV[li], hold, odds, hiddenWait: !!(hidden || s.hideWaits), fastFill: ff, quietSignals: qs, sources: src, conditioning: cond };
   }
 
   // ---------- pure roll ----------
@@ -145,9 +168,26 @@
       ['wait', 'hard'].forEach(k => { const take = w[k] * lean; w[k] -= take; w.gear += take * 0.7; w.go += take * 0.3; });
     }
     if (opts.final || (M && chain >= M.MAX_CHAIN)) w = M ? M.finalRoll(w, level) : w;
+    try {
+      if (p && p.id === 'conditioning' && window.BSOnboard && window.BSOnboard.rollMods) {
+        const mods = window.BSOnboard.rollMods();
+        Object.keys(mods).forEach(k => { if (w[k] != null) w[k] *= mods[k]; });
+      }
+      if (window.BSIntake && window.BSIntake.urgeModel) {
+        const model = (p.conditioning && p.conditioning.urge) || window.BSIntake.urgeModel();
+        if (model && model.odds) Object.keys(model.odds).forEach(k => { if (w[k] != null) w[k] *= model.odds[k]; });
+        if (model && model.hold) p.hold = model.hold.slice();
+      }
+    } catch (e) {}
     // Custom events (user-defined) still mix in at their own weight
     const evs = (opts.events || customEvents()).filter(e => e.enabled !== false && e.weight > 0 && (!e.levels.length || e.levels.includes(p.levelKey)));
-    const keys = OUT.concat(evs.map(e => 'ev:' + e.id)); evs.forEach(e => { w['ev:' + e.id] = e.weight; });
+    const messyRoll = (opts.type === 2 || (opts.type == null && urgeType() === 2)) && messyOn();
+    let partialW = 0;
+    try {
+      if (window.BSPartial && window.BSPartial.rollWeight) partialW = window.BSPartial.rollWeight({ level: level, urgency: u, messy: messyRoll, track: window.BSControl && window.BSControl.trackFor ? window.BSControl.trackFor(Date.now()) : 'day' });
+    } catch (e) {}
+    if (partialW > 0) w.partial = partialW;
+    const keys = OUT.concat(partialW > 0 ? ['partial'] : []).concat(evs.map(e => 'ev:' + e.id)); evs.forEach(e => { w['ev:' + e.id] = e.weight; });
     const tot = keys.reduce((t, k) => t + Math.max(0, w[k] || 0), 0) || 1; let r = rng() * tot, pick = 'go';
     for (const k of keys) { r -= Math.max(0, w[k] || 0); if (r < 0) { pick = k; break; } }
     const ev = pick.startsWith('ev:') ? evs.find(e => 'ev:' + e.id === pick) : null;
@@ -169,7 +209,7 @@
     const cont = (M && !ev && ['gear', 'dribble', 'hard'].includes(outcome)) ? M.content(level, outcome, u, rng) : null;
     const voice = V ? V.getVoice() : 'caregiver';
     const voiceLine = V ? V.line(outcome === 'custom' ? 'gear' : outcome, voice, rng) : '';
-    const res = { id: 'r' + Date.now().toString(36) + Math.floor(rng() * 1e4), outcome, waitMin, hidden, urgency: u, weights: w, range: p.hold, gear: null, content: cont, voice: voiceLine, voiceKey: voice,
+    const res = { id: 'r' + Date.now().toString(36) + Math.floor(rng() * 1e4), outcome, waitMin, hidden, urgency: u, weights: w, range: p.hold, gear: null, content: cont, voice: voiceLine, voiceKey: voice, conditioningEvent: null,
       levelKey: p.levelKey, profileName: p.name, access: POTTY_ACCESS[level] != null ? POTTY_ACCESS[level] : 1, lowControl: (POTTY_ACCESS[level] || 1) < 0.5, chain,
       event: ev ? { id: ev.id, text: ev.text, guide: ev.guide, timer: ev.timer } : null };
     // v32 class eventSteps (e.g. Leaky/Dribbler micro leak before go)
@@ -187,7 +227,34 @@
         }
       }
     } catch (e) {}
-    if (p.levelKey === 'off') { res.outcome = 'go'; res.waitMin = 0; res.hidden = false; res.event = null; res.content = null; }
+    try {
+      if (p && p.id === 'conditioning' && window.BSCondEvents && window.BSCondEvents.draw) {
+        let tank = null;
+        try { tank = window.BSTank && window.BSTank.load && window.BSTank.load(); } catch (e) {}
+        const low = !!(tank && window.BSTank && window.BSTank.canVoid && !window.BSTank.canVoid(tank));
+        let saved = null;
+        try { saved = window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile; } catch (e) {}
+        const drawn = window.BSCondEvents.draw({
+          profile: saved || undefined,
+          track: (p.conditioning && p.conditioning.track) || 'day',
+          tank: tank,
+          ignoreConsent: true,
+          rng: rng,
+          kind: outcome === 'gear' && !low ? 'full' : 'micro'
+        });
+        res.conditioningEvent = drawn;
+        if (low && (outcome === 'gear' || outcome === 'dribble')) res.tankNote = 'Not enough in the tank yet — potty pass, or try a sip.';
+        if (drawn) {
+          res.content = { label: drawn.label, flow: drawn.desc, guide: drawn.guide };
+          res.event = { id: drawn.id, text: drawn.desc, guide: drawn.guide, timer: 'none' };
+          if (!res.gear) res.gear = res.content;
+        }
+      }
+    } catch (e) {}
+    if (p.levelKey === 'off') { res.outcome = 'go'; res.waitMin = 0; res.hidden = false; res.event = null; res.content = null; res.partial = null; }
+    if (res.outcome === 'partial' && window.BSPartial) {
+      try { res.partial = window.BSPartial.plan({ urgency: u, track: window.BSControl && window.BSControl.trackFor ? window.BSControl.trackFor(Date.now()) : 'day' }); res.waitMin = 0; } catch (e) {}
+    }
     if (res.outcome === 'gear') {
       const lv = window.BSControl && window.BSControl.level(p.levelKey); let sp = lv ? lv.split : [20, 40, 40];
       // At high urgency, skew toward major (realism, not training)
@@ -203,6 +270,8 @@
       else if (res.outcome === 'gear' || res.outcome === 'dribble') { const h = pickMessy('push', rng); if (h) { res.content = h; res.gear = h; } }
     }
     res.text = describe(res);
+    if (res.tankNote) res.text = res.tankNote + (res.conditioningEvent && res.conditioningEvent.label ? ' ' + res.conditioningEvent.label : '');
+    else if (res.conditioningEvent && res.conditioningEvent.label && String(res.text || '').indexOf(res.conditioningEvent.label) < 0) res.text = res.text + ' · ' + res.conditioningEvent.label;
     if (res.stepText) res.text = res.stepText + (res.text ? ' · ' + res.text : '');
     if (opts.quick) res.quick = true;
     try {
@@ -232,6 +301,22 @@
     const ev = tbl.filter(e => e.guide && e.guide.length); const e = ev[Math.floor((rng || Math.random)() * ev.length)];
     return e ? { label: e.label, flow: e.flow, guide: e.guide, kind: u >= 7 ? 'full' : 'micro' } : null;
   }
+  function holdMode() {
+    try {
+      if (window.BSControl && window.BSControl.mode && window.BSControl.mode() === 'conditioning') {
+        const d = window.BSControl.direction(window.BSControl.trackFor(Date.now()));
+        if (d === 'regress') return 'A';
+        if (d === 'progress') return 'B';
+      }
+    } catch (e) {}
+    return 'game';
+  }
+  function holdLine() {
+    const m = holdMode();
+    if (m === 'A') return 'Let it happen early.';
+    if (m === 'B') return 'Urge surf, then go, or wait until the next time you planned.';
+    return 'Hold a little longer (stop if it gets strong).';
+  }
   function describe(res) {
     if (res && res.tummy) return "🌀 Tummy trouble: this #2 can't wait — skip any waits.";
     const t = describeRaw(res);
@@ -253,8 +338,9 @@
   function describe0(res) {
     switch (res.outcome) {
       case 'go': return 'Go now.';
-      case 'wait': return res.hidden ? '✋ Wait.' : `Wait ${res.waitMin} min, then roll again.`;
-      case 'hard': return 'Hold until it gets hard, then roll again.';
+      case 'wait': return res.hidden ? '✋ Wait.' : (holdMode() === 'B' ? `Surf the urge, then wait ${res.waitMin} min.` : `Wait ${res.waitMin} min, then roll again.`);
+      case 'hard': return holdLine();
+      case 'partial': return (res.partial && res.partial.text) || 'Let a little go, then decide.';
       case 'dribble': return 'A little leak. Follow the steps, then roll again.';
       case 'gear': return `Use your padding${res.severity ? ' (' + { dribble: 'just a dribble', small: 'small accident', major: 'major accident' }[res.severity] + ')' : ''}${res.gear ? ': ' + res.gear.label : ''}.`;
       case 'custom': return (res.event ? res.event.text : 'Custom event') + (res.event && res.event.timer === 'shown' ? ` (${res.waitMin} min)` : res.event && res.event.timer === 'hidden' ? ' ✋' : '');
@@ -294,7 +380,12 @@
   function ctlEvent(k) { try { window.BSControl && window.BSControl.event(k); } catch (e) {} }
   function record(res) {
     let i = null;
-    if (res.outcome === 'gear') { i = useGear(); ctlEvent('gear'); } else if (res.outcome === 'go') ctlEvent('go');
+    if (res.outcome === 'gear') { i = useGear(); ctlEvent('gear'); }
+    else if (res.outcome === 'go') ctlEvent('go');
+    else if (res.outcome === 'partial') {
+      try { window.BSPartial && window.BSPartial.noteUse(res.partial); } catch (e) {}
+      try { window.BSCalendar && window.BSCalendar.addEntry({ source: 'sim', mode: 'simple_urge', type: 'leak', severity: 'damp', memo: res.text, tags: ['partial'], partial: res.partial || undefined }); } catch (e) {}
+    }
     else if (res.outcome === 'natural') { /* choice only — potty or hold is logged when they pick */ }
     log(`🙋 Simple urge (${res.urgency == null ? 'urgency not set' : res.urgency + '/10'}, ${res.profileName}): ${res.text}${i ? ' ' + invText(i) : ''}`, COLOR[res.outcome]);
     try { window.BSNatSession && window.BSNatSession.note({ k: 'roll', outcome: res.outcome, text: res.text, roll: res.id, type: res.type || 1 }); } catch (e) {}
@@ -345,7 +436,31 @@
     if (sev !== 'full' && mode === 'level') steps.push(kind === 'finish' ? "You're not done yet — finish on the potty, don't stop halfway." : kind === 'wait' ? "You're not done — when the timer ends, ask again (roll)." : "You're not done — you'll roll again when the timer ends.");
     let change = null;
     if (check) {
-      if (sat == null) { change = 'ask'; steps.push(`Check your saturation: at ${th} or more you may change (use 🎲 May I change?); below that, stay in it.`); }
+      let gearPlan = null;
+      if (sat != null && window.BSGear && window.BSGear.planChange) {
+        let gearId = 'G6';
+        try { gearId = window.BSGear.fromProt(inv().wearing, false) || 'G6'; } catch (e) {}
+        let dir = 'off', win = {};
+        try {
+          const prof = window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load();
+          const p = prof && prof.profile;
+          if (p && p.direction) dir = (p.direction.day && p.direction.day !== 'off') ? p.direction.day : (p.direction.night || 'off');
+          if (p && p.changeWindow) win = p.changeWindow;
+        } catch (e) {}
+        gearPlan = window.BSGear.planChange({
+          sat: sat, gearId: gearId,
+          size: sev === 'full' ? 'major' : (sev === 'dribble' ? 'dribble' : 'small'),
+          direction: dir, windowMin: win.min, windowMax: win.max
+        });
+      }
+      if (gearPlan && gearPlan.when === 'now') { change = 'yes'; steps.push(`Saturation ${sat}: this protection is close to done. Change now.`); }
+      else if (gearPlan && gearPlan.when === 'later') {
+        change = 'later';
+        steps.push(`Saturation ${sat}% still has room. A body check-in in about ${gearPlan.delayMin} min — still fine, change now, or remind later.`);
+        try { window.BSGear.scheduleCheck(gearPlan); } catch (e) {}
+      }
+      else if (gearPlan && gearPlan.when === 'none') { change = 'no'; steps.push('Small enough to skip a change check.'); }
+      else if (sat == null) { change = 'ask'; steps.push(`Check your saturation: at ${th} or more you may change (use 🎲 May I change?); below that, stay in it.`); }
       else if (sat >= th) { change = 'yes'; steps.push(`Saturation ${sat} ≥ change rule ${th}: change now.`); }
       else { change = 'no'; steps.push(`Saturation ${sat} is under the change rule (${th}): stay in it for now.`); }
     }
@@ -437,7 +552,7 @@
     const res = roll({ urgency: u, chain, rng, quick: !!popts.quick, final: chain >= maxC });
     record(res);
     const timed = res.waitMin > 0 && (res.outcome === 'wait' || res.outcome === 'custom');
-    const terminal = res.outcome === 'go' || res.outcome === 'gear';
+    const terminal = res.outcome === 'go' || res.outcome === 'gear' || res.outcome === 'partial';
     const waity = ['wait', 'hard', 'dribble'].includes(res.outcome) || (res.outcome === 'custom' && timed);
     const n = { last: res, accFor: waity ? res.id : null, chain: terminal ? 0 : Math.min(maxC, chain + 1), prevChain: chain, waitUntil: timed ? Date.now() + res.waitMin * 60000 : 0, waitStart: timed ? Date.now() : 0, fired: !timed, revealed: null, urgeSteps: (s.urgeSteps || []).concat([{ outcome: res.outcome, u, at: Date.now(), label: (res.content && res.content.label) || res.outcome }]) };
     if (terminal) n.urgeSteps = [];
@@ -564,6 +679,7 @@
     return `<option value="match" ${sel === 'match' ? 'selected' : ''}>🎯 Match my profile${ctl ? ' (' + (window.BSControl.label(ctl, officeOn())) + ')' : ''}</option>` +
       L().slice().reverse().map(l => `<option value="${l.key}" ${sel === l.key ? 'selected' : ''}>${esc(window.BSControl.label(l, officeOn()))}</option>`).join('') +
       `<option value="off" ${sel === 'off' ? 'selected' : ''}>${esc(window.BSControl ? window.BSControl.label('off', officeOn()) : 'Sitting out')}</option>` +
+      (window.BSOnboard && window.BSOnboard.pickerOption ? window.BSOnboard.pickerOption(sel) : `<option value="conditioning" ${sel === 'conditioning' ? 'selected' : ''}>Conditioning ▸</option>`) +
       customProfiles().map(p => `<option value="${esc(p.id)}" ${sel === p.id ? 'selected' : ''}>⭐ ${esc(p.name)}</option>`).join('');
   }
   function supplyForm(i, pre) {
@@ -571,6 +687,23 @@
       <div class="su-spares">${SPARE.map(k => `<label class="urge-lbl" style="display:inline-block;width:48%">Spare ${esc(protLabel(k).toLowerCase())} <input id="${pre}S_${k}" data-spare="${k}" type="number" min="0" max="20" value="${i.spares[k] || 0}" style="width:56px"></label>`).join('')}</div>`;
   }
   function readSupply(m, pre) { const n = inv(); n.wearing = m.querySelector('#' + pre + 'Wear').value; SPARE.forEach(k => { n.spares[k] = Math.max(0, +m.querySelector('#' + pre + 'S_' + k).value || 0); }); n.day = today(); n.wetCount = 0; return n; }
+  function sipStatusHtml() {
+    if (settings().profileId !== 'conditioning') return '';
+    let note = '', at = 0;
+    try {
+      if (window.conditioningSipStatus) {
+        const st = window.conditioningSipStatus();
+        note = st && st.note || '';
+        at = st && st.nextAt || 0;
+      }
+    } catch (e) {}
+    if (note) return `<div class="urge-note" id="suSip">💧 ${esc(note)}</div>`;
+    if (at > Date.now()) {
+      const min = Math.max(1, Math.round((at - Date.now()) / 60000));
+      return `<div class="urge-note" id="suSip">💧 Next sip in about ${min} min. A few sips, if you are thirsty.</div>`;
+    }
+    return `<div class="urge-note" id="suSip">💧 Sips follow your conditioning window. A few at a time, if you are thirsty.</div>`;
+  }
   function render() {
     const m = document.getElementById('simpleUrgeMount'); if (!m) return;
     try { if (window.BSHub && window.BSHub.applyThemeDom) window.BSHub.applyThemeDom(window.BSHub.themeId()); } catch (e) {}
@@ -596,8 +729,11 @@
       </div>
       ${qq && qq.active && s.profileId === 'cp_quickquiz' ? `<div class="urge-note" id="suQQ">🧩 Quiz session: ${esc(qq.result.summary)} <button type="button" id="suQQEnd">End</button></div>` : ''}
       ${window.BSControl ? window.BSControl.chip() : ''}
+      ${window.BSGear && window.BSGear.warnHtml ? window.BSGear.warnHtml() : ''}
       <label class="urge-lbl">Control <select id="suProf">${profileOptions(s.profileId)}</select></label>
-      ${lvl ? `<details class="urge-more" id="suLvlInfo"><summary>About ${esc(window.BSControl.label(lvl, office))}</summary><div class="urge-note" id="suLvlDesc" data-office-raw="1">${esc(window.BSControl.describe(lvl.key, office))}</div><div class="urge-actions"><button type="button" id="suLvlAll">📋 All levels</button></div></details>` : ''}
+      ${s.profileId === 'conditioning' && window.BSCondProfiles && window.BSCondProfiles.subPickerHtml ? window.BSCondProfiles.subPickerHtml('suCondPick') : ''}
+      ${sipStatusHtml()}
+      ${lvl ? `<details class="urge-more" id="suLvlInfo"><summary>About ${esc(window.BSControl.label(lvl, office))}</summary><div class="urge-note about-blurb" id="suLvlDesc" data-office-raw="1">${esc(p.id === 'conditioning' && window.BSCondEvents && window.BSCondEvents.aboutText ? window.BSCondEvents.aboutText((window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile) || {}) : window.BSControl.describe(lvl.key, office))}</div><div class="urge-actions"><button type="button" id="suLvlAll">📋 All levels</button></div></details>` : ''}
       ${reset ? `<div class="urge-result" id="suDaily" style="border-color:#fdcb6e"><b>☀️ New day: what are you wearing / carrying?</b>${supplyForm(i, 'suD')}
         <div class="urge-actions"><button type="button" id="suDailySave">Save for today</button><button type="button" id="suDailyKeep">Keep as is</button></div></div>` : ''}
       ${sess ? NS.chip() : `<div class="urge-actions"><button type="button" id="suSessStart">▶ Start natural session</button></div>`}
@@ -641,7 +777,7 @@
         <label class="urge-lbl"><input type="checkbox" id="suAl" ${s.alarm ? 'checked' : ''}> One reminder when a wait ends (native)</label>
         <label class="urge-lbl"><input type="checkbox" id="suAsk" ${s.askUrgency ? 'checked' : ''}> Ask urgency every press (slider resets to unset)</label>
         <label class="urge-lbl"><input type="checkbox" id="suCal" ${s.useCalib ? 'checked' : ''}> Use calibration to shorten waits (opt-in)</label>
-        <label class="urge-lbl"><input type="checkbox" id="suCW" ${window.BSControl && window.BSControl.load().countWaitAccidents ? 'checked' : ''}> Count accidents during waits toward progress/regress</label>
+        <label class="urge-lbl"><input type="checkbox" id="suCW" ${window.BSControl && window.BSControl.load().countWaitAccidents ? 'checked' : ''}> Count real accidents during waits (off unless you opt in)</label>
         <label class="urge-lbl">💦 After a small accident <select id="suAfter">${[['', 'Campaign / level default'], ['level', 'Level + "you\'re not done"'], ['finish', 'Go finish on the potty'], ['stay', 'Stay in protection'], ['wait', 'Wait timer, then roll'], ['ask', 'Ask me each time'], ['dice', 'Let the dice pick']].map(([v, l]) => `<option value="${v}" ${(s.afterSmall || '') === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label class="urge-lbl">Control daily cap ± <input id="suCap" type="number" min="4" max="12" value="${window.BSControl ? window.BSControl.load().cap : 8}" style="width:56px"></label>
         <div class="urge-note"><b>Supplies</b></div>${supplyForm(i, 'su')}
@@ -649,11 +785,16 @@
         
       </details>`;
     const q = id => m.querySelector('#' + id), on = (id, f) => { const el = q(id); if (el) el.onclick = f; };
+    try { if (s.profileId === 'conditioning' && window.syncConditioningSips) window.syncConditioningSips(); } catch (e) {}
     { const more = q('suMore'); if (more) { if (moreWasOpen) more.open = true; if (extras) more.appendChild(extras); } }
     on('suQQEnd', () => window.BSHub && window.BSHub.qqEnd());
     const urg = () => q('suU').dataset.set ? +q('suU').value : null;
     q('suU').oninput = q('suU').onchange = e => { e.target.dataset.set = '1'; q('suUV').textContent = e.target.value + '/10'; saveSettings({ lastUrgency: +e.target.value, lastUrgencyTs: Date.now() }); }; // v18: persist on every move so re-renders keep it
-    q('suProf').onchange = e => { saveSettings({ profileId: e.target.value }); render(); };
+    q('suProf').onchange = e => { saveSettings({ profileId: e.target.value }); render(); try { if (window.syncConditioningSips) window.syncConditioningSips(); } catch (err) {} };
+    const sub = q('suCondPick');
+    if (sub) sub.onchange = () => { try { if (sub.value && window.BSCondProfiles) window.BSCondProfiles.setActive(sub.value); } catch (e) {} };
+    const manage = m.querySelector('[data-cond-manage]');
+    if (manage) manage.onclick = () => { try { if (typeof switchTab === 'function') switchTab('profiles'); } catch (e) {} };
     on('suT1', () => { saveSettings({ type: 1 }); render(); });
     on('suT2', () => { if (messyOn()) { saveSettings({ type: 2 }); render(); } });
     on('suGo', () => press(urg()));
@@ -801,7 +942,7 @@
     return w;
   }
 
-  window.BSSimpleUrge = { POTTY_ACCESS, sliderValue, continueUrge, followUpFor, followUp, followDone, followActive, followState: fst, roll, press, chooseNatural, describe, profile, autoProfile, settings, saveSettings, urgeType, pickMessy, pickGear, inv, saveInv, invText, change, useGear, pendingAlarm, render, state: st, ALARM_ID, DEF_INV, OUT, PROT, SPARE,
+  window.BSSimpleUrge = { POTTY_ACCESS, sliderValue, continueUrge, followUpFor, followUp, followDone, followActive, followState: fst, roll, press, chooseNatural, describe, profile, profileOptions, autoProfile, settings, saveSettings, urgeType, pickMessy, pickGear, inv, saveInv, invText, change, useGear, pendingAlarm, render, state: st, ALARM_ID, DEF_INV, OUT, PROT, SPARE,
     customProfiles, upsertProfile, deleteProfile, customEvents, upsertEvent, deleteEvent, levelOdds, saveLevelOdds, ladderOdds, exportJSON, importJSON, inWaitState, endByAccident, needsDailyReset,
     openProfileEditor, openEventEditor, openEventList, openLevelTables, openLevelList, accidentArmed, dismissAccident, protLabel, recDay, cantHold, reroll, setLogged, afterSmallPref, followChoose, cascadeState, CKEY };
   window.addEventListener('load', () => setTimeout(render, 60));

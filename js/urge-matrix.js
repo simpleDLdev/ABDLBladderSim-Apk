@@ -88,7 +88,7 @@
     caregiver: {
       go: ['Good job telling me! Off to the potty, sweetie.', 'Yes, you may — let’s go together.', 'Potty time! Quick quick, little one.', 'You asked so nicely. Go on, I’ll wait right here.'],
       wait: ['Not just yet, sweetie. Let’s wait a little bit.', 'Hold on for me a few minutes, okay?', 'We’ll go in a bit — you can do it.', 'Almost time. Stay with me a little longer.'],
-      hard: ['Let’s practise holding, nice and steady.', 'A little challenge for my big helper.', 'Hold it for me — I’ll count with you.'],
+      hard: ['Short hold — I\'ll tell you soon.', 'A little challenge, then we stop.', 'Hold a few minutes — I\'ll check in.'],
       dribble: ['Oh! Just a little drip. Let’s keep going.', 'A tiny slip — that’s alright, sweetheart.', 'Feel that? A little came out. Tell me next time.'],
       gear: ['Oopsie — that’s what your padding is for.', 'There we go. Let it all out, then we’ll change.', 'No more holding, little one. Into your diaper.'],
       again: ['How are we feeling now?', 'Still need to go? Tell me how urgent it is.', 'Ready to try again?']
@@ -96,7 +96,7 @@
     babysitter: {
       go: ['Alright, you can go. Don’t linger.', 'Fine — potty. Be quick.', 'Permission granted. Make it count.'],
       wait: ['Not yet. Sit still a few more minutes.', 'Babysitter says wait.', 'Hold it. I’ll decide when.', 'Patience. Almost.'],
-      hard: ['Babysitter’s challenge: hold until I say.', 'Let’s see how long you last.', 'No potty yet — hold.'],
+      hard: ['Short hold — I\'ll tell you soon.', 'A few minutes, then I\'ll tell you.', 'No potty yet — short hold, then we check.'],
       dribble: ['Caught you leaking. Noted.', 'A drip already? Hmm.', 'That little leak is going in the log.'],
       gear: ['Too late. Use your padding.', 'You didn’t make it. Let it finish.', 'Accident. We’ll change when I say so.'],
       again: ['Still needing? Tell me the number.', 'How bad is it now?', 'Report. Urgency?']

@@ -428,7 +428,7 @@ const BABYSITTER_ACCIDENT_D20 = [
   { label: "Hiccup Cascade", flow: "A sudden bout of hiccups pushes pulses out with each one. Three hiccups and you're soaked.", partial: false, tags: ['involuntary'], guide: [{ text: "HIC", time: 1, type: "push" }, { text: "HIC", time: 1, type: "push" }, { text: "HIC—FLOOD", time: 5, type: "relax" }] },
   { label: "Forgotten Hold", flow: "You got so caught up in a show that you forgot to squeeze. By the time you remembered, it was too late.", partial: false, guide: [{ text: "FORGOT", time: 4, type: "relax" }, { text: "TOO LATE", time: 6, type: "relax" }] },
   { label: "Morning Pressure", flow: "Babysitter was slow getting you to potty after waking. The overnight pressure won.", partial: false, tags: ['requires_context'], guide: [{ text: "WAKING UP", time: 3, type: "push" }, { text: "PRESSURE WINS", time: 7, type: "relax" }] },
-  { label: "Sip Too Many", flow: "Babysitter made you drink extra water. Your bladder hit the limit and overflowed.", partial: false, guide: [{ text: "OVER HYDRATED", time: 3, type: "push" }, { text: "OVERFLOW", time: 7, type: "relax" }] },
+  { label: "Sip Too Many", flow: "You had a drink. Your bladder hit the limit and overflowed. The drink was yours to take — nothing here makes you drink extra.", partial: false, guide: [{ text: "FULL", time: 3, type: "relax" }, { text: "OVERFLOW", time: 7, type: "relax" }] },
   { label: "Stretch Disaster", flow: "Babysitter told you to stretch. Reaching up compressed your bladder and it all came out.", partial: false, guide: [{ text: "STRETCH UP", time: 2, type: "push" }, { text: "EVERYTHING OUT", time: 8, type: "relax" }] },
   { label: "Stumble Spill", flow: "You tripped slightly. The jolt was enough to release everything into your protection.", partial: false, tags: ['requires_walking'], guide: [{ text: "STUMBLE", time: 1, type: "push" }, { text: "JOLT RELEASE", time: 6, type: "relax" }] },
   { label: "Waiting Game Lost", flow: "Babysitter said 'just five more minutes.' You didn't make it to minute three.", partial: false, guide: [{ text: "WAIT...", time: 4, type: "stop" }, { text: "CAN'T WAIT", time: 2, type: "push" }, { text: "FLOODING", time: 6, type: "relax" }] },
@@ -601,8 +601,8 @@ const MICRO_WARD_D10 = [
   { label: "Uniform Inspection", flow: "Stand up. Check for sagging. If dry, release a 2-second 'marking' spurt.", classKey: "micro_small", tags: ['requires_standing'], guide: [{ text: "STAND", time: 2, type: "stop" }, { text: "MARK", time: 2, type: "push" }] },
   { label: "The Cold Snap", flow: "Simulate a draft or cold air. Shiver and release tension.", classKey: "micro_tiny", guide: [{ text: "SHIVER", time: 2, type: "push" }, { text: "DRIP", time: 2, type: "relax" }] },
   { label: "Cough Test", flow: "Force a hard cough. Do not hold back the stress leak.", classKey: "micro_big", guide: [{ text: "COUGH HARD", time: 1, type: "push" }, { text: "STRESS LEAK", time: 3, type: "relax" }] },
-  { label: "The Squat", flow: "Assume the 'Cat Feeding' squat position. Push for 3 seconds.", classKey: "micro_big", tags: ['requires_squat'], guide: [{ text: "SQUAT DOWN", time: 3, type: "stop" }, { text: "PUSH", time: 3, type: "push" }] },
-  { label: "Hydration Penalty", flow: "You look thirsty. Drink, then leak to make room.", classKey: "micro_small", guide: [{ text: "DRINK", time: 5, type: "stop" }, { text: "DISPLACE", time: 5, type: "push" }] },
+  { label: "The Squat", flow: "Assume the squat. Relax and let a little go. Don't strain.", classKey: "micro_big", tags: ['requires_squat'], guide: [{ text: "SQUAT DOWN", time: 3, type: "stop" }, { text: "LET GO", time: 3, type: "relax" }] },
+  { label: "Hydration Penalty", flow: "You look thirsty. A drink is optional and capped. Then a small leak.", classKey: "micro_small", guide: [{ text: "SIP IF THIRSTY", time: 5, type: "stop" }, { text: "LET A LITTLE GO", time: 5, type: "relax" }] },
   { label: "Posture Check", flow: "Sit up straight. Shoulders back. The shift releases a dribble.", classKey: "micro_tiny", guide: [{ text: "POSTURE UP", time: 3, type: "stop" }, { text: "DRIBBLE", time: 2, type: "relax" }] },
   { label: "Diaper Pat", flow: "Check the bulk. Is it mushy? Add to it.", classKey: "micro_small", guide: [{ text: "PAT FRONT", time: 3, type: "stop" }, { text: "ADD WARMTH", time: 3, type: "push" }] },
   { label: "The Ghost Urge", flow: "You feel the urge. Verify it by pushing.", classKey: "micro_small", guide: [{ text: "VERIFY", time: 2, type: "push" }, { text: "CONFIRMED", time: 4, type: "relax" }] },
@@ -759,7 +759,7 @@ const MACRO_DEPENDENT_D20 = [
   { label: "The Stutter-Soak", flow: "Your control is broken. It starts and stops on its own.", guide: [{ text: "START", time: 2, type: "push" }, { text: "STOP?", time: 1, type: "stop" }, { text: "START", time: 4, type: "push" }, { text: "STOP?", time: 1, type: "stop" }, { text: "GUSH", time: 8, type: "relax" }] },
   { label: "Front to Back", flow: "Lean forward to wet the front, then lean back to soak the rear.", guide: [{ text: "LEAN FWD", time: 3, type: "stop" }, { text: "WET FRONT", time: 6, type: "push" }, { text: "LEAN BACK", time: 3, type: "stop" }, { text: "SOAK REAR", time: 8, type: "relax" }] },
   { label: "The Mush", flow: "Sit heavy. Mush your bottom into the chair and just go.", guide: [{ text: "MUSH DOWN", time: 4, type: "stop" }, { text: "SLOW RELEASE", time: 20, type: "relax" }] },
-  { label: "Push Challenge", flow: "See how hard you can push for 10 seconds straight.", guide: [{ text: "PUSH HARD", time: 10, type: "push" }, { text: "RECOVER", time: 5, type: "relax" }] },
+  { label: "Let-go", flow: "Relax and let go for a few seconds. Don't strain.", guide: [{ text: "RELAX", time: 5, type: "relax" }, { text: "LET GO", time: 5, type: "relax" }] },
   { label: "The Lazy River", flow: "A slow, low-pressure release that takes forever to finish.", guide: [{ text: "SLOW STREAM", time: 30, type: "relax" }] },
   { label: "Crotch Grab Flood", flow: "Hold your crotch tight with both hands. Flood against the pressure.", guide: [{ text: "GRAB TIGHT", time: 5, type: "stop" }, { text: "FLOOD HANDS", time: 10, type: "push" }] },
   { label: "The Shiver-Flood", flow: "Induce a shiver. Let the shiver turn into a full void.", guide: [{ text: "SHIVER", time: 2, type: "stop" }, { text: "RELEASE", time: 12, type: "relax" }] },
@@ -1128,8 +1128,8 @@ const OMORASHI_HOLDING_GUIDES = [
   {
     label: "Kegel Strength",
     guide: [
-      { text: "CONTRACT PELVIC FLOOR", time: 5, type: "stop" },
-      { text: "HOLD MAXIMUM", time: 8, type: "stop" },
+      { text: "SQUEEZE 3–5 s", time: 5, type: "stop" },
+      { text: "RELAX THE SAME TIME", time: 5, type: "relax" },
       { text: "REST", time: 4, type: "stop" }
     ]
   },
@@ -1293,11 +1293,11 @@ const OMORASHI_GAUNTLETS = [
   {
     name: "The Kegel Crusher",
     guide: [
-      { text: "PELVIC CONTRACT (MAX)", time: 10, type: "stop" },
-      { text: "HOLD IT (no relaxing)", time: 15, type: "stop" },
-      { text: "PULSES (10 rapid)", time: 8, type: "stop" },
-      { text: "FINAL HOLD", time: 10, type: "stop" },
-      { text: "REST", time: 5, type: "stop" }
+      { text: "GENTLE SQUEEZE 5 s", time: 5, type: "stop" },
+      { text: "RELAX THE SAME TIME", time: 5, type: "relax" },
+      { text: "QUICK FLICKS (10)", time: 8, type: "stop" },
+      { text: "SQUEEZE 5 s", time: 5, type: "stop" },
+      { text: "RELAX", time: 5, type: "relax" }
     ]
   }
 ];
@@ -2017,7 +2017,7 @@ const MESSY_HOLDING_GAUNTLETS_D10 = [
     tags: ['requires_standing'],
     guide: [
       { text: "STAND UP — LEGS TOGETHER", time: 5, type: "stop" },
-      { text: "CLENCH EVERYTHING", time: 20, type: "stop" },
+      { text: "GENTLE SQUEEZE 5 s", time: 5, type: "stop" },
       { text: "SHIFT WEIGHT LEFT FOOT", time: 10, type: "stop" },
       { text: "SHIFT WEIGHT RIGHT FOOT", time: 10, type: "stop" },
       { text: "SQUEEZE GLUTES TIGHT", time: 15, type: "stop" },
@@ -2097,7 +2097,7 @@ const MESSY_HOLDING_GAUNTLETS_D10 = [
       { text: "STOP — CROSS LEGS — HOLD", time: 15, type: "stop" },
       { text: "WALK AGAIN — FASTER", time: 10, type: "stop" },
       { text: "FREEZE — DON'T MOVE", time: 20, type: "stop" },
-      { text: "CLENCH EVERYTHING", time: 15, type: "stop" },
+      { text: "GENTLE SQUEEZE 5 s", time: 5, type: "stop" },
       { text: "WALK TO START — FINAL", time: 10, type: "stop" }
     ]
   },
@@ -2135,7 +2135,7 @@ const MESSY_HOLDING_GAUNTLETS_D10 = [
     tags: ['requires_standing'],
     guide: [
       { text: "STAND ON TIPTOES", time: 10, type: "stop" },
-      { text: "CLENCH EVERYTHING", time: 15, type: "stop" },
+      { text: "GENTLE SQUEEZE 5 s", time: 5, type: "stop" },
       { text: "LOWER HEELS — SQUAT HALFWAY", time: 10, type: "stop" },
       { text: "HOLD HALF-SQUAT", time: 20, type: "stop" },
       { text: "STAND TALL — LEGS TIGHT", time: 15, type: "stop" },
@@ -2155,12 +2155,12 @@ const MESSY_PUSHING_ACCIDENTS_D10 = [
     desc: "Sitting in your chair. Lean forward, hands on knees.",
     guide: [
       { text: "SIT — LEAN FORWARD", time: 5, type: "push" },
-      { text: "BEAR DOWN — STEADY PUSH", time: 8, type: "push" },
-      { text: "HOLD PUSH — DON'T STOP", time: 10, type: "push" },
+      { text: "RELAX — LET GO", time: 8, type: "relax" },
+      { text: "LET IT GO — DON'T STRAIN", time: 10, type: "relax" },
       { text: "RELAX 3 SECONDS", time: 3, type: "relax" },
-      { text: "PUSH AGAIN — HARDER", time: 10, type: "push" },
+      { text: "LET GO AGAIN", time: 10, type: "relax" },
       { text: "KEEP GOING", time: 8, type: "push" },
-      { text: "FINAL PUSH", time: 5, type: "push" }
+      { text: "LET THE REST GO", time: 5, type: "relax" }
     ]
   },
   {
@@ -2171,10 +2171,10 @@ const MESSY_PUSHING_ACCIDENTS_D10 = [
     guide: [
       { text: "STAND — FEET WIDE", time: 5, type: "push" },
       { text: "BEND KNEES SLIGHTLY", time: 5, type: "push" },
-      { text: "BEAR DOWN — LET GRAVITY HELP", time: 10, type: "push" },
-      { text: "PUSH STEADY", time: 12, type: "push" },
+      { text: "RELAX — LET GRAVITY HELP", time: 10, type: "relax" },
+      { text: "LET GO STEADY", time: 12, type: "relax" },
       { text: "SHORT BREAK", time: 3, type: "relax" },
-      { text: "PUSH THROUGH — FINISH", time: 10, type: "push" }
+      { text: "LET IT FINISH", time: 10, type: "relax" }
     ]
   },
   {
@@ -2185,10 +2185,10 @@ const MESSY_PUSHING_ACCIDENTS_D10 = [
     guide: [
       { text: "DEEP SQUAT — FEET FLAT", time: 5, type: "push" },
       { text: "RELAX EVERYTHING BELOW", time: 5, type: "relax" },
-      { text: "GENTLE PUSH DOWN", time: 8, type: "push" },
-      { text: "HARDER — KEEP PUSHING", time: 10, type: "push" },
-      { text: "HOLD PUSH", time: 8, type: "push" },
-      { text: "BREATHE — FINAL PUSH", time: 10, type: "push" },
+      { text: "RELAX AND LET GO", time: 8, type: "relax" },
+      { text: "KEEP LETTING GO", time: 10, type: "relax" },
+      { text: "LET GO", time: 8, type: "relax" },
+      { text: "BREATHE — LET THE REST GO", time: 10, type: "relax" },
       { text: "LET IT FINISH", time: 5, type: "relax" }
     ]
   },
@@ -2199,10 +2199,10 @@ const MESSY_PUSHING_ACCIDENTS_D10 = [
     desc: "Get on your hands and knees. Head down.",
     guide: [
       { text: "HANDS & KNEES — HEAD DOWN", time: 5, type: "push" },
-      { text: "ARCH BACK — PUSH DOWN", time: 10, type: "push" },
-      { text: "STEADY PUSH — DON'T RUSH", time: 10, type: "push" },
+      { text: "RELAX — LET GO", time: 10, type: "relax" },
+      { text: "LET GO — DON'T RUSH", time: 10, type: "relax" },
       { text: "REST — KEEP POSITION", time: 5, type: "relax" },
-      { text: "PUSH AGAIN — HARDER", time: 10, type: "push" },
+      { text: "LET GO AGAIN", time: 10, type: "relax" },
       { text: "HOLD IT — ALMOST DONE", time: 8, type: "push" },
       { text: "FINAL EFFORT", time: 5, type: "push" }
     ]
@@ -2215,10 +2215,10 @@ const MESSY_PUSHING_ACCIDENTS_D10 = [
     guide: [
       { text: "LIE DOWN — KNEES BENT", time: 5, type: "push" },
       { text: "LIFT HIPS SLIGHTLY", time: 5, type: "push" },
-      { text: "BEAR DOWN FROM THIS POSITION", time: 10, type: "push" },
-      { text: "LOWER HIPS — KEEP PUSHING", time: 8, type: "push" },
+      { text: "RELAX AND LET GO", time: 10, type: "relax" },
+      { text: "LOWER HIPS — LET GO", time: 8, type: "relax" },
       { text: "PAUSE — BREATHE", time: 3, type: "relax" },
-      { text: "HIPS UP AGAIN — PUSH HARD", time: 10, type: "push" },
+      { text: "LET GO", time: 10, type: "relax" },
       { text: "FINISH", time: 5, type: "push" }
     ]
   },
@@ -2228,10 +2228,10 @@ const MESSY_PUSHING_ACCIDENTS_D10 = [
     desc: "Seated upright. This one is slow and deliberate.",
     guide: [
       { text: "SIT TALL — RELAX", time: 5, type: "relax" },
-      { text: "GENTLE PUSH — BARELY ANY EFFORT", time: 10, type: "push" },
+      { text: "RELAX — LET A LITTLE GO", time: 10, type: "relax" },
       { text: "A LITTLE MORE", time: 10, type: "push" },
       { text: "REST — FEEL IT", time: 5, type: "relax" },
-      { text: "PUSH AGAIN — SLOWLY", time: 10, type: "push" },
+      { text: "LET GO SLOWLY", time: 10, type: "relax" },
       { text: "KEEP GOING — NO RUSHING", time: 10, type: "push" },
       { text: "LET IT FINISH NATURALLY", time: 8, type: "relax" }
     ]
@@ -2243,7 +2243,7 @@ const MESSY_PUSHING_ACCIDENTS_D10 = [
     desc: "Stand normally. This happens fast.",
     guide: [
       { text: "STAND — FEET TOGETHER", time: 3, type: "push" },
-      { text: "PUSH HARD — NOW", time: 8, type: "push" },
+      { text: "LET GO", time: 8, type: "relax" },
       { text: "DON'T STOP — KEEP GOING", time: 8, type: "push" },
       { text: "HARDER", time: 5, type: "push" },
       { text: "ALMOST THERE", time: 5, type: "push" },
@@ -2257,11 +2257,11 @@ const MESSY_PUSHING_ACCIDENTS_D10 = [
     desc: "Half-squat position. Push in waves with breaks between.",
     guide: [
       { text: "HALF SQUAT — READY", time: 5, type: "push" },
-      { text: "WAVE 1 — PUSH", time: 8, type: "push" },
+      { text: "WAVE 1 — LET GO", time: 8, type: "relax" },
       { text: "STOP — CLENCH", time: 5, type: "stop" },
-      { text: "WAVE 2 — PUSH HARDER", time: 8, type: "push" },
+      { text: "WAVE 2 — LET GO", time: 8, type: "relax" },
       { text: "STOP — CLENCH", time: 3, type: "stop" },
-      { text: "WAVE 3 — FULL PUSH", time: 10, type: "push" },
+      { text: "WAVE 3 — LET GO", time: 10, type: "relax" },
       { text: "LET IT ALL GO", time: 8, type: "relax" }
     ]
   },
@@ -2271,11 +2271,11 @@ const MESSY_PUSHING_ACCIDENTS_D10 = [
     desc: "Sitting on edge of chair. Lean way forward.",
     guide: [
       { text: "EDGE OF SEAT — LEAN FORWARD", time: 5, type: "push" },
-      { text: "HANDS ON FLOOR — PUSH", time: 10, type: "push" },
-      { text: "STRAIN — KEEP BEARING DOWN", time: 12, type: "push" },
+      { text: "RELAX AND LET GO", time: 10, type: "relax" },
+      { text: "RELAX — LET GO, DON'T STRAIN", time: 12, type: "relax" },
       { text: "SIT UP — CATCH BREATH", time: 5, type: "relax" },
-      { text: "LEAN FORWARD — PUSH AGAIN", time: 10, type: "push" },
-      { text: "FINAL STRAIN", time: 8, type: "push" }
+      { text: "LET GO AGAIN", time: 10, type: "relax" },
+      { text: "LET THE REST GO", time: 8, type: "relax" }
     ]
   },
   {
@@ -2286,11 +2286,11 @@ const MESSY_PUSHING_ACCIDENTS_D10 = [
     guide: [
       { text: "LEFT SIDE — KNEES UP", time: 5, type: "push" },
       { text: "RELAX COMPLETELY", time: 5, type: "relax" },
-      { text: "GENTLE PUSH", time: 8, type: "push" },
-      { text: "INCREASE EFFORT", time: 10, type: "push" },
-      { text: "HOLD PUSH — STEADY", time: 10, type: "push" },
+      { text: "RELAX AND LET GO", time: 8, type: "relax" },
+      { text: "LET A LITTLE MORE GO", time: 10, type: "relax" },
+      { text: "LET GO — STEADY", time: 10, type: "relax" },
       { text: "EASE OFF — BREATHE", time: 5, type: "relax" },
-      { text: "ONE MORE PUSH — DONE", time: 8, type: "push" }
+      { text: "LET THE REST GO", time: 8, type: "relax" }
     ]
   }
 ];
@@ -2325,10 +2325,10 @@ const GAUNTLET_STEP_POOL = [
   { cat: 'seated', steps: [{ text: "CIRCULAR HIP MOTION (10 circles)", t: [12, 20] }, { text: "STOP & HOLD", t: [15, 25] }] },
 
   // ---- KEGEL / PELVIC ----
-  { cat: 'kegel', steps: [{ text: "KEGEL — MAX CONTRACT", t: [10, 20] }, { text: "HOLD (no relaxing)", t: [15, 30] }] },
-  { cat: 'kegel', steps: [{ text: "RAPID KEGEL PULSES", t: [8, 15] }, { text: "FINAL HOLD", t: [10, 20] }] },
-  { cat: 'kegel', steps: [{ text: "SQUEEZE PELVIC FLOOR", t: [15, 25] }] },
-  { cat: 'kegel', steps: [{ text: "CLENCH EVERYTHING BELOW WAIST", t: [20, 35] }] },
+  { cat: 'kegel', steps: [{ text: "GENTLE SQUEEZE 5 s", t: [3, 5] }, { text: "RELAX THE SAME TIME", t: [3, 5] }] },
+  { cat: 'kegel', steps: [{ text: "QUICK FLICKS", t: [8, 10] }, { text: "RELAX", t: [5, 8] }] },
+  { cat: 'kegel', steps: [{ text: "SQUEEZE PELVIC FLOOR 5 s", t: [3, 5] }, { text: "RELAX", t: [3, 5] }] },
+  { cat: 'kegel', steps: [{ text: "GENTLE SQUEEZE, THEN RELAX", t: [5, 8] }] },
 
   // ---- BREATHING / PRESSURE ----
   { cat: 'breath', steps: [{ text: "DEEP INHALE (MAX)", t: [5, 8] }, { text: "HOLD BREATH", t: [10, 20] }, { text: "EXHALE & HOLD", t: [5, 10] }] },
@@ -2355,12 +2355,12 @@ const GAUNTLET_STEP_POOL = [
   const g = (text, time, type) => ({ text, time, type });
   const V15_REWRITES = {
     MICRO_STD_D6: {
-      'Pinprick Blink': 'One tiny spurt. Push 1s, then carry on. Nudge your wetness slider up a little.',
-      'Mini Stream': 'Push 2s, relax 4s, then clamp down 3s. Nudge your wetness slider up.',
+      'Pinprick Blink': 'One tiny spurt. Let go 1s, then carry on. Nudge your wetness slider up a little.',
+      'Mini Stream': 'Let go 2s, relax 4s, then a gentle squeeze 3s. Nudge your wetness slider up.',
       'Sticky Linger': 'Relax 4s, squeeze 3s, relax 3s more. Then carry on with what you were doing.'
     },
     MICRO_DIAPER_D8: {
-      'Pressure Check': 'Stay where you are. One quick push (half a second). Done.',
+      'Pressure Check': 'Stay where you are. One quick release (half a second). Done.',
       'Focus Drip': 'Keep looking at what you were doing. Relax for 3 seconds, then carry on.',
       'Seepage': 'Sit still. Relax gently for 4 seconds, then carry on.'
     },
@@ -2380,10 +2380,10 @@ const GAUNTLET_STEP_POOL = [
       { label: 'Wave Ride', flow: 'A wave comes. Hold 4s, give a little (2s), hold 4s.', classKey: 'micro_small', guide: [g('HOLD', 4, 'stop'), g('GIVE A LITTLE', 2, 'relax'), g('HOLD', 4, 'stop')] },
       { label: 'Sip Reminder', flow: 'Take a sip of your drink. Then one small spurt (1s).', classKey: 'micro_tiny', guide: [g('SIP', 3, 'stop'), g('SPURT', 1, 'push')] },
       { label: 'Stretch Leak', flow: 'Reach both arms up and stretch. Relax 2s while stretching.', classKey: 'micro_small', guide: [g('STRETCH UP', 3, 'stop'), g('LEAK', 2, 'relax')] },
-      { label: 'Two-Step', flow: 'Push 1s, wait 3s, push 2s. Follow the guide.', classKey: 'micro_big', guide: [g('PUSH', 1, 'push'), g('WAIT', 3, 'stop'), g('PUSH', 2, 'push')] }
+      { label: 'Two-Step', flow: 'Let go 1s, wait 3s, let go 2s. Follow the guide.', classKey: 'micro_big', guide: [g('LET GO', 1, 'relax'), g('WAIT', 3, 'stop'), g('LET GO', 2, 'relax')] }
     ],
     MICRO_DIAPER_D8: [
-      { label: 'Sneeze Spurt', flow: 'Fake a sneeze. One short push (1s).', classKey: 'micro_tiny', tmin: 6, tmax: 14, guide: [g('SNEEZE & PUSH', 1, 'push')] },
+      { label: 'Sneeze Spurt', flow: 'A sneeze. One short release (1s).', classKey: 'micro_tiny', tmin: 6, tmax: 14, guide: [g('SNEEZE', 1, 'relax')] },
       { label: 'Couch Sink', flow: 'Sit back and get comfy. Relax 3 seconds.', classKey: 'micro_small', tmin: 8, tmax: 16, guide: [g('SINK IN', 2, 'stop'), g('RELAX', 3, 'relax')] },
       { label: 'Triple Tap', flow: 'Three tiny pushes with a 1s gap. Follow the guide.', classKey: 'micro_small', tmin: 8, tmax: 16, guide: [g('TAP', 0.5, 'push'), g('GAP', 1, 'stop'), g('TAP', 0.5, 'push'), g('GAP', 1, 'stop'), g('TAP', 0.5, 'push')] },
       { label: 'Hold Then Give', flow: 'Hold tight 5s. Then relax 2s.', classKey: 'micro_small', tmin: 8, tmax: 18, guide: [g('HOLD TIGHT', 5, 'stop'), g('GIVE', 2, 'relax')] },
@@ -2394,11 +2394,11 @@ const GAUNTLET_STEP_POOL = [
     ],
     FULL_D20: [
       { label: 'Sit & Wait', flow: '<b>Sit & Wait:</b> Sit down. Hold 5s. Relax for 10s.', cls: 'full_light', guide: [g('SIT', 3, 'stop'), g('HOLD', 5, 'stop'), g('RELAX', 10, 'relax')] },
-      { label: 'Stand-Up Surprise', flow: '<b>Stand Up:</b> Stand. Push 3s. Stop 2s. Push 3s.', cls: 'full_light', tags: ['requires_standing'], guide: [g('STAND', 2, 'stop'), g('PUSH', 3, 'push'), g('STOP', 2, 'stop'), g('PUSH', 3, 'push')] },
+      { label: 'Stand-Up Surprise', flow: '<b>Stand Up:</b> Stand. Let go 3s. Stop 2s. Let go 3s.', cls: 'full_light', tags: ['requires_standing'], guide: [g('STAND', 2, 'stop'), g('LET GO', 3, 'relax'), g('STOP', 2, 'stop'), g('LET GO', 3, 'relax')] },
       { label: 'Three Waves', flow: '<b>Three Waves:</b> Relax 4s, hold 3s — three times.', cls: 'full_light', guide: [g('WAVE', 4, 'relax'), g('HOLD', 3, 'stop'), g('WAVE', 4, 'relax'), g('HOLD', 3, 'stop'), g('WAVE', 4, 'relax')] },
       { label: 'Lost Track', flow: '<b>Lost Track:</b> Keep doing what you were doing. Relax for 12 seconds.', cls: 'full_moderate', guide: [g('KEEP GOING', 12, 'relax')] },
       { label: 'Couldn\'t Make It', flow: '<b>Almost There:</b> Stand up. Hold 5s. Relax 15s where you are.', cls: 'full_moderate', tags: ['requires_standing'], guide: [g('STAND', 2, 'stop'), g('HOLD', 5, 'stop'), g('LET GO', 15, 'relax')] },
-      { label: 'Stop-Start', flow: '<b>Stop-Start:</b> Push 5s, stop 3s, push 5s, stop 3s, push 5s.', cls: 'full_moderate', guide: [g('PUSH', 5, 'push'), g('STOP', 3, 'stop'), g('PUSH', 5, 'push'), g('STOP', 3, 'stop'), g('PUSH', 5, 'push')] },
+      { label: 'Stop-Start', flow: '<b>Stop-Start:</b> Let go 5s, stop 3s, let go 5s, stop 3s, let go 5s. If stopping hurts, just finish.', cls: 'full_moderate', guide: [g('LET GO', 5, 'relax'), g('STOP', 3, 'stop'), g('LET GO', 5, 'relax'), g('STOP', 3, 'stop'), g('LET GO', 5, 'relax')] },
       { label: 'Big Wave', flow: '<b>Big Wave:</b> Sit still. Relax for 20 seconds.', cls: 'full_heavy', guide: [g('RELAX', 20, 'relax')] },
       { label: 'Everything Out', flow: '<b>Everything Out:</b> Sit or stand still. Relax until the guide ends.', cls: 'full_total', guide: [g('RELAX', 25, 'relax')] }
     ],

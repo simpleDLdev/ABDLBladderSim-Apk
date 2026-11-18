@@ -7,8 +7,23 @@ let currentGuideSeq = [];
 // Add global variable
 let currentGuideType = 'full';
 
-function startVoidGuide(seq, instructionText = "", type = "full", trackingOutcome = null) {
+function startVoidGuide(seq, instructionText = "", type = "full", trackingOutcome = null, fromQueue = false) {
   if (!seq || seq.length === 0) return;
+  const guideKey = 'guide:' + String(instructionText || type || 'guide').slice(0, 48);
+  if (!fromQueue && window.BSEventQueue) {
+    const banner = (typeof $ === 'function') ? $('alarmBanner') : null;
+    const bannerOpen = !!(banner && banner.style.display === 'flex');
+    const current = window.BSEventQueue.current();
+    const blocked = bannerOpen || (current && current.kind !== 'guide');
+    if (blocked) {
+      window.BSEventQueue.offer({
+        key: guideKey, kind: 'guide',
+        show: () => startVoidGuide(seq, instructionText, type, trackingOutcome, true)
+      });
+      return;
+    }
+    if (!current) window.BSEventQueue.offer({ key: guideKey, kind: 'guide' });
+  }
 
   isGuideComplete = false;
   currentGuideSeq = seq;
@@ -66,6 +81,32 @@ function reportFalseAlarm(type) {
     // Just let the background loop continue naturally.
     console.log("Micro skipped. Main timer unaffected.");
   }
+}
+
+/** Relax / void length comes from calibration. Push steps still use the leak slider. */
+function guideReleaseSeconds(rawStep) {
+  const authored = rawStep && rawStep.time;
+  const scale = (typeof leakTimeScale === 'number' && leakTimeScale > 0) ? leakTimeScale : 1;
+  if (!(authored && rawStep && ['push', 'relax'].includes(rawStep.type))) return authored;
+  if (rawStep.type === 'push') return Math.max(1, Math.round(authored * scale));
+  const calib = {};
+  try {
+    const Cb = window.BSCalib;
+    if (Cb && Cb.load && Cb.summarize) {
+      const d = Cb.load() || {};
+      if (d.trials && d.trials.length) {
+        const s = Cb.summarize(d.trials);
+        calib.medianSec = s.medianSec;
+        calib.ml = s.medianMl;
+        calib.flowMlS = s.flowMlS;
+      }
+    }
+  } catch (e) {}
+  if (scale > 1.5) calib.capMul = scale;
+  try {
+    if (window.BSCalib && window.BSCalib.stepReleaseSeconds) return window.BSCalib.stepReleaseSeconds(rawStep, calib);
+  } catch (e) {}
+  return Math.max(1, Math.round(Math.min(authored, (calib.medianSec || 14) * 1.5)));
 }
 
 function runGuideStep() {
@@ -148,10 +189,7 @@ function runGuideStep() {
   // --- CASE 3: RUNNING (Normal Steps) ---
 
   const rawStep = currentGuideSeq[currentGuideStep];
-  // Apply leak time scale to push/relax steps
-  const scaledTime = (rawStep.time && ['push', 'relax'].includes(rawStep.type))
-    ? Math.max(1, Math.round(rawStep.time * leakTimeScale))
-    : rawStep.time;
+  const scaledTime = guideReleaseSeconds(rawStep);
   const step = { ...rawStep, time: scaledTime };
   const needsPushToLeak = isPushToLeakStep(step.type, step.time);
 
@@ -173,9 +211,20 @@ function runGuideStep() {
   // Show/hide push-to-leak button for leak steps
   showPushToLeakButton(needsPushToLeak);
 
-  // Hide Button, Show Timer
-  uiBtn.style.display = 'none';
+  // Timer, plus I'm done so a release can end when the bladder is empty.
+  const canFinishEarly = step.type === 'relax' || step.type === 'void' || step.type === 'release';
+  uiBtn.style.display = canFinishEarly ? 'inline-block' : 'none';
   uiTimer.style.display = 'block';
+  if (canFinishEarly) {
+    uiBtn.textContent = "I'm done";
+    uiBtn.onclick = () => {
+      clearInterval(guideInterval);
+      showPushToLeakButton(false);
+      currentGuideStep++;
+      uiTimer.style.opacity = '1';
+      runGuideStep();
+    };
+  }
 
   const prevStep = currentGuideSeq[currentGuideStep - 1];
   const nextStep = currentGuideSeq[currentGuideStep + 1];
@@ -316,7 +365,7 @@ function generateRandomGuideSteps(intensity) {
   const cfg = configs[intensity] || configs.moderate;
 
   const vocabulary = {
-    push:  ["PUSH", "PUSH OUT", "EMPTY", "GUSH", "SPURT", "DRAIN", "FORCE OUT", "RELEASE"],
+    push:  ["LET GO", "RELAX", "RELEASE", "LET IT FLOW", "EASE OUT", "SOFTEN", "GENTLE RELEASE"],
     relax: ["RELAX", "BREATHE", "EASE UP", "LET FLOW", "SOFTEN", "GENTLE FLOW", "SLOW STREAM"],
     stop:  ["HOLD", "CLENCH", "STOP", "SQUEEZE", "TIGHTEN", "CLAMP"]
   };
@@ -374,8 +423,8 @@ function generateBabysitterGauntlet() {
     cfg.maxTime = Math.max(cfg.minTime, cfg.maxTime - 2);
   }
 
-  const holdTexts = ["SQUEEZE TIGHT", "HOLD IT", "CROSS LEGS", "KEGEL HARD", "CLAMP DOWN",
-                     "DON'T LET GO", "PRESS HARD", "FLEX & HOLD", "LOCK DOWN", "TIGHTEN UP"];
+  const holdTexts = ["GENTLE SQUEEZE", "HOLD A LITTLE", "CROSS LEGS", "BREATHE", "SOFTEN",
+                     "EASE OFF IF IT GETS STRONG", "BREATHE OUT", "SQUEEZE AND RELEASE", "REST", "NOTICE"];
   const leakTexts = ["LOSING GRIP", "SPASM", "PRESSURE WAVE", "SPHINCTER FLUTTER", "URGE SPIKE"];
 
   // Leak risk based on continence — lower continence = more leak steps
@@ -451,6 +500,11 @@ function buildRandomGauntlet(difficulty) {
 let isRestroomTrip = false;
 let isPreviewMode = false; // Set true when event is being previewed from Event Builder
 
+function releaseGuideQueue() {
+  if (!window.BSEventQueue) return;
+  const cur = window.BSEventQueue.current();
+  if (cur && cur.kind === 'guide') window.BSEventQueue.completeActive();
+}
 function closeVoidGuide() {
   clearInterval(guideInterval);
   stopChime(); // Ensure chime stops when guide is dismissed
@@ -480,14 +534,20 @@ function closeVoidGuide() {
       if (sessionRunning) {
         scheduleMainEvent({ min: window.gauntletIntervalMin || 5, max: window.gauntletIntervalMax || 20 });
       }
+      releaseGuideQueue();
       return;
     }
     if (profileMode === 'chaos_manual') {
       logToOutput(`<span style="color:#ff7675; font-style:italic;">⚠️ <b>Skipped:</b> You bailed — maybe next time!</span>`);
+      releaseGuideQueue();
       return;
     }
     logToOutput(`<span style="color:#7cc4ff; font-style:italic;">⚠️ <b>Guide Aborted:</b> You stopped early. Checking hydration levels...</span>`);
-    triggerHydrationEvent(); // Force Drink
+    let low = false;
+    try { low = window.BSTank && !window.BSTank.canVoid(window.BSTank.load()); } catch (e) {}
+    if (low) logToOutput(`<span style="color:#7cc4ff">💧 Tank is low, so the next thing is a sip, not another void.</span>`);
+    if (window.BSEventQueue) window.BSEventQueue.offer({ key: 'sip', kind: 'sip', show: () => triggerHydrationEvent(true) });
+    else triggerHydrationEvent(true);
   }
 
   if (isGuideComplete) {
@@ -507,6 +567,7 @@ function closeVoidGuide() {
     if (isGuideComplete) {
       logToOutput(`<span style="color:#ff7675; font-style:italic;">🎲 Roll complete. Press the button when you're ready for another!</span>`);
     }
+    releaseGuideQueue();
     return;
   }
 
@@ -527,6 +588,7 @@ function closeVoidGuide() {
         // Handle both string or array for message variety
         const msg = Array.isArray(cfg.microCompleteMsg) ? pick(cfg.microCompleteMsg) : cfg.microCompleteMsg;
         logToOutput(`<span style="color:#fab1a0; font-style:italic;">${msg}</span>`);
+        releaseGuideQueue();
         return;
       }
       case 'gauntlet':
@@ -534,16 +596,20 @@ function closeVoidGuide() {
         if (sessionRunning) {
           scheduleMainEvent({ min: window.gauntletIntervalMin || 5, max: window.gauntletIntervalMax || 20 });
         }
+        releaseGuideQueue();
         return;
       default:
         scheduleForcedCheck();
+        releaseGuideQueue();
         return;
     }
   } else {
     scheduleForcedCheck();
+    releaseGuideQueue();
     return;
   }
 
+  releaseGuideQueue();
   setTimeout(() => {
     if (sessionRunning) {
       startChime(440);

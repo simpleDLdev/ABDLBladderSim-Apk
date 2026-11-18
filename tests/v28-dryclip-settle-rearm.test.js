@@ -40,19 +40,19 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
 (async () => {
   // ---------- 1. defaults ----------
   ok(DC.load().rearmMin === 20, 'default rearmMin is 20');
-  ok(DC.SETTLE_ON_CONNECT_MS === 20000 && DC.IGNORE_AFTER_ARM_MS === 20000, 'settle and post-arm windows are 20 s');
+  ok(DC.SETTLE_ON_CONNECT_MS === 0 && DC.IGNORE_AFTER_ARM_MS === 4000, 'no settle-on-connect; arm suppress is 4 s');
   ok(DC.REARM_BY_PROT.pad === 20 && DC.REARM_BY_PROT.pullups === 25 && DC.REARM_BY_PROT.diapers === 30 && DC.REARM_BY_PROT.thick_diapers === 40 && DC.REARM_BY_PROT.none === 15, 'protection → re-arm map');
 
   // ---------- 2. decideWet: pairing / settling never yields 'new' ----------
   const now = 1_800_000_000_000;
   const W = (b, secs) => ({ wet: !!(b & 1), armed: !!(b & 2), arming: !!(b & 0x10), secs });
-  ok(DC.decideWet(W(0x03, 2), now, { settling: true }) === 'arming', 'settling → treat as arming (no calendar wet)');
-  ok(DC.decideWet(W(0x03, 2), now, { pairing: true }) === 'arming', 'pairing → no calendar wet');
+  ok(DC.decideWet(W(0x03, 2), now, { settling: true }) === 'new', 'an armed wet is not swallowed by a settling flag');
+  ok(DC.decideWet(W(0x01, 2), now, { pairing: true }) === 'not_armed', 'disarmed wet does not notify, even while pairing');
   ok(DC.decideWet(W(0x03, 5), now, { ignoreUntil: now + 15000 }) === 'ignore_window', 'inside ignoreUntil → ignore_window');
   const ig = now - 5000;
   ok(DC.decideWet(W(0x03, 2), now, { ignoreUntil: now + 15000 }) === 'ignore_window', 'inside settle window stays ignore_window');
-  ok(DC.decideWet(W(0x03, 40), ig + DC.SETTLE_ON_CONNECT_MS + 10000, { ignoreUntil: ig + DC.SETTLE_ON_CONNECT_MS }) === 'latched_touch',
-     'post-settle latched touch is not a new wet');
+  ok(DC.decideWet(W(0x03, 40), ig + 10000, { ignoreUntil: ig }) === 'new',
+     'armed wet seen after the short window notifies, even if secsSinceWet is large');
   ok(DC.decideWet(W(0x03, 3), now + 60000, { ignoreUntil: now + 10000 }) === 'new' ||
      DC.decideWet(W(0x03, 3), ig + DC.SETTLE_ON_CONNECT_MS + 30000, { ignoreUntil: ig + DC.SETTLE_ON_CONNECT_MS }) === 'new',
      'wet starting after settle → new');
@@ -86,10 +86,10 @@ let fail = 0; const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); i
   const svc = fs.readFileSync(path.join(kdir, 'DryClipService.kt'), 'utf8');
   const storeKt = fs.readFileSync(path.join(kdir, 'DryClipStore.kt'), 'utf8');
   const proto = fs.readFileSync(path.join(kdir, 'DryClipProtocol.kt'), 'utf8');
-  ok(/SETTLE_ON_CONNECT_MS = 20_000L/.test(proto), 'protocol SETTLE_ON_CONNECT_MS');
+  ok(/SETTLE_ON_CONNECT_MS = 0L/.test(proto), 'protocol does not settle-ignore on connect');
   ok(/getFloat\("rearmMin", 20f\)/.test(storeKt), 'store default rearmMin 20');
-  ok(/SETTLE_ON_CONNECT_MS/.test(svc) && /Pairing \/ settling/.test(svc), 'service sets settle window on connect');
-  ok(/already armed on connect/.test(svc) && /IGNORE_AFTER_ARM_MS/.test(svc), 'already-armed-on-connect also settles');
+  ok(!/ignoring wet until/.test(svc) && /Bond is not required/.test(svc), 'connect does not open a wet-ignore window');
+  ok(/already armed on connect/.test(svc) && /A touch or wet notifies/.test(svc), 'already-armed connect does not swallow the next wet');
   ok(/Settling… \(touch ignored\)/.test(svc) && /Armed · listening/.test(svc) && /Reconnecting · looking for clip/.test(svc), 'notification reflects Settling / Armed / Reconnecting');
   ok(/phase\(\)/.test(svc) && /\.put\("settling"/.test(svc), 'status exposes phase + settling');
   ok(/fun arm\(source: String\)/.test(svc) && /Re-arm while armed/.test(svc), 'manual re-arm path still present');
