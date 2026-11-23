@@ -29,7 +29,38 @@
   function saveSettings(p) { localStorage.setItem(SKEY, JSON.stringify(Object.assign(settings(), p))); return settings(); }
   function get() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return null; } }
   function put(st) { if (st) localStorage.setItem(KEY, JSON.stringify(st)); else localStorage.removeItem(KEY); }
-  function active() { const s = get(); return !!(s && s.phase && s.phase !== 'bedtime'); }
+  const MORNING_ID = 1962, STALE_MS = 18 * 3600e3;
+  /** v60: when the morning check-in is due (night conditioning wake time, or the Natural Night reminder). */
+  function morningAt(st) { st = st || get(); if (!st) return null; return (st.cond && st.cond.wakeAt) || st.morningAt || null; }
+  /** v60: silence is scoped to the night. It ends at the wake time, when a day session starts
+      (silenceOff), and a night left open far too long is never silent. Night conditioning owns its own check. */
+  function active(now) {
+    const s = get(); now = now || Date.now();
+    if (!s || !s.phase || s.phase === 'bedtime' || s.silenceOff) return false;
+    if (s.cond) return !!(window.BSNightCond && window.BSNightCond.quietNow && window.BSNightCond.quietNow(now));
+    if (s.morningAt && now >= s.morningAt) return false;
+    if (s.bedtime && now - s.bedtime > STALE_MS) return false;
+    return true;
+  }
+  function morningDue(now) { const st = get(); now = now || Date.now(); const at = morningAt(st); return !!(st && !st.silenceOff && st.phase !== 'bedtime' && at && now >= at); }
+  /** v60: the morning check-in notification. Kept through every quiet path; DryClip owns it when the clip is armed. */
+  function pendingAlarm(now) {
+    now = now || Date.now();
+    const st = get(); if (!st || st.phase === 'morning' || st.silenceOff) return null;
+    const at = morningAt(st); if (!at || at < now - 60000) return null;
+    try { if (st.cond && st.cond.optedIn && window.BSDryClip && window.BSDryClip.pendingAlarm && window.BSDryClip.pendingAlarm(now)) return null; } catch (e) {}
+    return { id: MORNING_ID, at: Math.floor(at), kind: 'reminder', allowWhileIdle: true, channel: 'bs_morning_v1',
+      title: 'Good morning', body: st.cond ? 'Night conditioning: tap for your morning check-in.' : 'Natural Night: tap for your morning check-in.' };
+  }
+  /** v60: a day session started. Keep the night for its check-in, but stop muting anything. */
+  function endSilence(reason) {
+    const st = get(); if (!st || st.silenceOff) return false;
+    st.silenceOff = reason || 'day';
+    put(st); close();
+    try { if (typeof window.nativeNotifySync === 'function') window.nativeNotifySync(); } catch (e) {}
+    log(`🌙 ${st.cond ? 'Night conditioning' : 'Natural Night'} is no longer silent (${esc(reason || 'day session')}). Its morning check-in is still in Nights.`);
+    return true;
+  }
   const toMl = (v, unit) => { v = +v; if (!isFinite(v) || v <= 0) return null; return Math.round(unit === 'oz' ? v * OZ : v); };
   const showAmt = (ml, unit) => unit === 'oz' ? `${Math.round(ml / OZ * 10) / 10} oz` : `${Math.round(ml)} ml`;
   /** "HH:MM" → timestamp at or before ref (before=true) or at/after ref. */
@@ -68,8 +99,9 @@
   function begin(b) {
     const now = b.bedtime || Date.now();
     const drinks = (b.drinks || []).filter(d => d && d.ml > 0 && d.ts).map(d => ({ ts: +d.ts, ml: Math.round(+d.ml) }));
-    const st = { v: 1, phase: 'night', bedtime: now, drinks, lastPeeAt: b.lastPeeAt || null, protection: b.protection || 'none', bedMemo: b.memo || '', unit: settings().unit,
+    const st = { v: 1, phase: 'night', bedtime: now, morningAt: b.morningAt || null, drinks, lastPeeAt: b.lastPeeAt || null, protection: b.protection || 'none', bedMemo: b.memo || '', unit: settings().unit,
       timeline: [], wakes: 0, awake: false, pendingRoll: null };
+    if (b.cond) st.cond = b.cond;   // v60: night conditioning layer (no timer, no sips, no alarms)
     drinks.forEach(d => st.timeline.push({ k: 'drink', ts: d.ts, ml: d.ml, pre: 1 }));
     if (st.lastPeeAt) st.timeline.push({ k: 'pee', ts: st.lastPeeAt, pre: 1 });
     st.timeline.push({ k: 'bed', ts: now, memo: b.memo || undefined });
@@ -78,9 +110,12 @@
     put(st);
     try { if (typeof stopChime === 'function') stopChime(); } catch (e) {}
     try { if (typeof window.nativeNotifySync === 'function') window.nativeNotifySync(); } catch (e) {}
-    log(`🌙 <b>Natural Night started</b> — bedtime ${fmtT(now)}. Silent mode: no alarms, sounds or reminders.`);
+    log(st.cond ? `🌙 <b>Night conditioning started</b> — bedtime ${fmtT(now)}. Silent like a Natural Night: no event timer, no sips, no alarms.` : `🌙 <b>Natural Night started</b> — bedtime ${fmtT(now)}. Silent mode: no alarms, sounds or reminders.`);
     return st;
   }
+  /** v60: change the conditioning layer of the running night in place. */
+  function condUpdate(fn) { const st = get(); if (!st || !st.cond) return null; try { fn(st.cond, st); } catch (e) {} put(st); return st; }
+  function refresh() { if (document.getElementById('nnOverlay') && get() && get().phase !== 'morning') renderNight(); }
   function push(ev) { const st = get(); if (!st) return null; st.timeline.push(Object.assign({ ts: Date.now() }, ev)); put(st); return st; }
   function wake(ts) {
     const st = get(); if (!st) return null; st.wakes++; st.awake = true; st.timeline.push({ k: 'wake', ts: ts || Date.now() }); put(st);
@@ -117,7 +152,7 @@
   function toMorning() { const st = get(); if (!st) return null; st.phase = 'morning'; put(st); return st; }
   /** Final rise: getting up for the day — logs rise time, ends the night, opens morning check-in. */
   function rise(ts) { const st = get(); if (!st) return null; ts = ts || Date.now(); st.timeline = st.timeline.filter(t => t.k !== 'rise'); st.timeline.push({ k: 'rise', ts }); st.riseAt = ts; st.awake = false; st.pendingRoll = null; st.phase = 'morning'; put(st); return st; }
-  function cancel() { put(null); close(); try { if (typeof window.nativeNotifySync === 'function') window.nativeNotifySync(); } catch (e) {} }
+  function cancel() { const was = get(); put(null); close(); if (was && was.cond) { window._condTrack = 'day'; } try { if (typeof window.nativeNotifySync === 'function') window.nativeNotifySync(); } catch (e) {} }
 
   /** Prefill for the morning check-in from night data. */
   function prefill(st) {
@@ -158,9 +193,15 @@
         fluidMl: x.fluidMl, remembered: m.rem, saturation: sat, urgency: m.urg, messy: !!(m.messy && messyOn()), nn },
       memo: m.memo || undefined };
     if (m.wet) entry.night.saturation = sat || 60;
+    if (st.cond) {
+      entry.tags.push('night-conditioning');
+      try { entry.night.cond = window.BSNightCond && window.BSNightCond.onMorning ? window.BSNightCond.onMorning(st, m) : { events: (st.cond.events || []).map(e => e.label) }; } catch (e) {}
+      if (m.wets != null) entry.night.wets = +m.wets || 0;
+      if (m.feeling) entry.night.feeling = m.feeling;
+    }
     const C = window.BSCalendar; const saved = C ? C.addEntry(entry) : null;
     put(null);
-    log(`☀️ <b>Natural Night saved</b> — ${m.wet ? 'wet' : 'dry'} · ${x.wakes} wake(s) · ${showAmt(x.fluidMl, st.unit)} fluids · in bed ${Math.floor(x.timeInBedMin / 60)}h ${pad2(x.timeInBedMin % 60)}m.`);
+    log(`☀️ <b>${st.cond ? 'Night conditioning' : 'Natural Night'} saved</b> — ${m.wet ? 'wet' : 'dry'} · ${x.wakes} wake(s) · ${showAmt(x.fluidMl, st.unit)} fluids · in bed ${Math.floor(x.timeInBedMin / 60)}h ${pad2(x.timeInBedMin % 60)}m.`);
     try { if (typeof window.nativeNotifySync === 'function') window.nativeNotifySync(); } catch (e) {}
     return saved;
   }
@@ -188,6 +229,7 @@
     const st = get();
     if (!st) return renderBedtime();
     if (st.phase === 'morning') return renderMorning();
+    if (morningDue() && !st.awake) return renderMorning();   // v60: the morning notification opens the check-in
     return renderNight();
   }
 
@@ -204,6 +246,8 @@
       <ul id="nnDrList" class="nn-list"></ul>
       <label class="nn-fld"><span>🚽 Time of last pee</span><input id="nnLastPee" type="time" value="${hhmm(now)}"></label>
       <label class="nn-fld"><span>🧷 Protection worn</span><select id="nnProt">${protOpts(cur)}</select></label>
+      <label class="nn-fld"><span>☀️ Morning check-in reminder (blank = none)</span><input id="nnMorningAt" type="time" value="07:00"></label>
+      <div id="nnNotifWarn" class="nn-muted"></div>
       <label class="nn-fld"><span>📝 Memo (optional)</span><textarea id="nnBedMemo" rows="2"></textarea></label>
       <button id="nnGoBed" class="nn-big nn-primary">🌙 Going to bed now</button>
       <button id="nnCancel" class="nn-btn nn-ghost">Cancel</button></div>`;
@@ -218,20 +262,62 @@
       draftDrinks.push({ ts, ml }); draftDrinks.sort((a, b) => a.ts - b.ts); o.querySelector('#nnDrAmt').value = ''; list();
     };
     o.querySelector('#nnGoBed').onclick = () => {
-      begin({ drinks: draftDrinks, lastPeeAt: timeTs(o.querySelector('#nnLastPee').value, Date.now(), true), protection: o.querySelector('#nnProt').value, memo: o.querySelector('#nnBedMemo').value.trim() });
+      const mv = o.querySelector('#nnMorningAt') ? o.querySelector('#nnMorningAt').value : '';
+      let mAt = mv ? timeTs(mv, Date.now(), false) : null; if (mAt && mAt <= Date.now() + 60000) mAt += 864e5;
+      begin({ drinks: draftDrinks, lastPeeAt: timeTs(o.querySelector('#nnLastPee').value, Date.now(), true), protection: o.querySelector('#nnProt').value, memo: o.querySelector('#nnBedMemo').value.trim(), morningAt: mAt });
+      if (mAt && window.BSNativeAlarm && window.BSNativeAlarm.prepareMorning) window.BSNativeAlarm.prepareMorning().then(r => { if (r && r.warning) { log('⚠️ ' + esc(r.warning)); if (typeof toast === 'function') toast(r.warning); } }).catch(() => {});
       draftDrinks = []; renderNight();
     };
     o.querySelector('#nnCancel').onclick = () => { draftDrinks = []; close(); };
     apply();
   }
 
-  let clockTimer = null, panel = null, lastRoll = null;
+  let clockTimer = null, panel = null, lastRoll = null, lastCond = null;
+  const NC = () => window.BSNightCond || null;
+  /** v60: the conditioning layer's buttons on the silent night screen. */
+  function condBody(st) {
+    const c = st.cond;
+    if (!st.awake) {
+      return `<button id="nnWoke" class="nn-huge">👀 I woke up<br><span style="font-size:0.55em;font-weight:600;">(urge, already wet, or dry)</span></button>
+        <button id="nnCPee" class="nn-big">🚽 I need to pee</button>
+        <button id="nnRise" class="nn-big nn-rise">☀️ Getting up for the day<br><span style="font-size:0.7em;font-weight:600;">ends the night → morning check-in</span></button>`;
+    }
+    if (st.pendingRoll) {
+      return `<div class="nn-result ok">✅ Potty pass — get up and go.</div>
+        <button id="nnPeeDone" class="nn-big nn-primary">✅ Went to the toilet</button>
+        <button id="nnSkipPee" class="nn-btn">Didn't go after all</button>`;
+    }
+    if (panel === 'condEv' && lastCond) {
+      return `<div class="nn-result stay">🌙 ${esc(lastCond.label || 'Night event')}</div>
+        <div class="nn-rule">${lastCond.desc || ''}</div>
+        <button id="nnCGuide" class="nn-big">▶ Show the guide again</button>
+        <button id="nnSleep" class="nn-big nn-primary">😴 Back to sleep</button>
+        <button id="nnRise" class="nn-big nn-rise">☀️ Getting up for the day</button>`;
+    }
+    if (panel === 'check') return null;
+    return `<div class="nn-muted">What woke you?</div>
+      <div class="nn-cwake"><button id="nnCUrge" class="nn-big">I have an urge</button><button id="nnCWet" class="nn-big">Already wet</button><button id="nnCDry" class="nn-big">Dry</button></div>
+      <button id="nnCPee" class="nn-big">🚽 I need to pee</button>
+      <button id="nnOptCheck" class="nn-btn">🔎 Log check</button>
+      <button id="nnSleep" class="nn-big nn-primary">😴 Back to sleep</button>
+      <button id="nnRise" class="nn-big nn-rise">☀️ Getting up for the day</button>`;
+  }
+  function condLine(st) {
+    const c = st.cond; if (!c) return '';
+    const evs = (c.events || []).length, wets = (c.clipWets || []).length;
+    const late = c.wakeAt && Date.now() >= c.wakeAt;
+    return `<div class="nn-muted nn-cond-line">🌙 Night conditioning · no event timer · DryClip ${c.optedIn ? esc(c.clipMode) : 'off'} · events ${evs}${c.optedIn ? ' · clip wets ' + wets : ''} · morning ${esc(c.wake || '')}</div>`
+      + (late ? '<div class="nn-result ok">☀️ Wake time reached — tap Getting up for the day.</div>' : '');
+  }
   function renderNight() {
     const o = ov(), st = get(); if (!st) return close();
     const s = settings();
     const sinceBed = Math.round((Date.now() - st.bedtime) / 60000);
     let body = '';
-    if (!st.awake) {
+    const cb = st.cond ? condBody(st) : null;
+    if (cb) {
+      body = cb;
+    } else if (!st.awake) {
       body = `<button id="nnWoke" class="nn-huge">👀 Woke up<br><span style="font-size:0.55em;font-weight:600;">(still night — back to sleep after)</span></button>
         <button id="nnRise" class="nn-big nn-rise">☀️ Getting up for the day<br><span style="font-size:0.7em;font-weight:600;">ends the night → morning check-in</span></button>`;
     } else if (st.pendingRoll) {
@@ -267,6 +353,7 @@
     o.innerHTML = `<div class="nn-night" id="nnNight">
       <div class="nn-clock" id="nnClock">${fmtT(Date.now())}</div>
       <div class="nn-muted">In bed since ${fmtT(st.bedtime)} · ${Math.floor(sinceBed / 60)}h ${pad2(sinceBed % 60)}m · wakes ${st.wakes} · 🔕 silent</div>
+      ${condLine(st)}
       <div class="nn-body">${body}</div>
       <div class="nn-foot">${panel !== 'drink' && !st.pendingRoll ? '<button id="nnOptDrink" class="nn-btn">🥤 Log a drink</button>' : ''}
         <button id="nnMin" class="nn-btn nn-ghost">Minimise</button></div></div>`;
@@ -292,6 +379,17 @@
     on('nnSaveCheck', () => { logCheck({ sat: +o.querySelector('#nnCS').value, urg: +o.querySelector('#nnCU').value * 10, leak: rv(o, 'nnCL') === '1', rem: rv(o, 'nnCR'), messy: rv(o, 'nnCM') === '1', memo: o.querySelector('#nnCMemo').value.trim() }); panel = null; renderNight(); });
     on('nnSaveDrink', () => { const ml = toMl(o.querySelector('#nnNDAmt').value, s.unit); if (ml) addDrink(ml); panel = null; renderNight(); });
     on('nnRise', () => { rise(); panel = null; renderMorning(); });
+    const condWake = answers => { const n = NC(); lastCond = n && n.wakeEvent ? n.wakeEvent(answers) : null; panel = lastCond ? 'condEv' : null; renderNight(); };
+    on('nnCUrge', () => condWake({ urge: true, wet: false }));
+    on('nnCWet', () => condWake({ urge: false, wet: true }));
+    on('nnCDry', () => condWake({ urge: false, wet: false }));
+    on('nnCPee', () => {
+      const x = get(); if (x && !x.awake) wake();
+      const n = NC(); const r = n && n.needToPee ? n.needToPee({ noRender: true }) : null;
+      if (r && r.kind === 'event') { lastCond = r.event; panel = 'condEv'; } else { panel = null; }
+      renderNight();
+    });
+    on('nnCGuide', () => { if (lastCond && typeof startVoidGuide === 'function') startVoidGuide(lastCond.guide, lastCond.desc || lastCond.label, lastCond.size === 'full' ? 'full' : 'micro'); });
     on('nnMin', () => close());
     clearInterval(clockTimer);
     clockTimer = setInterval(() => { const c = document.getElementById('nnClock'); if (!c) { clearInterval(clockTimer); return; } c.textContent = fmtT(Date.now()); }, 15000);
@@ -310,16 +408,21 @@
       <div class="nn-fld"><span>Leaked?</span>${seg('nnML', [['1', 'Yes'], ['0', 'No']], p.leak ? '1' : '0')}</div>
       ${urgSel('nnMU', Math.round(p.urg / 10))}
       ${messyOn() ? `<div class="nn-fld"><span>Messy?</span>${seg('nnMM', [['1', 'Yes'], ['0', 'No']], '0')}</div>` : ''}
+      ${st.cond ? `<div class="nn-row"><label class="nn-fld"><span>Wets tonight</span><input id="nnMWets" type="number" min="0" inputmode="numeric" value="${(st.cond.clipWets || []).length || (p.wet ? 1 : 0)}"></label>
+      <label class="nn-fld"><span>How do you feel?</span><input id="nnMFeel" type="text" placeholder="sleepy, fine, soggy"></label></div>
+      <div class="nn-muted">🌙 Night conditioning: ${(st.cond.events || []).length} event(s)${(st.cond.events || []).length ? ' — ' + (st.cond.events || []).map(e => esc(e.label)).join(', ') : ''}${st.cond.optedIn ? ` · DryClip ${esc(st.cond.clipMode)}: ${(st.cond.clipWets || []).length} wet(s)${(st.cond.clipWets || []).length ? ' at ' + st.cond.clipWets.map(w => fmtT(w.at)).join(', ') : ''}` : ''} · wore ${esc(st.cond.worn || st.cond.gear || '')}</div>` : ''}
       <label class="nn-fld"><span>Memo</span><textarea id="nnMMemo" rows="2"></textarea></label>
       <div id="nnSummary" class="nn-summary"></div>
-      <button id="nnSaveMorning" class="nn-big nn-primary">💾 Save Natural Night</button>
+      <button id="nnSaveMorning" class="nn-big nn-primary">💾 Save ${st.cond ? 'night' : 'Natural Night'}</button>
       <button id="nnBackNight" class="nn-btn">◀ Back to night</button>
       <button id="nnDiscard" class="nn-btn nn-ghost">Discard night</button></div>`;
     const read = () => {
       const wakeAt = timeTs(o.querySelector('#nnMWake').value, Date.now(), true) || Date.now();
       const asl = o.querySelector('#nnMAsleep').value ? timeTs(o.querySelector('#nnMAsleep').value, st.bedtime, false) : null;
       return { wakeAt: Math.max(wakeAt, st.bedtime), asleepAt: asl, wet: rv(o, 'nnMW') === '1', rem: rv(o, 'nnMR'), sat: +o.querySelector('#nnMS').value, leak: rv(o, 'nnML') === '1',
-        urg: +o.querySelector('#nnMU').value * 10, messy: rv(o, 'nnMM') === '1', memo: o.querySelector('#nnMMemo').value.trim() };
+        urg: +o.querySelector('#nnMU').value * 10, messy: rv(o, 'nnMM') === '1', memo: o.querySelector('#nnMMemo').value.trim(),
+        wets: o.querySelector('#nnMWets') ? +o.querySelector('#nnMWets').value || 0 : undefined,
+        feeling: o.querySelector('#nnMFeel') ? o.querySelector('#nnMFeel').value.trim() : undefined };
     };
     const sum = () => { const m = read(), x = metrics(st, m.wakeAt, m.asleepAt), hm = v => `${Math.floor(v / 60)}h ${pad2(v % 60)}m`;
       o.querySelector('#nnSummary').innerHTML = `🛏️ Time in bed <b>${hm(x.timeInBedMin)}</b> · 😴 est. sleep <b>${hm(x.sleepMin)}</b><br>🚽 Hours since last pee <b>${x.hoursSincePee == null ? '—' : x.hoursSincePee}</b> · 🥤 Total fluids <b>${showAmt(x.fluidMl, st.unit)}</b> (${showAmt(x.fluidBeforeBedMl, st.unit)} before bed) · 👀 ${x.wakes} wake(s)`; apply(); };
@@ -327,7 +430,7 @@
     sum();
     o.querySelector('#nnSaveMorning').onclick = () => {
       const saved = finish(read()); close();
-      if (typeof toast === 'function') toast('Natural Night saved to calendar');
+      if (typeof toast === 'function') toast((st.cond ? 'Night conditioning' : 'Natural Night') + ' saved to calendar');
       if (typeof switchTab === 'function') switchTab('calendar');
       return saved;
     };
@@ -350,12 +453,15 @@
     c.querySelectorAll('select').forEach(x => x.onchange = upd);
     apply();
   }
-  function updateButton() { const b = document.getElementById('btnNaturalNight'); if (!b) return; const st = get(); b.textContent = st ? '🌙 Resume Natural Night (silent)' : '🌙 Natural Night (silent, real-life)'; }
+  function updateButton() { const b = document.getElementById('btnNaturalNight'); if (!b) return; const st = get(); b.textContent = st ? (st.cond ? '🌙 Resume night conditioning (silent)' : '🌙 Resume Natural Night (silent)') : '🌙 Natural Night (silent, real-life)'; }
 
-  window.BSNight = { active, get, settings, saveSettings, roll, begin, wake, addDrink, doRoll, confirmPee, logCheck, sleep, toMorning, rise, finish, cancel, metrics, prefill, open, close, renderSettings, SIPS_CAP };
+  window.BSNight = { MORNING_ID, morningAt, morningDue, pendingAlarm, endSilence, condUpdate, refresh, active, get, settings, saveSettings, roll, begin, wake, addDrink, doRoll, confirmPee, logCheck, sleep, toMorning, rise, finish, cancel, metrics, prefill, open, close, renderSettings, SIPS_CAP };
   window.addEventListener('load', () => {
     renderSettings(); updateButton(); setInterval(updateButton, 5000);
-    if (get()) setTimeout(open, 300);   // resume overnight session after app kill / reload
+    // resume overnight session after app kill / reload; a night whose silence ended for a day session stays in Nights
+    setTimeout(() => { const st = get(); if (st && (active() || st.phase === 'morning' || morningDue())) open(); }, 300);
+    // v60: tapping the morning notification brings the app back; open the check-in when it is due
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && morningDue() && !document.getElementById('nnOverlay')) open(); });
   });
 })();
 /* v8 discoverability: picker choice + evening card on Session tab (after 19:00 local). */
@@ -376,7 +482,7 @@ window.chooseNaturalNightSession = chooseNaturalNightSession;
       if (sub) sub.textContent = 'Bedtime routine, what to wear, then a quiet night. Natural Night is still in Nights.';
       c.onclick = function () { window.BSNightCond.open(); };
     } else {
-      if (t) t.textContent = st ? 'Natural Night in progress — resume' : 'Going to bed? Start Natural Night';
+      if (t) t.textContent = st ? (st.cond ? 'Night conditioning in progress — resume' : 'Natural Night in progress — resume') : 'Going to bed? Start Natural Night';
       if (sub) sub.textContent = 'Real-life, totally silent — no alarms, no sim wetting.';
       c.onclick = function () { window.BSNight.open(); };
     }

@@ -42,7 +42,7 @@
   let viewYear, viewMonth, selectedDay = null, pendingEvent = null, cache = null, lastTodayK = null;
 
   const REMEMBER = { yes: 'Remembered peeing', no: "Didn't remember", unsure: 'Unsure' };
-  const NN_KINDS = { bed: '🛏️ Bedtime', drink: '🥤 Drink', wake: '👀 Night wake (still night)', rise: '☀️ Rise — up for the day', roll: '🎲 Roll', pee: '🚽 Pee', check: '🔎 Check', sleep: '😴 Back to sleep', morning: '☀️ Morning' };
+  const NN_KINDS = { bed: '🛏️ Bedtime', drink: '🥤 Drink', wake: '👀 Night wake (still night)', rise: '☀️ Rise — up for the day', roll: '🎲 Roll', pee: '🚽 Pee', check: '🔎 Check', sleep: '😴 Back to sleep', morning: '☀️ Morning', cond: '🌙 Night event', clip: '📎 DryClip wet' };
   /** v4 Natural Night payload sanitiser (timeline + derived metrics). */
   function cleanNN(r) {
     const tsOk = v => { v = +v; return isFinite(v) && v > 946684800000 && v < 4102444800000 ? v : undefined; };
@@ -63,6 +63,8 @@
       if (t.messy) x.messy = true;
       if (REMEMBER[t.rem]) x.rem = t.rem;
       if (t.memo) x.memo = String(t.memo).slice(0, 300);
+      if (t.label) x.label = String(t.label).slice(0, 80);
+      if (t.mode) x.mode = String(t.mode).slice(0, 20);
       return sortKeys(x);
     }).filter(Boolean).sort((a, b) => a.ts - b.ts);
     ['wakes', 'pees', 'rolls'].forEach(k => { const v = num(r[k], 0, 50); if (v != null) o[k] = Math.round(v); });
@@ -81,7 +83,9 @@
     return `<ol class="nn-tl">${rows.map(t => {
       const b = [];
       if (t.ml != null) b.push(fmtMl(t.ml, nn.unit));
-      if (t.outcome) b.push(t.outcome === 'allowed' ? 'allowed' : 'stay in bed');
+      if (t.label) b.push(esc(t.label));
+      if (t.mode) b.push(esc(t.mode));
+      if (t.outcome) b.push(t.outcome === 'allowed' ? 'allowed' : t.outcome === 'cond_pass' ? 'potty pass' : t.outcome === 'real_override' ? 'got up anyway' : 'stay in bed');
       if (t.chance != null) b.push(`${t.chance}% odds`);
       if (t.sips != null) b.push(`${t.sips} small sip${t.sips === 1 ? '' : 's'}`);
       if (t.sat != null) b.push(`saturation ${t.sat}%`);
@@ -166,6 +170,17 @@
       if (AWARENESS[n.awareness]) e.night.awareness = n.awareness;
       if (REMEMBER[n.remembered]) e.night.remembered = n.remembered;
       if (n.nn && typeof n.nn === 'object') { const nn = cleanNN(n.nn); if (nn) e.night.nn = nn; }
+      // v60 night conditioning summary
+      if (n.cond && typeof n.cond === 'object') {
+        const c = n.cond, cc = {};
+        if (Array.isArray(c.events)) cc.events = c.events.slice(0, 40).map(x => String(x).slice(0, 80));
+        if (Array.isArray(c.clipWets)) cc.clipWets = c.clipWets.slice(0, 20).map(w => +(w && w.at || w)).filter(v => isFinite(v) && v > 946684800000);
+        if (c.clipMode) cc.clipMode = String(c.clipMode).slice(0, 10);
+        if (c.gear) cc.gear = String(c.gear).slice(0, 40);
+        e.night.cond = cc;
+      }
+      if (n.wets != null && isFinite(+n.wets)) e.night.wets = Math.max(0, Math.min(20, Math.round(+n.wets)));
+      if (n.feeling) e.night.feeling = String(n.feeling).slice(0, 80);
       const u = clampPct(n.urgency); if (u != null) e.urgency = u;
       const s = clampPct(n.saturation); if (s != null) e.saturation = s;
       if (raw.urgency != null) { const u2 = clampPct(raw.urgency); if (u2 != null) e.urgency = u2; }
@@ -771,6 +786,13 @@
         const x = n.nn, hm = m => m == null ? '—' : `${Math.floor(m / 60)}h ${pad2(m % 60)}m`;
         bits.push(`in bed ${hm(x.timeInBedMin)}`); if (x.sleepMin != null) bits.push(`~sleep ${hm(x.sleepMin)}`);
         bits.push(`${x.wakes || 0} night wake${x.wakes === 1 ? '' : 's'}`); if (x.riseAt) bits.push(`rose ${fmtT(x.riseAt)}`); if (x.hoursSincePee != null) bits.push(`${x.hoursSincePee} h since last pee`);
+      }
+      if (n.cond) {
+        title = '🌙 Night conditioning'; icon = '';
+        if (n.wets != null) bits.push(`${n.wets} wet${n.wets === 1 ? '' : 's'}`);
+        if (n.cond.events && n.cond.events.length) bits.push(`${n.cond.events.length} night event${n.cond.events.length === 1 ? '' : 's'}: ${n.cond.events.map(esc).join(', ')}`);
+        if (n.cond.clipMode && n.cond.clipMode !== 'off') bits.push(`DryClip ${esc(n.cond.clipMode)}${n.cond.clipWets && n.cond.clipWets.length ? ' · wets at ' + n.cond.clipWets.map(fmtT).join(', ') : ''}`);
+        if (n.feeling) bits.push(`felt ${esc(n.feeling)}`);
       }
     } else if (e.type === 'clip_flag') {
       const c = e.clip || {};

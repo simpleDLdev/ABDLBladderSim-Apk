@@ -27,6 +27,8 @@ public final class AlarmScheduler {
     public static final String CHANNEL_SOUND_NO_VIBRATE = "sound-no-vibrate";
     public static final String CHANNEL_VIBRATE_ONLY = "vibrate-only";
     public static final String CHANNEL_SILENT = "bs-silent";
+    /** v60: morning check-in after a night (Natural Night, night conditioning, DryClip). High importance. */
+    public static final String CHANNEL_MORNING = "bs_morning_v1";
     public static final String EXTRA_ID = "bs_alarm_id";
     public static final String EXTRA_FROM_ALARM = "bs_from_alarm";
     /** Missed alarms (device off / clock jump) younger than this are posted immediately on reschedule. */
@@ -118,7 +120,7 @@ public final class AlarmScheduler {
 
     static String channelFor(AlarmStore.Item it) {
         String ch = it.channel == null ? "" : it.channel;
-        if (CHANNEL_SOUND_NO_VIBRATE.equals(ch) || CHANNEL_VIBRATE_ONLY.equals(ch) || CHANNEL_SILENT.equals(ch)) return ch;
+        if (CHANNEL_SOUND_NO_VIBRATE.equals(ch) || CHANNEL_VIBRATE_ONLY.equals(ch) || CHANNEL_SILENT.equals(ch) || CHANNEL_MORNING.equals(ch)) return ch;
         return it.isAlarm() ? CHANNEL_ALARM : CHANNEL_REMINDER;
     }
 
@@ -163,6 +165,13 @@ public final class AlarmScheduler {
             ch.setSound(null, null);
             ch.enableVibration(true);
             ch.setVibrationPattern(new long[]{0, 400, 200, 400});
+            ch.setLockscreenVisibility(android.app.Notification.VISIBILITY_PRIVATE);
+            nm.createNotificationChannel(ch);
+        }
+        if (nm.getNotificationChannel(CHANNEL_MORNING) == null) {
+            NotificationChannel ch = new NotificationChannel(CHANNEL_MORNING, "Morning check-in", NotificationManager.IMPORTANCE_HIGH);
+            ch.setDescription("The morning check-in after a night. Fires at your wake time with the app closed.");
+            ch.enableVibration(true);
             ch.setLockscreenVisibility(android.app.Notification.VISIBILITY_PRIVATE);
             nm.createNotificationChannel(ch);
         }

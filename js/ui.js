@@ -10,7 +10,7 @@ function showWhatsNewModal(force = false) {
     html += `<div style="margin-bottom:16px;">
       <div style="font-weight:bold; color:#81ecec;">${c.date} — ${c.title}</div>
       <ul style="margin:6px 0 0 18px; color:#cdd7e6;">`;
-    for (const b of c.bullets) {
+    for (const b of (c.bullets || [])) {
       html += `<li>${b}</li>`;
     }
     html += '</ul></div>';
@@ -804,6 +804,15 @@ function triggerHydrationEvent(force = false, fromQueue = false) {
 }
 function startSession(isResume = false) {
   if (sessionRunning && !isResume) return;
+  // v60: night quiet is scoped to the night. Resuming during a quiet night never brings the day timer back;
+  // starting any day session ends the quiet first, so its native notifications are scheduled right away.
+  if (isResume && window.BSNightCond && window.BSNightCond.quietNow && window.BSNightCond.quietNow()) {
+    sessionRunning = false;
+    try { saveState(); } catch (e) {}
+    try { window.BSNightCond.restore(); } catch (e) {}
+    return;
+  }
+  if (!isResume) { try { if (window.BSNightCond && window.BSNightCond.dayStart) window.BSNightCond.dayStart('day session started'); } catch (e) {} }
   if (!isResume && !startSession._skipBody && window.BSSymptoms && window.BSSymptoms.blocksSession && window.BSSymptoms.blocksSession()) {
     window.BSSymptoms.openCheck(function () {
       startSession._skipBody = true;
@@ -1496,6 +1505,7 @@ function quickStartSession() {
 
   // Clear log & start session
   $('output').textContent = '';
+  try { if (window.BSNightCond && window.BSNightCond.dayStart) window.BSNightCond.dayStart('quick session started'); } catch (e) {}
   sessionRunning = true;
   sessionStartedAt = Date.now();
   sessionElapsedStartedAt = sessionStartedAt;
@@ -1752,13 +1762,14 @@ function showSessionCondList() {
   try { if (window.BSCondProfiles && window.BSCondProfiles.fillSub) window.BSCondProfiles.fillSub('sessionSetupCondPick'); } catch (e) {}
 }
 function startConditioningTrack(track) {
+  if (track !== 'night') { try { if (window.BSNightCond && window.BSNightCond.dayStart) window.BSNightCond.dayStart('day conditioning started'); } catch (e) {} }
   window._condTrack = track === 'night' ? 'night' : 'day';
-  window._nightCondQuiet = false;
   const sel = $('sessionSetupCondPick') || $('sessionCondPick');
   try { if (sel && sel.value && window.BSCondProfiles) window.BSCondProfiles.setActive(sel.value); } catch (e) {}
-  if (window._condTrack === 'night' && window.BSNightCond && window.BSNightCond.open) {
+  if (track === 'night' && window.BSNightCond && window.BSNightCond.open) {
+    // v60: no day-session setup for the night. The routine hands off to a Natural Night with no event timer.
     try { if (typeof closeSessionSetupModal === 'function') closeSessionSetupModal(); } catch (e) {}
-    selectProfileFromModal('conditioning');
+    try { const m = $('profileSetupModal'); if (m) m.remove(); } catch (e) {}
     window.BSNightCond.open();
     return;
   }
@@ -2578,6 +2589,8 @@ function setCountdownLabel() {
   const lbl = $('countdown');
   if (!lbl) return;
   updateSessionTimerDisplay();
+  // v60: night conditioning has no event timer, so there is nothing to count down.
+  if (window._nightCondQuiet) { lbl.textContent = '🌙 Night conditioning — no event timer'; return; }
 
   // 1. Check if user wants to hide the timer
   // If the checkbox is missing, default to showing it (false)
@@ -2671,6 +2684,12 @@ function peeLogLine(roll, shown) {
   return '🚽 <b>I need to pee</b> — ' + name + '.';
 }
 function needToPee() {
+  // v60: during night conditioning the button draws from the night deck on the silent night screen.
+  if (window.BSNightCond && window.BSNightCond.quietNow && window.BSNightCond.quietNow()) {
+    const r = window.BSNightCond.needToPee();
+    if (typeof toast === 'function') toast(r && r.kind === 'event' ? '🌙 ' + (r.event.label || 'Night event') : '🚽 Potty pass. You can go.');
+    return r;
+  }
   const roll = buildPeeRoll();
   const result = window.BSPee
     ? window.BSPee.show(document, roll, {
