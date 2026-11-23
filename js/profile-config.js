@@ -252,6 +252,29 @@ const PROFILE_CONFIG = {
     showBabysitterPanel: false,
   },
 
+  /* ---- MY CONDITIONING (v45 intake profile) ---- */
+  conditioning: {
+    label: 'My Conditioning',
+    /* Session rolls use BSCondEvents.draw. These tables are not the conditioning deck. */
+    microTable: () => (typeof MICRO_STD_D6 !== 'undefined' ? MICRO_STD_D6 : []),
+    microSource: 'COND_DECK',
+    microDie: () => (typeof d === 'function' ? d(6) : 1),
+    macroTable: () => (typeof FULL_D20 !== 'undefined' ? FULL_D20 : []),
+    macroSource: 'COND_DECK',
+    mainMin: 30, mainMax: 70,
+    microMin: 5, microMax: 15,
+    hydrationSips: [1, 2],
+    /* Same 6–12 min loop as every other profile. 1–2 sips a prompt is a few an hour. */
+    scheduler: 'standard',
+    alarmText: ['💧 <b>Practice</b>', 'Follow today’s method. Sip only if you are thirsty.'],
+    microCompleteMsg: '💧 Logged.',
+    leakLimit: null,
+    setupKey: null,
+    showHydrationPanel: true,
+    showCanIGoBtn: true,
+    showBabysitterPanel: false,
+  },
+
   /* ---- GAUNTLET ONLY (no bladder sim) ---- */
   gauntlet_only: {
     label: 'Gauntlet Only',
@@ -288,4 +311,81 @@ function getProfileConfig(mode) {
     });
   }
   return base;
+}
+
+/**
+ * Conditioning sips follow an existing profile's hydration count.
+ * Lowest control (Infant) uses the dependent profile, which asks for the most sips.
+ */
+function hydrationForLevel(levelKey) {
+  const map = { none: 'dependent', little: 'chaos_manual', shaky: 'babysitter', okay: 'early', good: 'train_pro', full: 'omorashi_hold' };
+  const id = map[levelKey] || 'early';
+  const cfg = PROFILE_CONFIG[id] || PROFILE_CONFIG.dependent;
+  const dep = PROFILE_CONFIG.dependent;
+  return {
+    levelKey: levelKey || 'okay',
+    profileId: id,
+    sips: (cfg.hydrationSips || dep.hydrationSips).slice(),
+    minMin: 6,
+    maxMin: 12,
+    from: cfg.label
+  };
+}
+
+/**
+ * Pull a queued event forward when urgency is high on a less-control profile.
+ * More-control lengthens the wait only when a hold method was opted in.
+ */
+function urgeAcceleration(opts) {
+  opts = opts || {};
+  const urgency = Math.max(0, Math.min(10, +opts.urgency || 0));
+  const remaining = Math.max(0, +opts.remainingSec || 0);
+  const dir = opts.direction === 'B' ? 'B' : (opts.direction === 'A' ? 'A' : 'off');
+  const methods = opts.methods || [];
+  const rank = { none: 0, little: 1, shaky: 2, okay: 3, good: 4, full: 5 };
+  const r = rank[opts.targetKey] == null ? 3 : rank[opts.targetKey];
+  const threshold = opts.threshold != null && opts.threshold !== '' ? +opts.threshold : (3 + r);
+  if (dir === 'B') {
+    const hold = methods.indexOf('urge_surf') >= 0 || methods.indexOf('hold_longer') >= 0;
+    if (!hold || urgency < threshold) return { change: false, delaySec: remaining, threshold: threshold, direction: dir };
+    const extra = Math.round(Math.min(180, (urgency - threshold + 1) * 30));
+    return { change: true, delaySec: remaining + extra, threshold: threshold, direction: dir, kind: 'hold' };
+  }
+  if (dir !== 'A' || urgency < threshold) return { change: false, delaySec: remaining, threshold: threshold, direction: dir };
+  let delay;
+  if (urgency >= 8) delay = Math.round((10 - urgency) / 2 * 180);
+  else {
+    const t = (urgency - threshold) / Math.max(1, 8 - threshold);
+    delay = Math.round(remaining * (1 - 0.75 * Math.min(1, t)));
+  }
+  delay = Math.max(0, Math.min(remaining, delay));
+  return { change: delay < remaining, delaySec: delay, threshold: threshold, direction: dir, kind: 'pull' };
+}
+
+/** One batch, then a quiet gap. Lowest control is 4 sips / 30 min. A saved profile can change both. */
+function conditioningSipPlan(levelKey, profile) {
+  const level = hydrationForLevel(levelKey || 'none');
+  const scaled = { none: 4, little: 4, shaky: 3, okay: 3, good: 2, full: 2 };
+  profile = profile || {};
+  let count = profile.sipBatch != null && profile.sipBatch !== '' ? Math.round(+profile.sipBatch) : (scaled[levelKey] || 4);
+  if (!(count >= 1)) count = 4;
+  count = Math.max(1, Math.min(12, count));
+  let gap = profile.sipGapMin != null && profile.sipGapMin !== '' ? Math.round(+profile.sipGapMin) : 30;
+  if (!(gap >= 5)) gap = 30;
+  gap = Math.max(5, Math.min(180, gap));
+  return { minMin: gap, maxMin: gap, gapMin: gap, count: count, sips: [count, count], from: level.profileId, levelSips: level.sips };
+}
+
+/** Shared sip loop. Every profile, including conditioning, uses these two functions and alarm 1003. */
+function hydrationCadence(mode) {
+  const base = PROFILE_CONFIG[mode] || PROFILE_CONFIG.early;
+  const sips = base.hydrationSips || [2, 5];
+  return {
+    schedule: 'scheduleNextHydration',
+    prompt: 'triggerHydrationEvent',
+    notifyId: 1003,
+    minMin: base.hydrationMin || 6,
+    maxMin: base.hydrationMax || 12,
+    sips: sips
+  };
 }

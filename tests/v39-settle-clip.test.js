@@ -38,13 +38,13 @@ ok(BSHub.PLAY_KEY === 'bs_play_prefs_v1' && BSPath.KEY === 'bs_path_v1' && BSCla
 const now = 1_800_000_000_000;
 const W = (secs) => ({ wet: true, armed: true, secs });
 ok(BSDryClip.decideWet(W(1), now, { ignoreUntil: now + 10000 }) === 'ignore_window', 'still inside settle → ignore_window');
-ok(BSDryClip.decideWet(W(30), now + 25000, { ignoreUntil: now + 20000 }) === 'latched_touch', 'wet that started in the window, seen after it → latched_touch');
-ok(BSDryClip.decideWet(W(2), now + 40000, { ignoreUntil: now + 20000 }) === 'new', 'wet that starts after settle → new');
-ok(BSDryClip.decideWet(W(1), now, { settling: true, ignoreUntil: 0 }) === 'arming', 'settling flag still blocks a calendar wet');
+ok(BSDryClip.decideWet(W(30), now + 25000, { ignoreUntil: now + 20000 }) === 'new', 'armed wet seen after the window notifies even if it started earlier');
+ok(BSDryClip.decideWet(W(2), now + 40000, { ignoreUntil: now + 20000 }) === 'new', 'wet that starts after the short window → new');
+ok(BSDryClip.decideWet(W(1), now, { settling: true, ignoreUntil: 0 }) === 'new', 'settling flag does not swallow an armed wet');
 
 const svc = read('android/app/src/main/java/dev/simpledl/bladdersim/dryclip/DryClipService.kt');
 const proto = read('android/app/src/main/java/dev/simpledl/bladdersim/dryclip/DryClipProtocol.kt');
-ok(proto.includes('LATCHED_TOUCH') && svc.includes('onLatchedTouch'), 'protocol + service name the latch');
+ok(proto.includes('POST_ARM_SUPPRESS_MS') && svc.includes('postWetNotif') && !proto.includes('LATCHED_TOUCH'), 'armed wet posts a notification; the settle latch no longer classifies it');
 ok(/not re-arming until the plate reads dry/.test(svc), 'service does not re-arm a post-settle latch');
 ok(!svc.includes('arm("touch-clear")'), 'touch-clear re-arm loop is gone');
 ok(svc.includes('classic pairing is optional') && !svc.includes('holdForUnpaired') && !svc.includes('Arm held'), 'bond none is logged and does not block connect or arm');

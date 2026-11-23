@@ -3,6 +3,156 @@
 
 window.WHATS_NEW_COMMITS = [
   {
+    hash: 'v60',
+    date: '2026-11-18',
+    title: 'v60 — Night conditioning runs like a Natural Night',
+    bullets: [
+      'After the bedtime routine there is no event timer, no countdown, no sip prompts and no alarms.',
+      'The night uses the silent Natural Night screen. I woke up (urge, already wet, or dry) and I need to pee draw night events.',
+      'DryClip sleep mode (quiet, gentle, or alarm) is opt-in and is the only thing that reacts overnight. The only reminder is the morning check-in at your wake time.',
+      'The night quiet ends at your wake time, or as soon as you start any day session, so day alarms ring with the app closed again. Old leftover night state is cleared on start.',
+      'The morning check-in (night conditioning, Natural Night and DryClip) is a real Android notification on its own high-importance channel, and fires with the app closed.',
+      'Day conditioning is unchanged.',
+      'Version 60.'
+    ]
+  },
+  {
+    hash: 'v55',
+    date: '2026-11-17',
+    title: 'v55 — Sip batches, then quiet',
+    bullets: [
+      'A conditioning drink prompt is 4 sips, then 30 minutes of quiet. You can change both on the conditioning profile.',
+      'A low tank will not stack a second drink alarm inside that quiet time.',
+      'Version 55.'
+    ]
+  },
+  {
+    hash: 'v53',
+    date: '2026-11-17',
+    title: 'v53 — Sips during a conditioning session',
+    bullets: [
+      'A conditioning session asks for 1–2 sips about every 6–12 minutes, including after you resume.',
+      'If the estimated tank is low, the next void waits and a sip comes first. The session shows the estimate.',
+      'Stopping a guide early checks the tank and can open a sip prompt.',
+      'Version 53.'
+    ]
+  },
+  {
+    hash: 'v52',
+    date: '2026-11-17',
+    title: 'v52 — Quieter screens, same conditioning',
+    bullets: [
+      'The conditioning manager is only on Profiles. Session and Urge pick a saved profile from Conditioning ▸.',
+      'Hold ≡ on a section header and drag it. Pin and hide are in the ⋮ menu.',
+      'Urgency and saturation stay on the Bio-Logger. The gear opens the extra tools.',
+      'A high urgency on a less-control profile pulls the next event forward. Sip amounts follow the level, with Infant matching the dependent profile.',
+      'Version 52.'
+    ]
+  },
+  {
+    hash: 'v51',
+    date: '2026-11-17',
+    title: 'v51 — Sip reminders keep coming',
+    bullets: [
+      'Conditioning uses the same sip reminders as a regular session. Skip one if you are not thirsty.',
+      'Those reminders are not stopped by a 1 L day. A cap exists under Safety and is off unless you turn it on.',
+      'A large glass prompt still stays at 250 ml. Conditioning does not ask for one.',
+      'Version 51.'
+    ]
+  },
+  {
+    hash: 'v50',
+    date: '2026-11-17',
+    title: 'v50 — Conditioning drinks are sips',
+    bullets: [
+      'A conditioning session no longer asks for one 250 ml glass. Hydration is a few sips on the same timer as a regular session, and the phone notifies you when the app is in the background.',
+      'Sips still count toward the 1 L day. The 2 hour gap applies to a large drink prompt, not to a sip. Logging your own drink never blocks a sip for 2 hours.',
+      'The session clock shows the next sip. If the daily cap is reached, it says so.',
+      'Version 50.'
+    ]
+  },
+  {
+    hash: 'v49',
+    date: '2026-11-17',
+    title: 'v49 — Several conditioning profiles',
+    bullets: [
+      'Session and Urge have a conditioning profile picker at the top. New runs the quiz and keeps the previous one. Duplicate, rename, delete, export, and import are on that picker and on Profiles.',
+      'Export gives JSON and a text summary you can paste. Import adds a profile.',
+      'Conditioning has its own events (surprise urge, relax drill, sleep-through, urge surfing, and others). They show in the event builder under Conditioning. A real need still means stop.',
+      'Version 49.'
+    ]
+  },
+  {
+    hash: 'v48',
+    date: '2026-11-16',
+    title: 'v48 — Conditioning lives in Calibration',
+    bullets: [
+      'Open Settings → Calibration & Conditioning. That section starts open. Start conditioning quiz is the big button. Retake is the same button after you have a profile.',
+      'Pacing, practice, urgency, sleep, a check-in, and bladder calibration are in that same section. Two buttons start Natural Urge or a full session on My Conditioning.',
+      'The home screen has a short card until the quiz profile exists. Body check-in is a button, not a popup. Reminders stay gentle unless you set them to required.',
+      'Version 48.'
+    ]
+  },
+  {
+    hash: 'v47',
+    date: '2026-11-13',
+    title: 'v47 — Conditioning quiz, one subject at a time',
+    bullets: [
+      'The intake no longer repeats the same wearing-and-situation scene. Each question asks something different: hold, warning, leaks, nights, sleep, urgency practice, and pacing.',
+      'Want questions are goals, and each one can stay as it is. The profile keeps a now and a goal for every one of those.',
+      'Instant, gradual, slow burn, or hybrid, for day and for night. Gradual and slow burn move when check-ins agree. The sim and the session follow that.',
+      'A profile you already saved still loads.',
+      'Version 47.'
+    ]
+  },
+  {
+    hash: 'v46',
+    date: '2026-11-12',
+    title: 'v46 — Conditioning intake is a real quiz',
+    bullets: [
+      'Settings → Conditioning uses the same one-question quiz as the rest of the app: option cards, a progress bar, and a result card.',
+      'The same scenes are asked twice — where you are now, then where you want them to land — across underwear through thick diapers, at home, work, out, and in bed.',
+      'You can save and come back, and skip the optional feelings part. Consent is still the last step, then the diary or your saved capacity.',
+      'A profile you already saved still loads. Retaking the quiz replaces it.',
+      'Version 46.'
+    ]
+  },
+  {
+    hash: 'v45',
+    date: '2026-11-12',
+    title: 'v45 — Conditioning starts with a quiz',
+    bullets: [
+      'Settings → Conditioning is an intake quiz: where you are, where you want to go (named levels, not a bare number), what you want, and which practice to turn on. Consent is the last step.',
+      'Then a 2–3 day diary, or skip and use your capacity estimate. The summary card shows level names and a bar. Today’s practice is a short list at the same times.',
+      'My Conditioning shows up in the full session and in Natural Urge. Sips and prompts follow what you picked, and sips stay inside the drink cap.',
+      'If you already started in v44, your settings stay. The old target is shown as the nearest level, and you can take the quiz when you want.',
+      'Version 45.'
+    ]
+  },
+  {
+    hash: 'v44',
+    date: '2026-11-11',
+    title: 'v44 — Day and night control, if you opt in',
+    bullets: [
+      '☀🌙 Day and night each keep their own meter and target. Your old meter is copied across. Real accidents count only if you turn that on.',
+      'Consent, a body check, and one tap to reverse a track or stop. Game mode stays until you start conditioning.',
+      'A partial ("let some go") can show up on I need to go. A potty pass is a request — it can be denied, granted, or a compromise. Emptying on the toilet after a partial is a setting, on by default.',
+      'Log drinks with one tap. A day you skip is left blank. Recommended gear, including pads, follows your check-ins.',
+      'Version 44.'
+    ]
+  },
+  {
+    hash: 'v43',
+    date: '2026-10-29',
+    title: 'v43 — DryClip connects, and an armed wet alerts',
+    bullets: [
+      '🔗 Connect does not need a Bluetooth bond. The app uses the last clip address directly, including right after Arm, when the clip drops its link and is not advertising.',
+      '💧 Armed: a touch or a wet posts a notification. The settle latch was hiding that reading. Not armed: no notification.',
+      'The background watch stays on. It does not block the wet alert.',
+      'Version 43.'
+    ]
+  },
+  {
     hash: 'v42',
     date: '2026-10-27',
     title: 'v42 — #2 guides, urge type, tummy flag',

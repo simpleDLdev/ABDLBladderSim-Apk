@@ -3,7 +3,7 @@
 Branch `android-capacitor` @ `765fa3c`. Read-only review. The only change in this commit is this document.
 Files read: `docs/ANALYSIS-roleplay-mechanics.md`, `docs/ANALYSIS-symptoms-classes.md`, `js/potty-report.js`, `js/simple-urge.js`, `js/campaign.js`, `js/messy-timer.js`, `js/natural-night.js`, `js/calendar.js`, `js/quiz.js`.
 
-**Hard rules for every design below.** These are game rules only, and nothing here is real-body training. No sexual content. No laxatives, suppositories, enemas, restraints or chastity, and no forced large fluid intake. A drink prompt is at most **250 ml**, extra drink prompts total at most **1 L a day**, and they are never chained hourly (at least 2 h apart). Every public-place rule can be skipped. **A real urge always wins.** The app never infers fill or urgency. It always asks the user.
+**Hard rules for every design below.** These are game rules only, unless you opt in to conditioning mode (docs/ANALYSIS-control-conditioning-infinite-campaign.md). No sexual content. No laxatives, suppositories, enemas, restraints or chastity, and no forced large fluid intake. A drink prompt is at most **250 ml**, extra drink prompts total at most **1 L a day**, and they are never chained hourly (at least 2 h apart). Every public-place rule can be skipped. **A real urge always wins.** The app never infers fill or urgency. It always asks the user.
 
 ---
 

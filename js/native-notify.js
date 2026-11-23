@@ -21,7 +21,8 @@
    =========================== */
 (function () {
   const LN_CHANNEL_ID = 'bladder-alarms';
-  const ID = { simpleUrge: 1950, dryclipMorning: 1960, main: 1001, micro: 1002, hydration: 1003, babysitterBase: 1100, test: 1999 }; // babysitter: 1100-1899
+  const MORNING_CHANNEL = 'bs_morning_v1';   // v60: high-importance channel for morning check-ins (Java creates it too)
+  const ID = { simpleUrge: 1950, dryclipMorning: 1960, nightCondMorning: 1962, main: 1001, micro: 1002, hydration: 1003, babysitterBase: 1100, test: 1999 }; // babysitter: 1100-1899
   const NEAR_MS = 5000;        // never touch an alarm due within ±5 s
   let scheduled = new Map();   // id -> { at, kind, title, body }
   let seeded = false, syncing = false, again = false, permsRequested = false, ready = false;
@@ -38,6 +39,7 @@
   window.isBedwettingSilent = function () {
     try {
       if (window.BSNight && window.BSNight.active()) return true;   // v7 Natural Night: totally silent
+      if (window.BSNightCond && window.BSNightCond.active && window.BSNightCond.active()) return true;   // v60 night conditioning: same silence
       return typeof profileMode !== 'undefined' && profileMode === 'bedwetting';
     }
     catch (e) { return false; }
@@ -51,10 +53,10 @@
       return [];
     },
     async schedule(id, it) {
-      if (BA()) return BA().schedule({ id: Math.floor(id), at: Math.floor(it.at), title: it.title, body: it.body, kind: it.kind, channel: it.channel || '' });
+      if (BA()) return BA().schedule({ id: Math.floor(id), at: Math.floor(it.at), title: it.title, body: it.body, kind: it.kind, channel: it.channel || '', allowWhileIdle: true });
       if (LN()) {
         await LN().cancel({ notifications: [{ id }] }).catch(() => {});
-        return LN().schedule({ notifications: [{ id, title: it.title, body: it.body, channelId: LN_CHANNEL_ID,
+        return LN().schedule({ notifications: [{ id, title: it.title, body: it.body, channelId: it.channel === MORNING_CHANNEL ? MORNING_CHANNEL : LN_CHANNEL_ID,
           schedule: { at: new Date(it.at), allowWhileIdle: true }, extra: { kind: it.kind } }] });
       }
     },
@@ -97,18 +99,51 @@
     return ' Open the app to see your next event.';
   }
 
+  /** v60: morning check-ins (DryClip and Natural Night / night conditioning). Never muted: they are the
+      only thing a quiet night is allowed to schedule, and they fire with the app closed (exact, allow-while-idle). */
+  function morningItems() {
+    const out = new Map();
+    const add = (a) => { if (a) out.set(a.id, { at: Math.floor(a.at), kind: 'reminder', title: a.title, body: a.body, channel: MORNING_CHANNEL, allowWhileIdle: true, morning: true }); };
+    try { add(window.BSDryClip && window.BSDryClip.pendingAlarm && window.BSDryClip.pendingAlarm()); } catch (e) {}
+    try { add(window.BSNight && window.BSNight.pendingAlarm && window.BSNight.pendingAlarm()); } catch (e) {}
+    return out;
+  }
+  /** v60: check / request notification + exact-alarm permission before a night with a morning check-in. */
+  async function prepareMorning() {
+    if (!isNative()) return { native: false, ok: true };
+    try {
+      if (BA()) {
+        let s = await BA().checkPermissions();
+        if (s.notifications !== 'granted') { try { s = await BA().requestNotifications(); } catch (e) {} }
+        if (s.exactAlarm !== 'granted') { try { await BA().requestExactAlarm(); } catch (e) {} try { s = await BA().checkPermissions(); } catch (e) {} }
+        const r = { native: true, notifications: s.notifications, exactAlarm: s.exactAlarm, ok: s.notifications === 'granted' };
+        if (s.notifications !== 'granted') r.warning = 'Notifications are off for Bladder Sim, so the morning check-in cannot ring while the app is closed. Allow them in Settings → Alarm reliability.';
+        else if (s.exactAlarm !== 'granted') r.warning = 'Exact alarms are off, so the morning check-in may arrive late. Allow "Alarms & reminders" in Settings → Alarm reliability.';
+        return r;
+      }
+      if (LN()) {
+        let p = await LN().checkPermissions();
+        if (p.display !== 'granted') p = await LN().requestPermissions();
+        return { native: true, notifications: p.display, ok: p.display === 'granted', warning: p.display === 'granted' ? undefined : 'Notifications are off for Bladder Sim, so the morning check-in cannot ring while the app is closed.' };
+      }
+    } catch (e) { return { native: true, ok: false, warning: 'Could not check notification permission: ' + (e && e.message || e) }; }
+    return { native: true, ok: false, warning: 'Native notifications are not available in this build.' };
+  }
+
   /** Desired native alarms from current JS state. Map id -> item. */
   function collectDesired() {
     const out = new Map();
     const chan = window.BSPrompt ? window.BSPrompt.channel() : null;
-    // v20 DryClip morning check-in — always schedule (even in bedwetting silence; no alert at wet time, only at wake)
-    try { const dc = window.BSDryClip && window.BSDryClip.pendingAlarm(); if (dc) out.set(dc.id, { at: dc.at, kind: dc.kind || 'reminder', title: dc.title, body: dc.body, channel: chan }); } catch (e) {}
+    // v20 DryClip + v60 Natural Night / night conditioning morning check-ins — always scheduled, even while silent
+    morningItems().forEach((it, id) => out.set(id, it));
     // v9 Simple Urge: ONE reminder at the end of a wait (independent of a running session).
     try { const su = window.BSSimpleUrge && window.BSSimpleUrge.pendingAlarm(); if (su && !window.isBedwettingSilent()) out.set(su.id, { at: su.at, kind: su.kind, title: su.title, body: su.body, channel: chan }); } catch (e) {}
     try { const mt = window.BSMessyTimer && window.BSMessyTimer.pendingAlarm(); if (mt && !window.isBedwettingSilent()) out.set(mt.id, { at: Math.floor(mt.at), kind: mt.kind, title: mt.title, body: mt.body, channel: chan }); } catch (e) {}
     try { const me = window.BSMessyTimer && window.BSMessyTimer.pendingEarly && window.BSMessyTimer.pendingEarly(); if (me && !window.isBedwettingSilent()) out.set(me.id, { at: Math.floor(me.at), kind: me.kind, title: me.title, body: me.body, channel: chan }); } catch (e) {}
     try {
-      if (!sessionRunning || window.isBedwettingSilent()) return out;
+      if (window.isBedwettingSilent()) return out;
+      const sipOnly = !sessionRunning && typeof urgeConditioningSips === 'function' && urgeConditioningSips();
+      if (!sessionRunning && !sipOnly) return out;
       const now = Date.now();
       // While "Pause Alarm (30m)" is active, suppress anything that would fire during the pause.
       const pauseUntil = (meetingActive && window._meetingPauseUntil) ? window._meetingPauseUntil : 0;
@@ -120,9 +155,15 @@
       };
       const cfg = typeof getProfileConfig === 'function' ? getProfileConfig() : {};
       const chaos = cfg && cfg.scheduler === 'chaos';
+      const conditioningSip = sipOnly || (typeof profileMode !== 'undefined' && profileMode === 'conditioning');
+      const sipBody = conditioningSip ? 'Sip reminder — a few sips if you are thirsty.' : 'Hydration reminder — time to drink.';
+      if (sipOnly) {
+        if (window.hydrationEnabled !== false) add(ID.hydration, hydrationEndAt, 'reminder', sipBody);
+        return out;
+      }
       if (!chaos) add(ID.main, mainEndAt, 'alarm', 'Alarm! Main event.' + graceText());
       add(ID.micro, microEndAt, 'reminder', 'Bladder spasm — open the app.');
-      if (window.hydrationEnabled !== false) add(ID.hydration, hydrationEndAt, 'reminder', 'Hydration reminder — time to drink.');
+      if (window.hydrationEnabled !== false) add(ID.hydration, hydrationEndAt, 'reminder', sipBody);
       if (typeof babysitterScheduledEvents !== 'undefined' && Array.isArray(babysitterScheduledEvents)) {
         // stable id per babysitter event (its timer id), so one firing doesn't shift/re-arm the others
         babysitterScheduledEvents.slice().sort((a, b) => a.runAt - b.runAt).slice(0, 20).forEach((e, i) =>
@@ -155,6 +196,9 @@
     try { (await backend.pending()).forEach(a => scheduled.set(a.id, { at: a.at, kind: a.kind })); } catch (e) {}
   }
 
+  /** What a silent night keeps: only the morning check-ins. */
+  function quietDesired() { return morningItems(); }
+
   async function syncNativeNotifications() {
     if (!isNative() || !ready || (!BA() && !LN())) return;
     if (syncing) { again = true; return; }
@@ -164,8 +208,7 @@
       if (window.isBedwettingSilent()) {
         // Cancel urge/session alarms but keep DryClip morning check-in
         const now = Date.now();
-        const desired = new Map();
-        try { const dc = window.BSDryClip && window.BSDryClip.pendingAlarm(); if (dc) desired.set(dc.id, { at: dc.at, kind: dc.kind || 'reminder', title: dc.title, body: dc.body }); } catch (e) {}
+        const desired = quietDesired();
         const { toSchedule, toCancel } = diff(scheduled, desired, now);
         for (const id of toCancel) { try { await backend.cancel(id); } catch (e) {} scheduled.delete(id); }
         if (toSchedule.length) await ensurePermissions();
@@ -194,7 +237,7 @@
 
   window.nativeNotifySync = function () { syncNativeNotifications(); };
   window.nativeNotifyCancelAll = async function () { try { await backend.cancelAll(); } catch (e) {} scheduled.clear(); setTimeout(syncNativeNotifications, 0); }; // v13b: re-arm independent timers (Simple Urge, #2 timer) right after a session stop
-  window.BSNativeAlarm = { diff, collectDesired, ID, scheduled: () => scheduled, isNative, hasPlugin: () => !!BA() };
+  window.BSNativeAlarm = { diff, collectDesired, quietDesired, morningItems, prepareMorning, MORNING_CHANNEL, ID, scheduled: () => scheduled, isNative, hasPlugin: () => !!BA() };
 
   // ---------- Settings → Alarm reliability ----------
   async function status() {
@@ -248,6 +291,7 @@
   (async function init() {
     if (!BA() && LN()) {
       try { await LN().createChannel({ id: LN_CHANNEL_ID, name: 'Alarms & reminders', description: 'Sim alarms and hydration reminders', importance: 5, visibility: 1, vibration: true }); } catch (e) {}
+      try { await LN().createChannel({ id: MORNING_CHANNEL, name: 'Morning check-in', description: 'Morning check-in after a night', importance: 4, visibility: 1, vibration: true }); } catch (e) {}
     }
     // One-time migration: drop alarms the old local-notifications path left behind (ids 1000-1019).
     if (BA() && LN() && !localStorage.getItem('bs_ln_migrated')) {

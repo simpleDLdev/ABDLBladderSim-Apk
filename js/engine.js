@@ -57,8 +57,46 @@ function updatePressureUI(val) {
   if (descSpan) descSpan.textContent = getUrgencyDesc(lv, profileMode);
 
   // Feedback Loop: If pressure is high, we might need to expedite the next event
-  if (sessionRunning && manualPressure > 75) {
+  if (sessionRunning && profileMode === 'conditioning' && typeof applyConditioningUrge === 'function') {
+    applyConditioningUrge(getUrgencyLevel(manualPressure));
+  } else if (sessionRunning && manualPressure > 75) {
     checkUrgencyOverride();
+  }
+}
+
+function applyConditioningUrge(urgency) {
+  if (typeof urgeAcceleration !== 'function' || typeof getMainTimerRemaining !== 'function') return;
+  let info = null;
+  try { info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); } catch (e) {}
+  const profile = (window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile) || {};
+  const remaining = getMainTimerRemaining();
+  const plan = urgeAcceleration({
+    urgency: urgency,
+    remainingSec: remaining,
+    direction: info && info.direction,
+    targetKey: info && info.targetKey,
+    methods: info && info.methods,
+    threshold: profile.urgeThreshold
+  });
+  if (!plan.change) return;
+  if (window._urgePullLevel === urgency && plan.kind === 'pull') return;
+  window._urgePullLevel = urgency;
+  clearTimeout(mainTimer);
+  clearTimeout(preChimeTimer);
+  const ms = Math.max(0, plan.delaySec) * 1000;
+  mainEndAt = Date.now() + ms;
+  if (ms <= 0) {
+    if (typeof alarmMain === 'function') alarmMain();
+  } else {
+    if (ms > 15000 && typeof startChime === 'function') preChimeTimer = setTimeout(startChime, ms - 15000);
+    mainTimer = setTimeout(alarmMain, ms);
+  }
+  if (typeof setCountdownLabel === 'function') setCountdownLabel();
+  const mins = Math.max(0, Math.round(plan.delaySec / 60));
+  if (typeof logToOutput === 'function') {
+    logToOutput(plan.kind === 'hold'
+      ? `<span style="color:#74b9ff">⏱ Urgency ${urgency}/10 — hold drill, next event in about ${mins} min.</span>`
+      : `<span style="color:#fab1a0">⏱ Urgency ${urgency}/10 — next event pulled forward, about ${mins} min.</span>`);
   }
 }
 
@@ -296,7 +334,31 @@ function rollMicroForMode() {
 function rollFullForMode() { return d(20); }
 
 /* ---------- Preroll ---------- */
+function conditioningDeckEvent(kind) {
+  let tank = null;
+  try { tank = window.BSTank && window.BSTank.load && window.BSTank.load(); } catch (e) {}
+  if (window.BSCondEvents && window.BSCondEvents.draw) {
+    const track = window._condTrack === 'night' ? 'night' : 'day';
+    const drawn = window.BSCondEvents.draw({ kind: kind, tank: tank, ignoreConsent: true, track: track });
+    if (drawn) return drawn;
+  }
+  return {
+    kind: 'micro',
+    desc: 'Check-in. A real need still means stop and go.',
+    guide: [{ text: 'CHECK', time: 3, type: 'stop' }],
+    id: 'c_check',
+    family: 'check',
+    size: 'tiny',
+    label: 'Check-in'
+  };
+}
 function prerollEvent(kind) {
+  if (typeof profileMode !== 'undefined' && profileMode === 'conditioning') {
+    const event = conditioningDeckEvent(kind);
+    if (kind === 'micro') lastMicroEvent = event;
+    else lastMacroEvent = event;
+    return event;
+  }
   let event, i = 0;
   const maxRetries = 5; // Failsafe to prevent infinite loops
 
@@ -445,6 +507,12 @@ function scheduleBabysitterManagedTimeout(kind, desiredDelayMs, callback, store 
 }
 
 function scheduleMainEvent(windowOverride) {
+  if (window._nightCondQuiet) {
+    clearTimeout(mainTimer);
+    clearTimeout(preChimeTimer);
+    pendingMainEvent = null;
+    return;
+  }
 
   const schedulerType = getProfileConfig().scheduler;
 
@@ -623,6 +691,14 @@ function scheduleMainEvent(windowOverride) {
   min = Math.max(5, Math.floor(min * urgencyMultiplier));
   max = Math.max(10, Math.floor(max * urgencyMultiplier));
 
+  if (profileMode === 'conditioning' && window.BSTank && !(windowOverride && windowOverride._fromTank)) {
+    try { window.BSTank.tickBaseline(window.BSTank.load(), 1); } catch (e) {}
+    const plan = window.BSTank.eventWaitMin(window.BSTank.load());
+    min = plan.waitMin;
+    max = Math.max(plan.waitMin, plan.waitMax);
+    if (!plan.voidOk) setTimeout(() => { try { triggerHydrationEvent(true); } catch (e) {} }, 500);
+  }
+
   // 4. Prepare Micro Cycle (Preserved)
   targetMicrosPerMain = Number.isFinite(runtime?.microsPerCycle)
     ? clamp(runtime.microsPerCycle, 0, 10)
@@ -716,6 +792,8 @@ function scheduleNextMicro() {
 
 /* ---------- Apply & Reveal ---------- */
 function createDrinkPrompt(label, ml) {
+  // Conditioning hydration is sips on the session timer, never a single glass.
+  if (typeof profileMode !== 'undefined' && profileMode === 'conditioning') return;
   // If arguments are missing (called empty), generate them now
   if (!label) {
     const r = Math.random();
@@ -833,6 +911,25 @@ function runMobileRecoveryChecks(source = 'visibilitychange') {
   // Resume AudioContext when returning to foreground.
   if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
 
+  // A visible event banner used to return before this, so a dropped sip timer never came back.
+  if (!meetingActive && hydrationEndAt && now >= hydrationEndAt) {
+    clearTimeout(hydrationTimer);
+    hydrationEndAt = null;
+    if (!isHydrationPending) triggerHydrationEvent(profileMode === 'conditioning');
+    scheduleNextHydration();
+  } else if (!meetingActive && hydrationEndAt && !hydrationTimer) {
+    const hydrationRemaining = hydrationEndAt - now;
+    if (hydrationRemaining > 0) {
+      hydrationTimer = setTimeout(() => {
+        if (!sessionRunning) return;
+        triggerHydrationEvent();
+        scheduleNextHydration();
+      }, hydrationRemaining);
+    }
+  } else if (!meetingActive && profileMode === 'conditioning' && !hydrationEndAt) {
+    scheduleNextHydration();
+  }
+
   // Respect pause mode and active alarms; avoid stacking additional banners.
   if (meetingActive || isBannerVisible) return;
 
@@ -893,24 +990,6 @@ function runMobileRecoveryChecks(source = 'visibilitychange') {
     }
   }
 
-  // HYDRATION TIMER: catch up missed drink alerts, or re-arm dropped timer.
-  if (hydrationEndAt && now >= hydrationEndAt) {
-    clearTimeout(hydrationTimer);
-    hydrationEndAt = null;
-    if (!isHydrationPending) {
-      triggerHydrationEvent();
-    }
-    scheduleNextHydration();
-  } else if (hydrationEndAt && !hydrationTimer) {
-    const hydrationRemaining = hydrationEndAt - now;
-    if (hydrationRemaining > 0) {
-      hydrationTimer = setTimeout(() => {
-        if (!sessionRunning) return;
-        triggerHydrationEvent();
-        scheduleNextHydration();
-      }, hydrationRemaining);
-    }
-  }
 }
 
 // Catch up timers after mobile tab comes back from background

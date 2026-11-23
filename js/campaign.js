@@ -34,8 +34,10 @@
     const style = s.playStyle || 'either';
     const NATM = ['simple_urge', 'messy_timer', 'nat_session'];
     const isNatRoll = e => NATM.includes(e.mode);
-    // v11: a real accident during an in-game wait counts as a failed hold when "Count accidents during waits" is ON (default, user-confirmed)
-    const waitFail = e => !!e.failedWait && (!window.BSControl || window.BSControl.load().countWaitAccidents !== false);
+    // Real failed-wait accidents and DryClip wets count only when that track's real-progress switch is on
+    // (or the legacy "count accidents during waits" checkbox).
+    const countsReal = e => !!(window.BSControl && window.BSControl.countsReal && window.BSControl.countsReal(e && (e.track === 'night' || e.type === 'night') ? 'night' : 'day'));
+    const waitFail = e => !!e.failedWait && countsReal(e);
     // v11 play style: 'natural' = Simple Urge / natural rolls count as play, 'sessions' = sim sessions required, 'either'
     const simAny = e => e.source === 'sim';
     const sim = e => simAny(e) && (style === 'natural' ? isNatRoll(e) : style === 'sessions' ? !isNatRoll(e) : true);
@@ -43,7 +45,7 @@
     const any = e => s.source === 'both' ? (e.source === 'natural' || sim(e)) : sim(e); // which entries count where natural is allowed
     const isAcc = e => e.type === 'accident' || e.type === 'leak';
     const clipCamp = !!(window.BSHub && window.BSHub.clipAssistCampaignOn && window.BSHub.clipAssistCampaignOn());
-    const clipAcc = e => clipCamp && e.source === 'natural' && (
+    const clipAcc = e => clipCamp && countsReal(e) && e.source === 'natural' && (
       ((e.type === 'accident' || e.type === 'leak') && (e.mode === 'dryclip_bridge' || e.mode === 'dryclip' || (e.tags && e.tags.indexOf && e.tags.indexOf('clip-flagged') >= 0))) ||
       (e.type === 'clip_flag' && e.confirmed && (!e.clip || e.clip.kind !== 'gap'))
     );

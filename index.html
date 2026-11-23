@@ -68,15 +68,18 @@
 
   <main class="wrap app-tabs">
     <section id="tab-session" class="tab-page panel stack" data-tab="session">
+      <div id="nightCondMount" hidden></div>
       <button type="button" id="nnEveningCard" class="nn-evening" style="display:none;" onclick="BSNight.open()">
         <span style="font-size:1.8em;">🌙</span><span><b id="nnEveningTitle">Going to bed? Start Natural Night</b><br><span class="nn-pick-sub">Real-life, totally silent — no alarms, no sim wetting.</span></span>
       </button>
       <!-- v15 Play hub: four primary cards -->
+      <div id="condSetupHint"></div>
       <div id="playHub" class="play-hub">
         <button type="button" id="btnStartSession" class="play-card pc-full" onclick="showSessionSetupModal()"><span class="pc-ic">▶</span><span><b>Full Session</b><br><small>Timed profile session — pick a profile &amp; go</small></span></button>
         <button type="button" id="hubQuick" class="play-card pc-quick" onclick="BSHub.openQuick()"><span class="pc-ic">⚡</span><span><b>Quick</b><br><small>Natural Urge, short play, or quiz → play</small></span></button>
         <button type="button" id="hubBoard" class="play-card pc-board" onclick="BSHub.openBoard()"><span class="pc-ic">🎲</span><span><b>Potty Path</b><br><small id="hubBoardSub">Path | Campaign · classes · deep start</small></span></button>
         <details id="hubNights" class="play-card pc-nights"><summary><span class="pc-ic">🌙</span><span><b>Nights</b><br><small>Natural Night · Bedwetting sim · board nights</small></span></summary>
+          <button type="button" id="btnNightCond" class="hub-sub" onclick="startConditioningTrack('night')">🌙 Night Conditioning <small>(bedtime routine, then a quiet night)</small></button>
           <button id="btnNaturalNight" onclick="BSNight.open()" class="hub-sub">🌙 Natural Night <small>(silent, real-life — no alarms)</small></button>
           <button type="button" id="hubBedSim" onclick="BSHub.startBedwetting()" class="hub-sub">🛏️ Bedwetting sim <small>(profile session)</small></button>
           <div id="hubBoardNight" class="cal-legend"></div>
@@ -128,6 +131,7 @@
       </div>
       <p class="section-desc">Start a session for timed events, or use Path / Urge for board-first play. Status stays visible up top.</p>
       <div class="buttons">
+        <button id="btnNeedToPee" type="button" onclick="needToPee()">🚽 I need to pee</button>
         <button id="btnQuickGo" onclick="quickModeRoll()"
           style="display:none; width:100%; padding:14px; background:#ff7675; color:#000; font-weight:bold; font-size:1.2em; border:none; border-radius:8px; cursor:pointer; margin-top:8px;">🚽
           I Need to Go! (quick roll)</button>
@@ -164,8 +168,9 @@
       <div id="bioLoggerWrapper">
         <p class="section-desc">Track your real physical state. Pressure = how badly you need to go. Saturation = how
           wet your protection is. Update these when prompted or anytime.</p>
+        <div id="tankReadout" class="urge-note" hidden></div>
         <div id="bioLoggerSection" class="stack"
-          style="background:#0f1115; padding:12px; border-radius:8px; border:1px solid #2b3348; display:none;">
+          style="background:#0f1115; padding:12px; border-radius:8px; border:1px solid #2b3348;">
           <div style="display:flex; align-items:center; gap:8px;">
             <label style="flex:1;">Urgency: <span id="pressureVal" style="color:#fab1a0">0/10</span></label>
             <button onclick="showUrgencyRefTable()"
@@ -186,8 +191,9 @@
           <input id="saturationSlider" type="range" min="0" max="100" step="5" value="0"
             oninput="updateSaturationUI(this.value)">
 
+          <div id="bioLoggerAdvanced" style="display:none;">
           <div id="babysitterStreakPanel"
-            style="display:none; background:#1b2030; padding:10px; border-radius:8px; margin-top:10px; border:1px solid #a29bfe;">
+            style="background:#1b2030; padding:10px; border-radius:8px; margin-top:10px; border:1px solid #a29bfe;">
             <div style="color:#a29bfe; font-weight:bold; margin-bottom:8px;">👩‍🍼 Babysitter Progress</div>
             <div><span style="color:#9b59b6;">🛡️ Protection:</span> <span id="protectionLevelVal"
                 style="color:#fff; font-weight:bold;">pad</span></div>
@@ -239,6 +245,7 @@
                 Progression</button>
             </div>
             </details>
+          </div>
           </div>
 
           <!-- Day Tracker Panel -->
@@ -304,6 +311,14 @@
         </details>
       </div>
       <!-- Hidden profile select for modal interaction -->
+      <div id="sessionCondSlot" style="display:none;margin:8px 0;">
+        <label class="urge-lbl">Conditioning profile <select id="sessionCondPick"></select></label>
+        <div class="night-track-row">
+          <button type="button" onclick="startConditioningTrack('day')">Day conditioning</button>
+          <button type="button" onclick="startConditioningTrack('night')">Night conditioning</button>
+        </div>
+        <button type="button" class="pill" onclick="switchTab('profiles')">Manage → Profiles</button>
+      </div>
       <select id="profileSelect" onchange="applySelectedProfile()" style="display:none;">
         <option value="dependent">Constant Incontinence (Always Leaking)</option>
         <option value="npt">Not Potty Trained</option>
@@ -313,6 +328,7 @@
         <option value="omorashi_hold">💧 Omorashi (Hold & Release)</option>
         <option value="babysitter">👩‍🍼 Babysitter (Realistic Omorashi)</option>
         <option value="gauntlet_only">🎯 Gauntlet Only (Exercise Holds)</option>
+        <option value="conditioning">Conditioning ▸</option>
       </select>
     </section>
 
@@ -342,6 +358,9 @@
     </section>
 
     <section id="tab-urge" class="tab-page panel" data-tab="urge">
+      <div id="drinkLogMount"></div>
+      <div id="passMount"></div>
+      <div id="checkinMount"></div>
       <div id="simpleUrgeMount"></div>
       <div id="urgeExtras"><div id="messyTimerMount" class="messy-only" style="margin-top:12px;"></div>
       <details class="urge-more" id="classicUrge" style="margin-top:12px;"><summary>Classic Natural Urge roll</summary><div id="urgeMount"></div></details></div>
@@ -353,8 +372,22 @@
 
     <section id="tab-profiles" class="tab-page panel stack" data-tab="profiles">
       <h2 style="margin:0;">Profiles &amp; Gear</h2>
-      <p class="section-desc">Quizzes first (what each one changes + where to go), then your profiles, gear and campaign.</p>
-      <div id="myProfileMount" class="quiz-hub"></div>
+      <p class="section-desc">Hold ≡ on a section header and drag to reorder. The ⋮ menu pins or hides it.</p>
+      <details id="profConditioning"><summary>Conditioning profiles</summary>
+        <div id="condProfileManager"></div>
+      </details>
+      <details id="profQuizzes"><summary>Quizzes</summary>
+        <div id="condQuizHost"></div>
+        <div id="myProfileMount" class="quiz-hub"></div>
+        <div id="condHubRest"></div>
+      </details>
+      <details id="profCalibration"><summary>Calibration</summary>
+        <div id="calibrationMount"></div>
+        <div id="conditioningMount"></div>
+        <div id="symptomMount"></div>
+        <div id="partialSettingsMount"></div>
+        <div id="sleepMount"></div>
+      </details>
       <div class="hr"></div>
       <div class="buttons">
         <button onclick="showSessionSetupModal()" style="width:100%; background:#a29bfe; color:#000; font-weight:bold;">▶ Choose Profile &amp; Start</button>
@@ -476,8 +509,9 @@
 
     <section id="tab-settings" class="tab-page panel stack" data-tab="settings">
       <h2 style="margin:0;">Settings</h2>
-      <p class="section-desc">Tap a section to open it.</p>
-      <details class="set-sec" id="setPlay" open><summary>🎮 Play &amp; content <small>Messy · Office · wording · prompts</small></summary>
+      <p class="section-desc">Hold ≡ on a section and drag it. Pin and hide are in the ⋮ menu. Reset layout is at the bottom of this page.</p>
+      <div id="layoutTabOrder"></div>
+      <details class="set-sec" id="setPlay"><summary>🎮 Play &amp; content <small>Messy · Office · wording · prompts</small></summary>
       <div id="optionsContent">
         <!-- Push-to-Leak Toggle -->
         <div
@@ -593,22 +627,23 @@
         <button id="btnEnableNotifications" class="pill" onclick="requestNotificationPermission()"
           style="display:none; border-color:#7cc4ff; color:#7cc4ff; width:100%; margin-top:8px;">🔔 Enable Tab Notifications</button>
       </details>
-      <details class="set-sec" id="setCalib"><summary>🎯 Calibration <small>leak timing · bladder-age story</small></summary>
-        <div id="calibrationMount"></div>
+      <details class="set-sec" id="setCalib"><summary>🎯 Calibration &amp; Conditioning</summary>
+        <div id="condHubTop"></div>
       </details>
       <details class="set-sec" id="setCalendar"><summary>📅 Calendar &amp; logging defaults</summary>
         <div id="calendarSettingsMount"></div>
       </details>
       <details class="set-sec" id="setSafety"><summary>🛟 Safety &amp; drinks</summary>
         <div id="safetyMount"></div>
+        <div id="safetyBodyCheck"></div>
       </details>
       <details class="set-sec" id="setData"><summary>💾 Data, about &amp; what's new</summary>
 
-        <details id="aboutBladder" open style="margin:8px 0;background:#151923;border:1px solid #2b3348;border-radius:10px;padding:8px 12px;">
+        <details id="aboutBladder" style="margin:8px 0;background:#151923;border:1px solid #2b3348;border-radius:10px;padding:8px 12px;">
           <summary style="cursor:pointer;color:#81ecec;font-weight:bold;">ℹ️ About &amp; notes</summary>
           <div class="cal-legend" style="line-height:1.5;margin-top:6px;">
             This is a fiction / ABDL continence-sim for grown-ups. It is not medical advice and does not train a real body.<br>
-            Timers never run longer than 20 minutes. Sip prompts stay within a quiet daily cap. You always enter your own urgency and saturation.<br>
+            Timers never run longer than 20 minutes. Sip reminders keep coming; skip one if you are not thirsty. You always enter your own urgency and saturation.<br>
             If you need to step out of a scene, use the small <b>⏸ I’m going now</b> control — your place is kept and nothing is lost.<br>
             DryClip talks to hardware you own over Bluetooth; nothing is uploaded. Force-stop the vendor DryClip app before connecting.
           </div>
@@ -878,6 +913,22 @@
               Gauntlet Only<br><span style="font-size:0.75em; color:#cdd7e6;">Exercise Holds</span></button>
             <button onclick="toggleProfileDetails('gauntlet_only')"
               style="width:100%; padding:6px; background:rgba(0,206,201,0.08); border:none; border-top:1px solid rgba(0,206,201,0.2); color:#00cec9; cursor:pointer; font-size:0.72em;">▼
+              More Details</button>
+          </div>
+          <div style="background:#1b2030; border:2px solid #55efc4; border-radius:12px; overflow:hidden;">
+            <button onclick="showSessionCondList()"
+              style="width:100%; padding:20px 20px 10px 20px; background:transparent; border:none; color:#55efc4; cursor:pointer; font-weight:bold; font-size:1em;">🌿
+              Conditioning ▸<br><span style="font-size:0.75em; color:#cdd7e6;">Pick a saved conditioning profile</span></button>
+            <div id="sessionSetupCond" style="display:none;padding:8px 12px 12px;">
+              <label class="urge-lbl">Saved profile <select id="sessionSetupCondPick"></select></label>
+              <div class="night-track-row">
+                <button type="button" onclick="startConditioningTrack('day')">Day conditioning</button>
+                <button type="button" onclick="startConditioningTrack('night')">Night conditioning</button>
+              </div>
+              <button type="button" class="pill" onclick="switchTab('profiles')" style="width:100%;margin-top:6px;">Manage → Profiles</button>
+            </div>
+            <button onclick="toggleProfileDetails('conditioning')"
+              style="width:100%; padding:6px; background:rgba(85,239,196,0.08); border:none; border-top:1px solid rgba(85,239,196,0.2); color:#55efc4; cursor:pointer; font-size:0.72em;">▼
               More Details</button>
           </div>
           <div style="background:#1b2030; border:2px solid #e17055; border-radius:12px; overflow:hidden;">
@@ -1497,6 +1548,7 @@
               <option value="chaos_manual">Chaos</option>
               <option value="omorashi_hold">Omorashi</option>
               <option value="babysitter" selected>Babysitter</option>
+              <option value="conditioning">Conditioning</option>
             </select>
           </div>
           <div>
@@ -1640,6 +1692,9 @@
   <script src="js/native-notify.js"></script>
   <script src="js/tables.js"></script>
   <script src="js/profile-config.js"></script>
+  <script src="js/bladder-tank.js"></script>
+  <script src="js/event-queue.js"></script>
+  <script src="js/pee-tap.js"></script>
   <script src="js/session.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/profile-logic.js"></script>
@@ -1659,6 +1714,21 @@
   <script src="js/calibration.js"></script>
   <script src="js/quiz.js"></script>
   <script src="js/control.js"></script>
+  <script src="js/consent.js"></script>
+  <script src="js/symptoms-check.js"></script>
+  <script src="js/gear.js"></script>
+  <script src="js/partial.js"></script>
+  <script src="js/passes.js"></script>
+  <script src="js/drinks.js"></script>
+  <script src="js/sleep-source.js"></script>
+  <script src="js/checkins.js"></script>
+  <script src="js/intake.js"></script>
+  <script src="js/onboarding.js"></script>
+  <script src="js/cond-events.js"></script>
+  <script src="js/cond-deck-v57.js"></script>
+  <script src="js/cond-night-v59.js"></script>
+  <script src="js/night-cond.js"></script>
+  <script src="js/cond-profiles.js"></script>
   <script src="js/urge-matrix.js"></script>
   <script src="js/campaign.js"></script>
   <script src="js/board.js"></script>
@@ -1712,6 +1782,7 @@
   <script src="js/clip-bridge.js"></script>
   <script src="js/potty-report.js"></script>
   <script src="js/office-mode.js"></script>
+  <script src="js/layout.js"></script>
   <script src="js/tabs.js"></script>
 </body>
 

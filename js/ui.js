@@ -10,7 +10,7 @@ function showWhatsNewModal(force = false) {
     html += `<div style="margin-bottom:16px;">
       <div style="font-weight:bold; color:#81ecec;">${c.date} — ${c.title}</div>
       <ul style="margin:6px 0 0 18px; color:#cdd7e6;">`;
-    for (const b of c.bullets) {
+    for (const b of (c.bullets || [])) {
       html += `<li>${b}</li>`;
     }
     html += '</ul></div>';
@@ -378,6 +378,13 @@ function getNextAvailableProtection(direction, fromLevel) {
 }
 
 function nextReveal() {
+  const guideEl = $('voidOverlay');
+  if (guideEl && guideEl.style.display === 'flex') {
+    const busy = window.BSPee ? window.BSPee.reveal(document, { guideOpen: true, queue: window.BSEventQueue }) : { shown: 'busy', text: 'A guide is already on screen.' };
+    if (typeof logToOutput === 'function') logToOutput('<span class="muted">▶ ' + busy.text + '</span>');
+    if (typeof toast === 'function') toast(busy.text);
+    return busy;
+  }
   hideBanner();
   // Chime keeps ringing until user presses START in guide or Stop Event button
 
@@ -398,9 +405,47 @@ function nextReveal() {
     microPauseUntilTs = Date.now() + 10 * 60000; // Pause micros for 10m
 
     if (sessionRunning) scheduleMainEvent(nxt);
+  } else if (profileMode === 'conditioning' && typeof prerollEvent === 'function') {
+    evtToRun = prerollEvent('micro');
   } else {
     // Emergency / Manual Click (No event pending)
     evtToRun = microTableForMode(rollMicroForMode());
+  }
+
+  const lowTank = profileMode === 'conditioning' && window.BSTank && !window.BSTank.canVoid(window.BSTank.load());
+  if (lowTank && window.BSPee) {
+    const note = window.BSPee.reveal(document, { lowTank: true, queue: window.BSEventQueue });
+    window._peePass = true;
+    if (typeof logToOutput === 'function') logToOutput('<span style="color:#81ecec">🫧 <b>Reveal</b> — not enough in the tank yet. Potty pass, or try a sip.</span>');
+    if (typeof toast === 'function') toast('Not enough in the tank yet. Potty pass, or try a sip.');
+    try { triggerHydrationEvent(true); } catch (e) {}
+    return note;
+  }
+  if (profileMode === 'conditioning' && evtToRun && window.BSTank) {
+    try { window.BSTank.takeVoid(window.BSTank.load(), evtToRun.kind === 'micro' ? 'partial' : 'full'); } catch (e) {}
+  }
+
+  if (window.BSPee) {
+    const shown = window.BSPee.reveal(document, {
+      event: evtToRun,
+      queue: window.BSEventQueue,
+      startGuide: function (guide, text, kind) {
+        if (typeof startVoidGuide === 'function') startVoidGuide(guide, text, kind, null, true);
+      }
+    });
+    if (evtToRun && shown && shown.shown === 'guide') {
+      window._lastRevealedEvent = evtToRun;
+      applyEvent(evtToRun);
+    } else if (shown && shown.shown === 'banner') {
+      window._peePass = true;
+      if (typeof logToOutput === 'function') logToOutput('<span style="color:#81ecec">' + shown.text + '</span>');
+      if (typeof toast === 'function') toast(String(shown.text || '').replace(/<[^>]+>/g, ''));
+    }
+    if (evtToRun && !evtToRun.guide && profileMode !== 'babysitter' && typeof isPottyPromptEvent === 'function' &&
+        isPottyPromptEvent(evtToRun, null) && shouldTrackSessionStats()) {
+      setTimeout(() => resolvePottyPrompt(evtToRun), 600);
+    }
+    return shown;
   }
 
   // 2. Execute
@@ -414,15 +459,9 @@ function nextReveal() {
       setTimeout(() => resolvePottyPrompt(evtToRun), 600);
     }
 
-    // AUTO-START MECHANIC
-    // If the event has a guide, launch it immediately.
     if (evtToRun.guide) {
-      const typeStr = evtToRun.kind || 'full'; // 'micro' or 'full'
-
-      // Small delay to let the log appear first
-      setTimeout(() => {
-        startVoidGuide(evtToRun.guide, evtToRun.desc, typeStr);
-      }, 500);
+      const typeStr = evtToRun.kind || 'full';
+      startVoidGuide(evtToRun.guide, evtToRun.desc, typeStr, null, true);
     }
   }
 }
@@ -488,29 +527,79 @@ function applySelectedProfile(preserveCustomRuntime = false) {
   initGuideSelector(); 
 }
 /* ---------- Independent Hydration Loop ---------- */
-function scheduleNextHydration() {
-  clearTimeout(hydrationTimer);
-  if (!sessionRunning) return;
-  if (window.hydrationEnabled === false) return;
-  // Bedwetting mode: no hydration reminders at all.
-  if (typeof isBedwettingSilent === 'function' && isBedwettingSilent()) { hydrationEndAt = null; return; }
+let hydrationSkipNote = '';
+let hydrationGapMin = 10;
 
-  const runtime = customProfileRuntime;
-  const minHydration = runtime?.hydrationMin ?? 6;
-  const maxHydration = runtime?.hydrationMax ?? 12;
-  const minutes = randInt(minHydration, maxHydration);
-  const ms = minutes * 60000;
-
-  // SAVE THE TIME so the UI can see it
-  hydrationEndAt = Date.now() + ms;
-
-  hydrationTimer = setTimeout(() => {
-    if (!sessionRunning) return;
-    triggerHydrationEvent();
-    scheduleNextHydration();
-  }, ms);
+function urgeConditioningSips() {
+  if (typeof sessionRunning !== 'undefined' && sessionRunning) return false;
+  try {
+    const s = window.BSSimpleUrge && window.BSSimpleUrge.settings && window.BSSimpleUrge.settings();
+    return !!(s && s.profileId === 'conditioning');
+  } catch (e) { return false; }
 }
 
+function conditioningSipStatus() {
+  return { nextAt: hydrationEndAt || 0, note: hydrationSkipNote || '' };
+}
+
+function syncConditioningSips() {
+  if (typeof sessionRunning !== 'undefined' && sessionRunning) return;
+  if (urgeConditioningSips()) {
+    if (!hydrationTimer) scheduleNextHydration();
+  } else {
+    clearTimeout(hydrationTimer);
+    hydrationTimer = null;
+    hydrationEndAt = null;
+    hydrationSkipNote = '';
+  }
+}
+
+function scheduleNextHydration() {
+  if (window._nightCondQuiet) { clearTimeout(hydrationTimer); hydrationEndAt = null; return; }
+  clearTimeout(hydrationTimer);
+  const urge = urgeConditioningSips();
+  const conditioning = profileMode === 'conditioning' || urge;
+  if (!sessionRunning && !urge) { hydrationEndAt = null; return; }
+  if (conditioning) window.hydrationEnabled = true;
+  if (window.hydrationEnabled === false) return;
+  // Bedwetting mode: no hydration reminders at all. A conditioning session still drinks.
+  if (!conditioning && typeof isBedwettingSilent === 'function' && isBedwettingSilent()) { hydrationEndAt = null; return; }
+
+  const runtime = customProfileRuntime;
+  const cfgTimes = (typeof getProfileConfig === 'function') ? getProfileConfig() : {};
+  let minHydration = runtime?.hydrationMin ?? cfgTimes.hydrationMin ?? 6;
+  let maxHydration = runtime?.hydrationMax ?? cfgTimes.hydrationMax ?? 12;
+  if (conditioning && typeof conditioningSipPlan === 'function') {
+    let key = 'none', prof = null;
+    try { const info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); if (info && info.levelKey) key = info.levelKey; } catch (e) {}
+    try { prof = window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile; } catch (e) {}
+    const mapped = conditioningSipPlan(key, prof);
+    if (mapped) { minHydration = mapped.minMin; maxHydration = mapped.maxMin; }
+  }
+  hydrationGapMin = Math.max(1, +minHydration || 6);
+  const delayMs = Math.max(1, randInt(minHydration, maxHydration)) * 60000;
+  hydrationSkipNote = '';
+
+  // SAVE THE TIME so the UI can see it
+  hydrationEndAt = Date.now() + delayMs;
+
+  hydrationTimer = setTimeout(() => {
+    if (!sessionRunning && !urgeConditioningSips()) return;
+    triggerHydrationEvent();
+    scheduleNextHydration();
+  }, delayMs);
+}
+
+function renderTank() {
+  const el = $('tankReadout');
+  if (!el || !window.BSTank || profileMode !== 'conditioning') {
+    if (el) el.hidden = true;
+    return;
+  }
+  const info = window.BSTank.readout(window.BSTank.load(), typeof mainEndAt !== 'undefined' ? mainEndAt : 0);
+  el.hidden = false;
+  el.innerHTML = '🫧 Tank ~<b>' + info.ml + ' ml</b> / ' + info.capacity + ' ml' + (info.low ? ' · low, sip before the next void' : '') + (info.etaMin != null ? ' · next event ~' + info.etaMin + ' min' : '');
+}
 function confirmStatus() {
   toast("Status Confirmed");
   // Log it so you have a record of the check
@@ -624,59 +713,128 @@ function testSelectedGuide() {
   }
 }
 
-function triggerHydrationEvent(force = false) {
+function triggerHydrationEvent(force = false, fromQueue = false) {
+  if (window._nightCondQuiet && !window._nightSipManual) return;
+  const conditioning = profileMode === 'conditioning';
+  if (!force && window.BSSymptoms && window.BSSymptoms.paused && window.BSSymptoms.paused()) return;
+  if (conditioning) window.hydrationEnabled = true;
   if (!force && window.hydrationEnabled === false) return;
-  if (!force && typeof isBedwettingSilent === 'function' && isBedwettingSilent()) return;
+  if (!force && !conditioning && typeof isBedwettingSilent === 'function' && isBedwettingSilent()) return;
   // 1. Define Intensity from config
   const cfg = getProfileConfig();
-  const [min, max] = cfg.hydrationSips;
+  let [min, max] = cfg.hydrationSips;
+  let sipGapMin = 30;
+  if (conditioning && typeof conditioningSipPlan === 'function') {
+    let key = 'none', prof = null;
+    try { const info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); if (info && info.levelKey) key = info.levelKey; } catch (e) {}
+    try { prof = window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile; } catch (e) {}
+    const mapped = conditioningSipPlan(key, prof);
+    if (mapped && mapped.sips) { min = mapped.sips[0]; max = mapped.sips[1]; sipGapMin = mapped.gapMin || 30; }
+  }
+  if (conditioning && window.BSTank && window.BSTank.sipGate && !fromQueue) {
+    let lastSipAt = window._lastSipPromptAt || 0;
+    if (!lastSipAt) { try { lastSipAt = +(localStorage.getItem('bs_sip_prompt_at') || 0); } catch (e) {} }
+    const gate = window.BSTank.sipGate({ lastAt: lastSipAt, now: Date.now(), gapMin: sipGapMin, showing: !!isHydrationPending });
+    if (!gate.ok) {
+      const since = Date.now() - (window._lastSipPromptAt || 0);
+      if (force && gate.reason === 'gap' && since > 5000) logToOutput(`<span style="color:#7cc4ff">💧 Tank is low. Next sip in ${gate.waitMin} min.</span>`);
+      return;
+    }
+  }
 
-  // 2. Roll Content
+  // 2. Roll Content — same prompt for every profile, including conditioning.
   let count = randInt(min, max);
-  // v11: safety cap — sips count as ~15 ml, prompt ≤250 ml, ≤1 L/day, ≥2 h apart
-  if (window.BSSafety) { const c = window.BSSafety.capSips(count, { src: 'hydration' }); if (!c.ok) { logToOutput(`<span style="color:#888">💧 Drink alarm skipped (safety cap: ${c.reason === 'spacing' ? 'max one every 2 h' : 'daily limit reached'}).</span>`); return; } count = Math.min(count, c.sips); }
+  if (!(count > 0)) return;
+  if (!conditioning && window.BSSafety && window.BSSafety.capSips) {
+    const c = window.BSSafety.capSips(count, { src: 'hydration' });
+    if (!c.ok) {
+      logToOutput('<span style="color:#888">💧 This sip reminder was over the optional 1 L cap. The next one is still scheduled.</span>');
+      return;
+    }
+    count = Math.min(count, c.sips);
+  } else if (conditioning && window.BSSafety && window.BSSafety.capSips) {
+    try { window.BSSafety.capSips(count, { src: 'hydration' }); } catch (e) {}
+  }
   const unitType = "sips";
   const drinkType = pick(["Water", "Coffee/Soda"]);
 
   const templates = [
     `<b>Hydration Order:</b> Take <b>${count} ${unitType}</b> of your <b>${drinkType}</b> immediately.`,
-    `<b>Drink Check:</b> Time for <b>${count} ${unitType}</b> of your <b>${drinkType}</b>. No excuses.`,
+    `<b>Drink check:</b> Time for <b>${count} ${unitType}</b> of your <b>${drinkType}</b>, if you're thirsty.`,
     `<b>Refill Request:</b> Pour yourself <b>${drinkType}</b> and take <b>${count} ${unitType}</b> now.`,
-    `<b>Forced Hydration:</b> You're looking thirsty. <b>${count} ${unitType}</b> of <b>${drinkType}</b>, please.`,
+    `<b>Sip time:</b> <b>${count} ${unitType}</b> of <b>${drinkType}</b> if you're thirsty.`,
     `<b>Bladder Maintenance:</b> Feed the cycle with <b>${count} ${unitType}</b> of <b>${drinkType}</b>.`,
     `<b>Top Up:</b> Ensure the flow continues. <b>${count} ${unitType}</b> of <b>${drinkType}</b>.`,
-    `<b>Liquid Intake:</b> <b>${count} ${unitType}</b> of <b>${drinkType}</b>. Keep the pressure rising.`
+    `<b>Liquid Intake:</b> <b>${count} ${unitType}</b> of <b>${drinkType}</b> if you want them.`
   ];
 
   const msg = pick(templates);
+  if (window.BSEventQueue && !fromQueue) {
+    const cur = window.BSEventQueue.current();
+    if (!(cur && cur.kind === 'sip')) {
+      const ticket = window.BSEventQueue.offer({ key: 'sip', kind: 'sip', show: () => triggerHydrationEvent(true, true) });
+      if (ticket.duplicate) return;
+      if (ticket.state === 'waiting') {
+        logToOutput('<span style="color:#7cc4ff">💧 Sip is waiting until the current guide finishes.</span>');
+        return;
+      }
+    }
+  }
+  window._lastSipCount = count;
+  window._lastSipPromptAt = Date.now();
+  try { localStorage.setItem('bs_sip_prompt_at', String(window._lastSipPromptAt)); } catch (e) {}
+  if (conditioning && window.BSTank) { try { window.BSTank.addSips(window.BSTank.load(), count); } catch (e) {} }
 
-  // 3. UI Setup
+  // 3. UI Setup. Log first so a banner problem cannot erase the prompt.
   isHydrationPending = true;
-  showBanner("💧 Hydration Order", "Acknowledge consumption.", 'low');
-  startChime(600);
-
-  // 4. Update Buttons
-  const ackBtn = $('alarmBanner').querySelector('.btn.ack');
-  const skipBtn = $('alarmBanner').querySelector('.btn.silence');
-
-  if (ackBtn) {
-      ackBtn.style.display = 'inline-block';
-      ackBtn.textContent = "Consumed"; 
-  }
-  if (skipBtn) {
-      skipBtn.textContent = "Already hydrated"; 
-  }
-
   logToOutput(`<span style="color:#7cc4ff">💧 <b>Drink Alarm:</b> ${msg}</span>`);
+  try { showBanner("💧 Hydration Order", "Acknowledge consumption.", 'low'); } catch (e) {}
+  try { startChime(600); } catch (e) {}
+
+  try {
+    const banner = $('alarmBanner');
+    if (banner) {
+      const ackBtn = banner.querySelector('.btn.ack');
+      const skipBtn = banner.querySelector('.btn.silence');
+      if (ackBtn) { ackBtn.style.display = 'inline-block'; ackBtn.textContent = 'Consumed'; }
+      if (skipBtn) skipBtn.textContent = "Not thirsty / skip";
+    }
+  } catch (e) {}
+  try { if (typeof renderTank === 'function') renderTank(); } catch (e) {}
 }
 function startSession(isResume = false) {
   if (sessionRunning && !isResume) return;
+  // v60: night quiet is scoped to the night. Resuming during a quiet night never brings the day timer back;
+  // starting any day session ends the quiet first, so its native notifications are scheduled right away.
+  if (isResume && window.BSNightCond && window.BSNightCond.quietNow && window.BSNightCond.quietNow()) {
+    sessionRunning = false;
+    try { saveState(); } catch (e) {}
+    try { window.BSNightCond.restore(); } catch (e) {}
+    return;
+  }
+  if (!isResume) { try { if (window.BSNightCond && window.BSNightCond.dayStart) window.BSNightCond.dayStart('day session started'); } catch (e) {} }
+  if (!isResume && !startSession._skipBody && window.BSSymptoms && window.BSSymptoms.blocksSession && window.BSSymptoms.blocksSession()) {
+    window.BSSymptoms.openCheck(function () {
+      startSession._skipBody = true;
+      try { startSession(false); } finally { startSession._skipBody = false; }
+    });
+    return;
+  }
 
   sessionRunning = true;
+  if (profileMode === 'conditioning') window.hydrationEnabled = true;
   if (!sessionElapsedStartedAt) sessionElapsedStartedAt = Date.now();
   updateSessionTimerDisplay();
   if (window.hydrationEnabled === undefined) window.hydrationEnabled = true;
   $('output').textContent = isResume ? "Session Resumed." : "Session Started. Bio-Logger Active.";
+  if (!isResume && profileMode === 'conditioning' && window.BSOnboard && window.BSOnboard.sessionPlan) {
+    try {
+      const plan = window.BSOnboard.sessionPlan();
+      if (plan && plan.prompts && plan.prompts.length) {
+        logToOutput('<b>My Conditioning</b><br>' + plan.prompts.map(p => '• ' + p.text).join('<br>') + '<br><span style="color:#888">Sip reminders are the same as a regular session. Skip one if you are not thirsty. The next sip time stays on the session clock.</span>');
+      }
+    } catch (e) {}
+  }
 
   // Hide Start Session button while a session is running
   if ($('btnStartSession')) $('btnStartSession').style.display = 'none';
@@ -708,6 +866,16 @@ function startSession(isResume = false) {
     clearTimeout(mainTimer);
     clearTimeout(preChimeTimer);
 
+    if (profileMode === 'conditioning') {
+      let gapMs = 30 * 60000;
+      try {
+        const info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile();
+        const prof = window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile;
+        const mapped = conditioningSipPlan(info && info.levelKey, prof);
+        if (mapped && mapped.gapMin) gapMs = mapped.gapMin * 60000;
+      } catch (e) {}
+      if (!hydrationEndAt || hydrationEndAt > Date.now() + gapMs) hydrationEndAt = null;
+    }
     const drinkLeft = (hydrationEndAt && hydrationEndAt > Date.now())
       ? hydrationEndAt - Date.now()
       : 0;
@@ -881,11 +1049,14 @@ function stopAll() {
   clearTimeout(preChimeTimer);
   clearTimeout(microTimer);
   clearTimeout(hydrationTimer);
+  hydrationTimer = null;
+  hydrationEndAt = null;
   clearTimeout(omorashiStressTestTimer);
   clearAllBabysitterTimers();
 
   clearInterval(tickInterval);
   stopChime();
+  try { syncConditioningSips(); } catch (e) {}
   meetingActive = false;
   if (typeof nativeNotifyCancelAll === 'function') nativeNotifyCancelAll();
   omorashiSessionActive = false;
@@ -1334,6 +1505,7 @@ function quickStartSession() {
 
   // Clear log & start session
   $('output').textContent = '';
+  try { if (window.BSNightCond && window.BSNightCond.dayStart) window.BSNightCond.dayStart('quick session started'); } catch (e) {}
   sessionRunning = true;
   sessionStartedAt = Date.now();
   sessionElapsedStartedAt = sessionStartedAt;
@@ -1584,6 +1756,28 @@ function quickModeRollLegacy() {
 
 /* ===== BEDWETTING MODE ===== */
 
+function showSessionCondList() {
+  const box = $('sessionSetupCond');
+  if (box) box.style.display = box.style.display === 'none' ? 'block' : 'block';
+  try { if (window.BSCondProfiles && window.BSCondProfiles.fillSub) window.BSCondProfiles.fillSub('sessionSetupCondPick'); } catch (e) {}
+}
+function startConditioningTrack(track) {
+  if (track !== 'night') { try { if (window.BSNightCond && window.BSNightCond.dayStart) window.BSNightCond.dayStart('day conditioning started'); } catch (e) {} }
+  window._condTrack = track === 'night' ? 'night' : 'day';
+  const sel = $('sessionSetupCondPick') || $('sessionCondPick');
+  try { if (sel && sel.value && window.BSCondProfiles) window.BSCondProfiles.setActive(sel.value); } catch (e) {}
+  if (track === 'night' && window.BSNightCond && window.BSNightCond.open) {
+    // v60: no day-session setup for the night. The routine hands off to a Natural Night with no event timer.
+    try { if (typeof closeSessionSetupModal === 'function') closeSessionSetupModal(); } catch (e) {}
+    try { const m = $('profileSetupModal'); if (m) m.remove(); } catch (e) {}
+    window.BSNightCond.open();
+    return;
+  }
+  selectProfileFromModal('conditioning');
+}
+function startChosenConditioning() {
+  startConditioningTrack(window._condTrack === 'night' ? 'night' : 'day');
+}
 function selectProfileFromModal(profile) {
   const profileSelect = $('profileSelect');
   if (profileSelect) {
@@ -1592,9 +1786,18 @@ function selectProfileFromModal(profile) {
 
   profileMode = profile;
   localStorage.setItem('profileMode', profile);
+  const condSlot = $('sessionCondSlot');
+  if (condSlot) {
+    condSlot.style.display = profile === 'conditioning' ? 'block' : 'none';
+    if (profile === 'conditioning') { try { window.BSCondProfiles && window.BSCondProfiles.fillSub('sessionCondPick'); } catch (e) {} }
+  }
 
   if (typeof applySelectedProfile === 'function') {
     applySelectedProfile();
+  }
+  if (profile === 'conditioning' && window.BSOnboard && window.BSOnboard.sessionPlan) {
+    const plan = window.BSOnboard.sessionPlan();
+    customProfileRuntime = { baseProfile: 'conditioning', mainMin: plan.timers.min, mainMax: plan.timers.max };
   }
   
   // For babysitter, show diapering setup instead of closing the modal
@@ -1698,12 +1901,9 @@ function saveDiaperingSetup() {
 }
 
 function toggleBioLogger() {
-  const bioLogger = $('bioLoggerSection');
-  if (bioLogger.style.display === 'none') {
-    bioLogger.style.display = 'block';
-  } else {
-    bioLogger.style.display = 'none';
-  }
+  const advanced = $('bioLoggerAdvanced');
+  if (!advanced) return;
+  advanced.style.display = advanced.style.display === 'none' ? 'block' : 'none';
 }
 
 function toggleSidebarSection(id) {
@@ -1980,6 +2180,22 @@ function showProfileSetupModal(profile) {
     setTimeout(() => showOmorashiSetupModal(), 100);
     modal.remove();
     return;
+  case 'conditioning': {
+    const plan = window.BSOnboard && window.BSOnboard.sessionPlan ? window.BSOnboard.sessionPlan() : null;
+    const lines = plan && plan.prompts && plan.prompts.length ? plan.prompts.map(p => `<li>${p.text}</li>`).join('') : '<li>Take the intake quiz in Settings → Conditioning. Until then, this session uses a light timer.</li>';
+    const tasks = window.BSOnboard && window.BSOnboard.todayPlan ? window.BSOnboard.todayPlan() : [];
+    const today = tasks.length ? tasks.map(t => `<li>${t.cue ? t.cue + ' — ' : ''}${t.text}</li>`).join('') : '';
+    content = `
+      <div style="width:500px; max-width:92vw; background:#151923; padding:30px; border-radius:15px; border:2px solid #55efc4; text-align:left;">
+        <h2 style="color:#55efc4; margin:0 0 10px 0;">🌿 My Conditioning</h2>
+        <p style="color:#cdd7e6; font-size:13px; margin:0 0 12px 0; line-height:1.6;">Sip reminders match a regular session. Skip one if you are not thirsty. A real need still ends a prompt.</p>
+        ${today ? `<div style="color:#55efc4; font-weight:bold; margin-bottom:6px;">Today's practice</div><ul style="color:#cdd7e6; font-size:13px;">${today}</ul>` : ''}
+        <div style="color:#55efc4; font-weight:bold; margin-bottom:6px;">This session</div>
+        <ul style="color:#cdd7e6; font-size:13px;">${lines}</ul>
+        <button onclick="confirmProfileSetup('conditioning')" style="width:100%; padding:12px; background:#55efc4; color:#000; font-weight:bold; border:none; border-radius:8px; cursor:pointer;">▶ Begin Session</button>
+      </div>`;
+    break;
+  }
   }
   
   modal.innerHTML = content;
@@ -2036,6 +2252,16 @@ function confirmProfileSetup(profile) {
       setupData.difficulty = $('gauntletDifficulty').value || 'medium';
       setupData.intervalMin = parseInt($('gauntletIntervalMin').value) || 5;
       setupData.intervalMax = parseInt($('gauntletIntervalMax').value) || 20;
+      break;
+    case 'conditioning':
+      if (window.BSOnboard && window.BSOnboard.sessionPlan) {
+        const plan = window.BSOnboard.sessionPlan();
+        customProfileRuntime = { baseProfile: 'conditioning', mainMin: plan.timers.min, mainMax: plan.timers.max };
+        setupData.mainMin = plan.timers.min;
+        setupData.mainMax = plan.timers.max;
+        setupData.sipMin = plan.hydration.sips[0];
+        setupData.sipMax = plan.hydration.sips[1];
+      }
       break;
   }
   
@@ -2283,6 +2509,7 @@ function checkChangeNecessity(currentSat) {
 }
 function logDrink(ml) {
   toast(`Logged ${ml}ml`);
+  try { if (window.BSSafety && window.BSSafety.noteUserDrink) window.BSSafety.noteUserDrink(ml, { src: 'user' }); } catch (e) {}
   logToOutput(`<span style="color:#7cc4ff">💧 Drink Logged: ${ml}ml. Update pressure slider if needed.</span>`);
 }
 
@@ -2362,6 +2589,8 @@ function setCountdownLabel() {
   const lbl = $('countdown');
   if (!lbl) return;
   updateSessionTimerDisplay();
+  // v60: night conditioning has no event timer, so there is nothing to count down.
+  if (window._nightCondQuiet) { lbl.textContent = '🌙 Night conditioning — no event timer'; return; }
 
   // 1. Check if user wants to hide the timer
   // If the checkbox is missing, default to showing it (false)
@@ -2398,9 +2627,13 @@ function setCountdownLabel() {
     text.push(`Queue: ${depMicroCount}/${depMicroTarget}`);
   }
 
+  try { if (typeof renderTank === 'function') renderTank(); } catch (e) {}
+
   // --- C. Hydration Timer ---
-  if (hydrationEndAt && hydrationEndAt > now) {
-    text.push(`<span style="color:#7cc4ff">💧 ${formatRemainingFrom(now, hydrationEndAt)}</span>`);
+  if (hydrationSkipNote) {
+    text.push(`<span style="color:#7cc4ff">💧 ${hydrationSkipNote}</span>`);
+  } else if (hydrationEndAt && hydrationEndAt > now) {
+    text.push(`<span style="color:#7cc4ff">💧 Next sip ${formatRemainingFrom(now, hydrationEndAt)}</span>`);
   }
 
   if (profileMode === 'babysitter' && sessionRunning) {
@@ -2423,21 +2656,80 @@ function setCountdownLabel() {
   lbl.innerHTML = text.join(' <span style="opacity:0.4; margin:0 5px;">|</span> ');
 }
 
+function buildPeeRoll() {
+  let profile = {};
+  let info = null;
+  try { profile = (window.BSOnboard && window.BSOnboard.load && window.BSOnboard.load().profile) || {}; } catch (e) {}
+  try { info = window.BSOnboard && window.BSOnboard.playProfile && window.BSOnboard.playProfile(); } catch (e) {}
+  const track = (window._condTrack === 'night' || window._condTrack === 'day') ? window._condTrack : ((info && info.track) || 'day');
+  const levelKey = (info && info.levelKey) || (profile.levelKey && profile.levelKey[track]);
+  let tank = null;
+  try { tank = window.BSTank && window.BSTank.load && window.BSTank.load(); } catch (e) {}
+  const chance = window.BSCondEvents && window.BSCondEvents.passChance
+    ? window.BSCondEvents.passChance(profile, { track: track, levelKey: levelKey })
+    : 0.4;
+  const low = !!(tank && window.BSTank && window.BSTank.canVoid && !window.BSTank.canVoid(tank));
+  if (Math.random() < chance) return { kind: 'pass', chance: chance, low: low };
+  if (low) return { kind: 'low', chance: chance, low: true };
+  let ev = null;
+  try { ev = typeof prerollEvent === 'function' ? prerollEvent('micro') : null; } catch (e) { ev = null; }
+  if (!ev || !ev.guide || !ev.guide.length) return { kind: 'low', chance: chance, low: true };
+  return { kind: 'event', chance: chance, event: ev };
+}
+function peeLogLine(roll, shown) {
+  if (shown === 'queued') return '🚽 <b>I need to pee</b> — queued. The one on screen stays up.';
+  if (!roll || roll.kind === 'low') return '🫧 <b>I need to pee</b> — not enough in the tank yet. Potty pass, or try a sip.';
+  if (roll.kind === 'pass') return '🚽 <b>I need to pee</b> — potty pass. You can go.';
+  const name = roll.event && (roll.event.label || 'event');
+  return '🚽 <b>I need to pee</b> — ' + name + '.';
+}
+function needToPee() {
+  // v60: during night conditioning the button draws from the night deck on the silent night screen.
+  if (window.BSNightCond && window.BSNightCond.quietNow && window.BSNightCond.quietNow()) {
+    const r = window.BSNightCond.needToPee();
+    if (typeof toast === 'function') toast(r && r.kind === 'event' ? '🌙 ' + (r.event.label || 'Night event') : '🚽 Potty pass. You can go.');
+    return r;
+  }
+  const roll = buildPeeRoll();
+  const result = window.BSPee
+    ? window.BSPee.show(document, roll, {
+        queue: window.BSEventQueue,
+        startGuide: function (guide, text, kind) {
+          window._peePass = false;
+          try { pendingMainEvent = roll.event; } catch (e) {}
+          if (typeof startVoidGuide === 'function') startVoidGuide(guide, text, kind, null, true);
+        }
+      })
+    : { shown: 'banner' };
+  if (result && result.shown === 'banner') window._peePass = true;
+  if (result && result.shown === 'guide') window._peePass = false;
+  const line = peeLogLine(roll, result && result.shown);
+  if (typeof logToOutput === 'function') logToOutput('<span style="color:#81ecec">' + line + '</span>');
+  if (typeof toast === 'function') toast(line.replace(/<[^>]+>/g, ''));
+  if (typeof profileMode !== 'undefined' && profileMode === 'conditioning' && typeof applyConditioningUrge === 'function') {
+    try {
+      const lv = typeof getUrgencyLevel === 'function' ? getUrgencyLevel(typeof manualPressure === 'number' ? manualPressure : 0) : 0;
+      applyConditioningUrge(Math.max(lv, 6));
+    } catch (e) {}
+  }
+}
 function showBanner(msg, hint, priority = 'low') {
   const b = $('alarmBanner');
-  if (!b) return;
-
-  // TRAFFIC CONTROL:
-  // If banner is already showing...
-  if (b.style.display === 'flex') {
-    // If the incoming message is just a Micro or Drink (low priority), 
-    // discard it to prevent stacking/confusion.
-    if (priority === 'low') {
-      console.log("Skipped low priority event due to active banner.");
-      return;
-    }
-    // If it's High Priority (Main Event), we let it overwrite.
+  const guideEl = $('voidOverlay');
+  const bannerOpen = !!(b && b.style.display === 'flex');
+  const guideOpen = !!(guideEl && guideEl.style.display === 'flex');
+  const key = 'banner:' + String(msg || '').replace(/<[^>]+>/g, '').slice(0, 48);
+  if (window.BSEventQueue && (bannerOpen || guideOpen)) {
+    const ticket = window.BSEventQueue.offer({ key: key, kind: 'banner', show: () => showBannerNow(msg, hint, priority) });
+    if (ticket.state !== 'active') return;
+  } else if (window.BSEventQueue && !window.BSEventQueue.current()) {
+    window.BSEventQueue.offer({ key: key, kind: 'banner' });
   }
+  showBannerNow(msg, hint, priority);
+}
+function showBannerNow(msg, hint, priority = 'low') {
+  const b = $('alarmBanner');
+  if (!b) return;
 
   $('alarmText').innerHTML = msg; // Use innerHTML to allow bolding
   b.style.display = 'flex';
@@ -2451,18 +2743,30 @@ function showBanner(msg, hint, priority = 'low') {
 }
 function hideBanner() { const b = $('alarmBanner'); if (b) b.style.display = 'none'; }
 function acknowledgeAlarm() {
-  // NEW: Handle Hydration logic first
+  const guideEl = $('voidOverlay');
+  const guideOpen = !!(guideEl && guideEl.style.display === 'flex');
+  // A sip log never closes a guide that is already on screen.
   if (isHydrationPending) {
+      if (guideOpen) return;
       hideBanner();
       stopChime();
       toast("Hydration Logged.");
-      
-      resetBannerUI(); // Restore button text
+      resetBannerUI();
       isHydrationPending = false;
-      return; 
+      if (window.BSEventQueue) window.BSEventQueue.logSip();
+      return;
+  }
+  if (window._peePass) {
+      window._peePass = false;
+      hideBanner();
+      stopChime();
+      logToOutput('<span style="color:#81ecec">🚽 <b>Potty pass</b> used.</span>');
+      if (window.BSEventQueue && window.BSEventQueue.current() && window.BSEventQueue.current().kind === 'banner') {
+        window.BSEventQueue.completeActive();
+      }
+      return;
   }
 
-  // Standard Event Logic
   nextReveal();
 }
 
@@ -2475,15 +2779,31 @@ function resetBannerUI() {
 }
 
 function skipAlarm() {
+  const guideEl = $('voidOverlay');
+  const guideOpen = !!(guideEl && guideEl.style.display === 'flex');
+  if (isHydrationPending && guideOpen) return;
+  if (window._peePass && !guideOpen) {
+      window._peePass = false;
+      hideBanner();
+      stopChime();
+      logToOutput('<span style="color:#81ecec">🚽 Potty pass dismissed.</span>');
+      if (window.BSEventQueue && window.BSEventQueue.current() && window.BSEventQueue.current().kind === 'banner') {
+        window.BSEventQueue.completeActive();
+      }
+      return;
+  }
   hideBanner();
   stopChime();
 
   // 1. Handle Hydration Refusal
   if (isHydrationPending) {
-      logToOutput(`<span style="color:#7cc4ff">💧 <b>Already hydrated</b> — drink prompt skipped. No problem.</span>`);
+      logToOutput(`<span style="color:#7cc4ff">💧 <b>Not thirsty</b> — skipped. The next sip reminder still comes.</span>`);
+      try { if (window.BSTank && window._lastSipCount) window.BSTank.undoSips(window.BSTank.load(), window._lastSipCount); } catch (e) {}
+      window._lastSipCount = 0;
       
       resetBannerUI();
       isHydrationPending = false;
+      if (window.BSEventQueue) window.BSEventQueue.logSip();
       return;
   }
 
@@ -2502,6 +2822,9 @@ function skipAlarm() {
   if (eventSkipped) {
     // Just a log note. No automatic penalty.
     logToOutput(`<span style="color:#fab1a0">🚫 <b>Event Skipped:</b> Urge suppressed manually.</span>`);
+  }
+  if (window.BSEventQueue && window.BSEventQueue.current() && window.BSEventQueue.current().kind === 'banner') {
+    window.BSEventQueue.completeActive();
   }
 }
 function toggleMicroNoise() { microNoiseOn = !microNoiseOn; toast(`Micros: ${microNoiseOn ? 'ON' : 'OFF'}`); }
